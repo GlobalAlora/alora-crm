@@ -11,7 +11,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const [{ data: lead, error: leadError }, { data: propuestas }, { data: stageHistory }] = await Promise.all([
     supabase
       .from('leads')
-      .select('*, responsable:users!responsible_id(id, full_name, avatar_url)')
+      .select('*, responsable:users!responsable_id(id, full_name, avatar_url)')
       .eq('id', id)
       .is('deleted_at', null)
       .single(),
