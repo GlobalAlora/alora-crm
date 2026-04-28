@@ -423,13 +423,14 @@ export default function DashboardPage() {
 }
 
 function KpiCard({
-  icon: Icon, label, value, sub, color,
+  icon: Icon, label, value, sub, color, onClick,
 }: {
   icon: React.ElementType
   label: string
   value: string | number
   sub: string
   color: 'blue' | 'green' | 'emerald' | 'purple' | 'orange'
+  onClick?: () => void
 }) {
   const colors: Record<string, string> = {
     blue: 'bg-blue-50 text-blue-600',
@@ -439,7 +440,10 @@ function KpiCard({
     orange: 'bg-orange-50 text-orange-600',
   }
   return (
-    <div className="bg-white rounded-xl border p-4 space-y-3">
+    <div
+      className={`bg-white rounded-xl border p-4 space-y-3 ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
+      onClick={onClick}
+    >
       <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center', colors[color])}>
         <Icon size={18} />
       </div>
