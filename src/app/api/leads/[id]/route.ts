@@ -7,29 +7,37 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from('leads')
-    .select('*, responsable:users!responsable_id(id, full_name, avatar_url)')
-    .eq('id', id)
-    .is('deleted_at', null)
-    .single()
+  // Fetch lead with propuestas
+  const [{ data: lead, error: leadError }, { data: propuestas }] = await Promise.all([
+    supabase
+      .from('leads')
+      .select('*, responsable:users!responsable_id(id, full_name, avatar_url)')
+      .eq('id', id)
+      .is('deleted_at', null)
+      .single(),
+    supabase
+      .from('propuestas')
+      .select('*')
+      .eq('lead_id', id)
+      .order('created_at', { ascending: false }),
+  ])
 
-  if (error || !data) return NextResponse.json({ error: 'Lead no encontrado' }, { status: 404 })
+  if (leadError || !lead) return NextResponse.json({ error: 'Lead no encontrado' }, { status: 404 })
 
   // Compute calidad_lead
   let calidad_lead = 'no_calificado'
   const sqlStages = ['reunion_reservada', 'reunion_realizada', 'propuesta_en_armado', 'propuesta_enviada', 'follow_up', 'cliente_ganado']
-  if (sqlStages.includes(data.estado_pipeline)) {
+  if (sqlStages.includes(lead.estado_pipeline)) {
     calidad_lead = 'SQL'
-  } else if (data.email && data.servicio_interesado) {
+  } else if (lead.email && lead.servicio_interesado) {
     calidad_lead = 'MQL'
   }
 
-  const dias_sin_respuesta = data.stage_updated_at
-    ? Math.floor((Date.now() - new Date(data.stage_updated_at).getTime()) / 86_400_000)
+  const dias_sin_respuesta = lead.stage_updated_at
+    ? Math.floor((Date.now() - new Date(lead.stage_updated_at).getTime()) / 86_400_000)
     : 0
 
-  return NextResponse.json({ data: { ...data, calidad_lead, dias_sin_respuesta } })
+  return NextResponse.json({ data: { ...lead, propuestas: propuestas || [], calidad_lead, dias_sin_respuesta } })
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {

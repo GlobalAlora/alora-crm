@@ -5,15 +5,18 @@ import { X, ChevronDown, Pencil, Check } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import type { Lead, PipelineStage } from '@/types'
-import { PIPELINE_STAGES, PIPELINE_STAGE_MAP } from '@/types'
+import { PIPELINE_STAGES, PIPELINE_STAGE_MAP, PAISES, FUENTES } from '@/types'
 import { leadsApi } from '@/lib/api'
-import { formatUSD, timeAgo } from '@/lib/utils'
+import { formatUSD } from '@/lib/utils'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { ActivityFeed } from './ActivityFeed'
 import { TaskList } from './TaskList'
 import { useLeadFormStore } from '@/hooks/useLeadFormStore'
 import { RichTextEditor } from '@/components/shared/RichTextEditor'
+import { InlineEdit } from '@/components/shared/InlineEdit'
+import { PropuestasSection } from './PropuestasSection'
+import { ServiciosEdit } from './ServiciosEdit'
 
 interface LeadDetailProps {
   lead: Lead
@@ -28,6 +31,16 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage = false }: L
   const [editingNotas, setEditingNotas] = useState(false)
   const [notasContent, setNotasContent] = useState(lead.notas || '')
   const { open: openForm } = useLeadFormStore()
+
+  // Generic field update mutation
+  const fieldMutation = useMutation({
+    mutationFn: (data: Partial<Lead>) => leadsApi.update(lead.id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] })
+      queryClient.invalidateQueries({ queryKey: ['lead', lead.id] })
+    },
+    onError: () => toast.error('Error al actualizar'),
+  })
 
   const { data: freshLead } = useQuery({
     queryKey: ['lead', lead.id],
@@ -63,6 +76,10 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage = false }: L
     onError: () => toast.error('Error al actualizar las notas'),
   })
 
+  const handleFieldUpdate = (field: keyof Lead, value: string | null) => {
+    fieldMutation.mutate({ [field]: value })
+  }
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handler)
@@ -74,14 +91,8 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage = false }: L
   // Display name
   const fullName = [displayLead.nombre, displayLead.apellido].filter(Boolean).join(' ')
 
-  // Valor propuesta display
-  const valorDisplay = (() => {
-    if (displayLead.valor_propuesta_moneda === 'ARS' && displayLead.valor_propuesta_ars != null) {
-      return `ARS ${displayLead.valor_propuesta_ars.toLocaleString('es-AR')}`
-    }
-    if (displayLead.valor_propuesta_usd != null) return formatUSD(displayLead.valor_propuesta_usd)
-    return null
-  })()
+  // Calculate total from accepted propuestas
+  const totalPropuestasAceptadas = displayLead.propuestas?.filter(p => p.estado === 'aceptada').reduce((sum, p) => sum + (p.valor_usd || 0), 0) || 0
 
   const panelContent = (
     <div className={fullPage ? 'flex w-full h-full' : 'flex w-full max-w-3xl shadow-2xl'}>
@@ -146,46 +157,162 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage = false }: L
             </div>
           </div>
 
-          {/* Lead data */}
-          <div className="p-4 space-y-3 border-b">
+          {/* Lead data - All fields editable */}
+          <div className="p-4 space-y-4 border-b">
+            {/* Contacto */}
             <Section label="Contacto">
-              <Field label="Email" value={displayLead.email} />
-              <Field label="Teléfono" value={displayLead.telefono} />
-              <Field label="País" value={displayLead.pais} />
+              <InlineEdit
+                label="Nombre"
+                value={displayLead.nombre}
+                onSave={(v) => handleFieldUpdate('nombre', v)}
+                isLoading={fieldMutation.isPending}
+              />
+              <InlineEdit
+                label="Apellido"
+                value={displayLead.apellido}
+                onSave={(v) => handleFieldUpdate('apellido', v || null)}
+                isLoading={fieldMutation.isPending}
+              />
+              <InlineEdit
+                label="Email"
+                value={displayLead.email}
+                onSave={(v) => handleFieldUpdate('email', v || null)}
+                type="email"
+                isLoading={fieldMutation.isPending}
+              />
+              <InlineEdit
+                label="Teléfono"
+                value={displayLead.telefono}
+                onSave={(v) => handleFieldUpdate('telefono', v || null)}
+                type="tel"
+                isLoading={fieldMutation.isPending}
+              />
+              <InlineEdit
+                label="País"
+                value={displayLead.pais}
+                onSave={(v) => handleFieldUpdate('pais', v || null)}
+                type="select"
+                options={PAISES.map(p => ({ value: p, label: p }))}
+                isLoading={fieldMutation.isPending}
+              />
             </Section>
 
+            {/* Empresa */}
+            <Section label="Empresa">
+              <InlineEdit
+                label="Empresa"
+                value={displayLead.empresa}
+                onSave={(v) => handleFieldUpdate('empresa', v || null)}
+                isLoading={fieldMutation.isPending}
+              />
+            </Section>
+
+            {/* Negocio */}
             <Section label="Negocio">
-              {/* Servicios as tags */}
-              {(displayLead.servicios_interesados?.length > 0) && (
-                <div>
-                  <span className="text-xs text-slate-400 block mb-1">Servicios</span>
-                  <div className="flex flex-wrap gap-1">
-                    {displayLead.servicios_interesados.map((s) => (
-                      <span
-                        key={s}
-                        className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium"
-                      >
-                        {s}
-                      </span>
-                    ))}
-                  </div>
+              <InlineEdit
+                label="Fuente"
+                value={displayLead.fuente}
+                onSave={(v) => handleFieldUpdate('fuente', v as LeadFuente)}
+                type="select"
+                options={FUENTES.map(f => ({ value: f.value, label: f.label }))}
+                isLoading={fieldMutation.isPending}
+              />
+              <div className="pt-1">
+                <span className="text-xs text-slate-400 block mb-1">Servicios de interés</span>
+                <ServiciosEdit
+                  servicios={displayLead.servicios_interesados || []}
+                  onChange={(servicios) => fieldMutation.mutate({ servicios_interesados: servicios })}
+                  isLoading={fieldMutation.isPending}
+                />
+              </div>
+            </Section>
+
+            {/* Propuestas */}
+            <Section label="Propuestas y Valor">
+              <PropuestasSection lead={displayLead} />
+              {totalPropuestasAceptadas > 0 && (
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <span className="text-sm font-medium text-slate-600">Total propuestas aceptadas:</span>
+                  <span className="text-sm font-semibold text-emerald-600">{formatUSD(totalPropuestasAceptadas)}</span>
                 </div>
               )}
-              {/* Fallback: old single field */}
-              {(!displayLead.servicios_interesados?.length && displayLead.servicio_interesado) && (
-                <Field label="Servicio" value={displayLead.servicio_interesado} />
-              )}
-              <Field label="Propuesta" value={valorDisplay} />
-              <Field label="Calidad" value={displayLead.calidad_lead} />
-              <Field label="Fuente" value={displayLead.fuente} />
             </Section>
 
-            <Section label="Fechas">
-              <Field label="Ingresó" value={displayLead.fecha_ingreso ? timeAgo(displayLead.fecha_ingreso) : null} />
-              <Field label="Contactado" value={displayLead.fecha_contacto ? timeAgo(displayLead.fecha_contacto) : null} />
-              <Field label="Reunión" value={displayLead.fecha_reunion ? timeAgo(displayLead.fecha_reunion) : null} />
+            {/* Reunión */}
+            <Section label="Reunión">
+              <div className="space-y-2">
+                <InlineEdit
+                  label="Fecha de reunión"
+                  value={displayLead.fecha_reunion?.split('T')[0] || ''}
+                  onSave={(v) => handleFieldUpdate('fecha_reunion', v || null)}
+                  type="date"
+                  isLoading={fieldMutation.isPending}
+                />
+                <InlineEdit
+                  label="Hora de reunión"
+                  value={displayLead.reunion_hora || ''}
+                  onSave={(v) => handleFieldUpdate('reunion_hora', v || null)}
+                  type="time"
+                  isLoading={fieldMutation.isPending}
+                />
+                <InlineEdit
+                  label="Link de reunión (Zoom/Meet)"
+                  value={displayLead.reunion_link}
+                  onSave={(v) => handleFieldUpdate('reunion_link', v || null)}
+                  type="text"
+                  placeholder="https://..."
+                  isLoading={fieldMutation.isPending}
+                  renderDisplay={(val) => val ? (
+                    <a href={String(val)} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 underline" onClick={(e) => e.stopPropagation()}>
+                      Abrir link de reunión
+                    </a>
+                  ) : (
+                    <span className="text-sm text-slate-400 italic">Sin link</span>
+                  )}
+                />
+              </div>
             </Section>
 
+            {/* Fechas */}
+            <Section label="Fechas del pipeline">
+              <InlineEdit
+                label="Fecha de ingreso"
+                value={displayLead.fecha_ingreso?.split('T')[0] || ''}
+                onSave={(v) => handleFieldUpdate('fecha_ingreso', v)}
+                type="date"
+                isLoading={fieldMutation.isPending}
+              />
+              <InlineEdit
+                label="Fecha de contacto"
+                value={displayLead.fecha_contacto?.split('T')[0] || ''}
+                onSave={(v) => handleFieldUpdate('fecha_contacto', v || null)}
+                type="date"
+                isLoading={fieldMutation.isPending}
+              />
+              <InlineEdit
+                label="Fecha de propuesta"
+                value={displayLead.fecha_propuesta?.split('T')[0] || ''}
+                onSave={(v) => handleFieldUpdate('fecha_propuesta', v || null)}
+                type="date"
+                isLoading={fieldMutation.isPending}
+              />
+              <InlineEdit
+                label="Fecha de follow-up"
+                value={displayLead.fecha_followup?.split('T')[0] || ''}
+                onSave={(v) => handleFieldUpdate('fecha_followup', v || null)}
+                type="date"
+                isLoading={fieldMutation.isPending}
+              />
+              <InlineEdit
+                label="Fecha de cierre"
+                value={displayLead.fecha_cierre?.split('T')[0] || ''}
+                onSave={(v) => handleFieldUpdate('fecha_cierre', v || null)}
+                type="date"
+                isLoading={fieldMutation.isPending}
+              />
+            </Section>
+
+            {/* Responsable */}
             {displayLead.responsable && (
               <Section label="Responsable">
                 <div className="flex items-center gap-2">
@@ -199,6 +326,7 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage = false }: L
               </Section>
             )}
 
+            {/* Notas */}
             <Section label="Notas">
               {editingNotas ? (
                 <div className="space-y-2">

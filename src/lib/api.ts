@@ -107,6 +107,19 @@ export const activitiesApi = {
       body: JSON.stringify(data),
     })
   },
+
+  update(activityId: string, data: { descripcion: string }): Promise<Activity> {
+    return request(`${BASE}/activities/${activityId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  },
+
+  delete(activityId: string): Promise<void> {
+    return request(`${BASE}/activities/${activityId}`, {
+      method: 'DELETE',
+    })
+  },
 }
 
 // ─── Tasks ────────────────────────────────────────────────────────────────────

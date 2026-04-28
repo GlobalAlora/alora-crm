@@ -42,6 +42,20 @@ export interface User {
   created_at: string
 }
 
+export type PropuestaEstado = 'pendiente' | 'aceptada' | 'rechazada'
+
+export interface Propuesta {
+  id: string
+  lead_id: string
+  descripcion: string
+  valor_usd: number | null
+  valor_ars: number | null
+  moneda: 'USD' | 'ARS'
+  estado: PropuestaEstado
+  created_at: string
+  updated_at: string
+}
+
 export interface Lead {
   id: string
   nombre: string
@@ -55,9 +69,9 @@ export interface Lead {
   presupuesto_estimado: number | null       // hidden from UI, kept in DB
   estado_pipeline: PipelineStage
   fuente: LeadFuente | null
-  valor_propuesta_usd: number | null
-  valor_propuesta_ars: number | null
-  valor_propuesta_moneda: 'USD' | 'ARS'
+  valor_propuesta_usd: number | null        // legacy, will use propuestas table
+  valor_propuesta_ars: number | null        // legacy, will use propuestas table
+  valor_propuesta_moneda: 'USD' | 'ARS'     // legacy
   tipo_cambio_usd_ars: number | null
   kanban_position: number
   notas: string | null
@@ -66,6 +80,8 @@ export interface Lead {
   fecha_ingreso: string
   fecha_contacto: string | null
   fecha_reunion: string | null
+  reunion_hora: string | null
+  reunion_link: string | null
   fecha_propuesta: string | null
   fecha_followup: string | null
   fecha_cierre: string | null
@@ -78,6 +94,7 @@ export interface Lead {
   responsable?: Pick<User, 'id' | 'full_name' | 'avatar_url'>
   calidad_lead?: LeadQuality
   dias_sin_respuesta?: number
+  propuestas?: Propuesta[]
 }
 
 export interface Activity {
@@ -192,6 +209,29 @@ export const PIPELINE_STAGES: {
 export const PIPELINE_STAGE_MAP = Object.fromEntries(
   PIPELINE_STAGES.map((s) => [s.value, s])
 ) as Record<PipelineStage, (typeof PIPELINE_STAGES)[number]>
+
+// Arrays para selects/dropdowns
+export const PAISES = [
+  'Argentina', 'Bolivia', 'Brasil', 'Chile', 'Colombia', 'Costa Rica',
+  'Ecuador', 'El Salvador', 'España', 'Guatemala', 'Honduras', 'México',
+  'Nicaragua', 'Panamá', 'Paraguay', 'Perú', 'Uruguay', 'Venezuela',
+  'Estados Unidos', 'Canadá', 'Otro',
+]
+
+export const SERVICIOS = [
+  'Diseño web', 'Mantenimiento web', 'SEO', 'Google Ads', 'Meta Ads',
+  'Redes sociales', 'Branding', 'Email marketing', 'Chatbot', 'IA automatización', 'Otro',
+]
+
+export const FUENTES: { value: LeadFuente; label: string }[] = [
+  { value: 'formulario', label: 'Formulario web' },
+  { value: 'referido', label: 'Referido' },
+  { value: 'linkedin', label: 'LinkedIn' },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'chatbot', label: 'Chatbot' },
+  { value: 'otro', label: 'Otro' },
+]
 
 // Revenue probability per stage
 export const REVENUE_PROBABILITY: Partial<Record<PipelineStage, number>> = {

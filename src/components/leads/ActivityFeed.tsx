@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Send, MessageSquare, Phone, Mail, Calendar, ArrowRight, CheckSquare, Webhook } from 'lucide-react'
+import { Send, MessageSquare, Phone, Mail, Calendar, ArrowRight, CheckSquare, Webhook, Pencil, Trash2, X, Check } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
@@ -10,6 +10,7 @@ import type { Activity } from '@/types'
 import { activitiesApi } from '@/lib/api'
 import { timeAgo } from '@/lib/utils'
 import { UserAvatar } from '@/components/shared/UserAvatar'
+import { RichTextEditor } from '@/components/shared/RichTextEditor'
 
 const TYPE_ICON = {
   nota: MessageSquare,
@@ -49,7 +50,7 @@ export function ActivityFeed({ leadId }: ActivityFeedProps) {
 
   const mutation = useMutation({
     mutationFn: () =>
-      activitiesApi.create(leadId, { tipo: 'nota', descripcion: nota.trim() }),
+      activitiesApi.create(leadId, { tipo: 'nota', descripcion: nota }),
     onSuccess: () => {
       setNota('')
       queryClient.invalidateQueries({ queryKey: ['activities', leadId] })
@@ -60,7 +61,7 @@ export function ActivityFeed({ leadId }: ActivityFeedProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!nota.trim()) return
+    if (!nota.trim() || nota === '<p></p>') return
     mutation.mutate()
   }
 
@@ -76,20 +77,16 @@ export function ActivityFeed({ leadId }: ActivityFeedProps) {
     <div className="flex flex-col h-full">
       {/* Note input */}
       <form onSubmit={handleSubmit} className="p-4 border-b">
-        <textarea
-          value={nota}
-          onChange={(e) => setNota(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit(e)
-          }}
-          placeholder="Agregar nota... (Cmd+Enter para enviar)"
-          rows={2}
-          className="w-full text-sm border rounded-md px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400"
+        <RichTextEditor
+          content={nota}
+          onChange={setNota}
+          editable={true}
+          minimal={true}
         />
         <div className="flex justify-end mt-2">
           <button
             type="submit"
-            disabled={!nota.trim() || mutation.isPending}
+            disabled={!nota.trim() || nota === '<p></p>' || mutation.isPending}
             className="flex items-center gap-1.5 text-sm bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Send size={13} />
@@ -115,7 +112,7 @@ export function ActivityFeed({ leadId }: ActivityFeedProps) {
             </div>
             <div className="space-y-2">
               {items.map((act) => (
-                <ActivityItem key={act.id} activity={act} />
+                <ActivityItem key={act.id} activity={act} leadId={leadId} />
               ))}
             </div>
           </div>
@@ -131,9 +128,34 @@ export function ActivityFeed({ leadId }: ActivityFeedProps) {
   )
 }
 
-function ActivityItem({ activity }: { activity: Activity }) {
+function ActivityItem({ activity, leadId }: { activity: Activity; leadId: string }) {
+  const queryClient = useQueryClient()
+  const [isEditing, setIsEditing] = useState(false)
+  const [editContent, setEditContent] = useState(activity.descripcion)
+
+  const updateMutation = useMutation({
+    mutationFn: () => activitiesApi.update(activity.id, { descripcion: editContent }),
+    onSuccess: () => {
+      setIsEditing(false)
+      queryClient.invalidateQueries({ queryKey: ['activities', leadId] })
+      toast.success('Nota actualizada')
+    },
+    onError: () => toast.error('Error al actualizar la nota'),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: () => activitiesApi.delete(activity.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activities', leadId] })
+      toast.success('Nota eliminada')
+    },
+    onError: () => toast.error('Error al eliminar la nota'),
+  })
+
   const Icon = TYPE_ICON[activity.tipo] ?? MessageSquare
   const color = TYPE_COLOR[activity.tipo]
+  const isNote = activity.tipo === 'nota'
+  const isRichText = isNote && activity.descripcion.includes('<')
 
   return (
     <div className="flex gap-3">
@@ -144,17 +166,81 @@ function ActivityItem({ activity }: { activity: Activity }) {
         <Icon size={13} style={{ color }} />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-2">
-          <p className="text-sm text-slate-700 leading-snug">{activity.descripcion}</p>
-          <span className="text-xs text-slate-400 flex-shrink-0 mt-0.5">
-            {timeAgo(activity.created_at)}
-          </span>
-        </div>
-        {activity.user && (
-          <div className="flex items-center gap-1.5 mt-1">
-            <UserAvatar name={activity.user.full_name} avatarUrl={activity.user.avatar_url} size="sm" />
-            <span className="text-xs text-slate-400">{activity.user.full_name}</span>
+        {isEditing && isNote ? (
+          <div className="space-y-2">
+            <RichTextEditor
+              content={editContent}
+              onChange={setEditContent}
+              editable={true}
+              minimal={true}
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => updateMutation.mutate()}
+                disabled={updateMutation.isPending}
+                className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                <Check size={12} />
+                Guardar
+              </button>
+              <button
+                onClick={() => {
+                  setIsEditing(false)
+                  setEditContent(activity.descripcion)
+                }}
+                className="flex items-center gap-1 text-xs text-slate-600 px-2 py-1 rounded hover:bg-slate-100"
+              >
+                <X size={12} />
+                Cancelar
+              </button>
+            </div>
           </div>
+        ) : (
+          <>
+            <div className="flex items-start justify-between gap-2">
+              {isRichText ? (
+                <div
+                  className="text-sm text-slate-700 leading-snug prose prose-sm max-w-none [&_a]:text-blue-600 [&_a]:underline [&_a]:cursor-pointer"
+                  dangerouslySetInnerHTML={{ __html: activity.descripcion }}
+                />
+              ) : (
+                <p className="text-sm text-slate-700 leading-snug">{activity.descripcion}</p>
+              )}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <span className="text-xs text-slate-400 mt-0.5">
+                  {timeAgo(activity.created_at)}
+                </span>
+                {isNote && (
+                  <div className="flex gap-1 ml-2">
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition-colors"
+                      title="Editar"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('¿Eliminar esta nota?')) {
+                          deleteMutation.mutate()
+                        }
+                      }}
+                      className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-slate-100 transition-colors"
+                      title="Eliminar"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            {activity.user && (
+              <div className="flex items-center gap-1.5 mt-1">
+                <UserAvatar name={activity.user.full_name} avatarUrl={activity.user.avatar_url} size="sm" />
+                <span className="text-xs text-slate-400">{activity.user.full_name}</span>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

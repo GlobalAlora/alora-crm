@@ -2,6 +2,8 @@
 
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import {
   TrendingUp, Users, DollarSign, AlertTriangle,
   Zap, Clock, Activity, Target,
@@ -47,6 +49,7 @@ const ACTIVITY_ICON: Record<string, React.ElementType> = {
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [fechaDesde, setFechaDesde] = useState(getDefaultFechaDesde())
   const [fechaHasta, setFechaHasta] = useState(getDefaultFechaHasta())
   const [responsableId, setResponsableId] = useState('')
@@ -97,19 +100,28 @@ export default function DashboardPage() {
           <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             {(d?.alertas.sin_respuesta_48h ?? 0) > 0 && (
-              <span className="text-sm text-amber-800">
+              <button
+                onClick={() => router.push('/pipeline?estado=sin_respuesta')}
+                className="text-sm text-amber-800 hover:text-amber-900 hover:underline"
+              >
                 <strong>{d!.alertas.sin_respuesta_48h}</strong> lead{d!.alertas.sin_respuesta_48h !== 1 ? 's' : ''} sin respuesta +48h
-              </span>
+              </button>
             )}
             {(d?.alertas.tareas_vencidas ?? 0) > 0 && (
-              <span className="text-sm text-amber-800">
+              <button
+                onClick={() => router.push('/tasks')}
+                className="text-sm text-amber-800 hover:text-amber-900 hover:underline"
+              >
                 <strong>{d!.alertas.tareas_vencidas}</strong> tarea{d!.alertas.tareas_vencidas !== 1 ? 's' : ''} vencida{d!.alertas.tareas_vencidas !== 1 ? 's' : ''}
-              </span>
+              </button>
             )}
             {(d?.alertas.leads_inactivos ?? 0) > 0 && (
-              <span className="text-sm text-amber-800">
+              <button
+                onClick={() => router.push('/pipeline')}
+                className="text-sm text-amber-800 hover:text-amber-900 hover:underline"
+              >
                 <strong>{d!.alertas.leads_inactivos}</strong> lead{d!.alertas.leads_inactivos !== 1 ? 's' : ''} inactivo{d!.alertas.leads_inactivos !== 1 ? 's' : ''} (sin movimiento &gt;7d)
-              </span>
+              </button>
             )}
           </div>
         </div>
@@ -130,6 +142,7 @@ export default function DashboardPage() {
             value={d?.leads.total ?? 0}
             sub={`${d?.leads.nuevos_periodo ?? 0} nuevos este período`}
             color="blue"
+            onClick={() => router.push('/leads')}
           />
           <KpiCard
             icon={Target}
@@ -137,6 +150,7 @@ export default function DashboardPage() {
             value={`${d?.conversion.tasa ?? 0}%`}
             sub={`${d?.leads.por_etapa['cliente_ganado'] ?? 0} ganados`}
             color="green"
+            onClick={() => router.push('/leads?estado=cliente_ganado')}
           />
           <KpiCard
             icon={DollarSign}
@@ -144,6 +158,7 @@ export default function DashboardPage() {
             value={formatUSD(d?.revenue.ganado_usd ?? 0)}
             sub={`Ticket prom. ${formatUSD(d?.revenue.ticket_promedio_usd ?? 0)}`}
             color="emerald"
+            onClick={() => router.push('/leads?estado=cliente_ganado')}
           />
           <KpiCard
             icon={TrendingUp}
@@ -151,6 +166,7 @@ export default function DashboardPage() {
             value={formatUSD(d?.revenue.proyectado_usd ?? 0)}
             sub="Probabilidad × valor"
             color="purple"
+            onClick={() => router.push('/pipeline')}
           />
         </div>
       )}
@@ -193,7 +209,11 @@ export default function DashboardPage() {
                 const config = PIPELINE_STAGE_MAP[value]
                 if (!isLoading && val === 0) return null
                 return (
-                  <div key={value} className="flex items-center gap-3">
+                  <div
+                    key={value}
+                    className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 rounded px-1 py-1 -mx-1 -my-1 transition-colors"
+                    onClick={() => router.push(`/pipeline?estado=${value}`)}
+                  >
                     <span className="text-xs text-slate-500 w-32 flex-shrink-0 truncate">{config.label}</span>
                     <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                       <div
@@ -224,7 +244,11 @@ export default function DashboardPage() {
               const pct = total > 0 ? Math.round((count / total) * 100) : 0
               const config = PIPELINE_STAGE_MAP[value]
               return (
-                <div key={value} className="flex items-center gap-3">
+                <div
+                  key={value}
+                  className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 rounded px-1 py-1 -mx-1 -my-1 transition-colors"
+                  onClick={() => router.push(`/pipeline?estado=${value}`)}
+                >
                   <span className="text-xs text-slate-500 w-36 flex-shrink-0 truncate">{config.label}</span>
                   <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
                     <div
@@ -260,7 +284,11 @@ export default function DashboardPage() {
           ) : (
             <div className="space-y-1">
               {(d?.top_responsables ?? []).map((u, idx) => (
-                <div key={u.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors">
+                <div
+                  key={u.id}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+                  onClick={() => router.push(`/pipeline?responsable=${u.id}`)}
+                >
                   <span className="text-xs text-slate-400 w-4 text-right">{idx + 1}</span>
                   <UserAvatar name={u.full_name} avatarUrl={u.avatar_url} size="sm" />
                   <div className="flex-1 min-w-0">
@@ -311,7 +339,11 @@ export default function DashboardPage() {
               {(d?.ultimos_leads ?? []).slice(0, 4).map((lead) => {
                 const stageConfig = PIPELINE_STAGE_MAP[lead.estado_pipeline]
                 return (
-                  <div key={`lead-${lead.id}`} className="flex items-start gap-3 px-2 py-2 rounded-lg hover:bg-slate-50">
+                  <div
+                    key={`lead-${lead.id}`}
+                    className="flex items-start gap-3 px-2 py-2 rounded-lg hover:bg-slate-50 cursor-pointer"
+                    onClick={() => router.push(`/leads/${lead.id}`)}
+                  >
                     <div
                       className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
                       style={{ backgroundColor: stageConfig?.bgColor ?? '#f1f5f9' }}
@@ -333,7 +365,11 @@ export default function DashboardPage() {
               {(d?.actividad_reciente ?? []).map((act) => {
                 const Icon = ACTIVITY_ICON[act.tipo] ?? Activity
                 return (
-                  <div key={`act-${act.id}`} className="flex items-start gap-3 px-2 py-2 rounded-lg hover:bg-slate-50">
+                  <div
+                    key={`act-${act.id}`}
+                    className="flex items-start gap-3 px-2 py-2 rounded-lg hover:bg-slate-50 cursor-pointer"
+                    onClick={() => act.lead_id && router.push(`/leads/${act.lead_id}`)}
+                  >
                     <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 mt-0.5">
                       <Icon size={11} className="text-slate-500" />
                     </div>

@@ -3,8 +3,8 @@
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
-import TextStyle from '@tiptap/extension-text-style'
-import Color from '@tiptap/extension-color'
+import { TextStyle } from '@tiptap/extension-text-style'
+import { Color } from '@tiptap/extension-color'
 import { Bold, Italic, Underline, List, ListOrdered, Link as LinkIcon, Unlink } from 'lucide-react'
 import { useEffect } from 'react'
 
@@ -110,6 +110,7 @@ export function RichTextEditor({ content, onChange, editable = true, minimal = f
     ],
     content,
     editable,
+    immediatelyRender: false,
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML())
     },
