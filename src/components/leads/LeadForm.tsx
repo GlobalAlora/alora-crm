@@ -18,8 +18,8 @@ const FUENTES: { value: LeadFuente; label: string }[] = [
 ]
 
 const SERVICIOS = [
-  'Diseño web', 'SEO', 'Google Ads', 'Meta Ads',
-  'Redes sociales', 'Branding', 'Email marketing', 'Otro',
+  'Diseño web', 'Mantenimiento web', 'SEO', 'Google Ads', 'Meta Ads',
+  'Redes sociales', 'Branding', 'Email marketing', 'Chatbot', 'IA automatización', 'Otro',
 ]
 
 const INPUT =
