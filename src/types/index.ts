@@ -98,6 +98,8 @@ export interface Lead {
   fecha_propuesta: string | null
   fecha_followup: string | null
   fecha_cierre: string | null
+  form_id: string | null                        // which form generated this lead
+  form_data: Record<string, string> | null      // all fields submitted from embed form
   stage_updated_at: string
   last_activity_at: string
   deleted_at: string | null

@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export interface FormField {
   name: string
   label: string
-  type: 'text' | 'email' | 'phone' | 'textarea' | 'select'
+  type: 'text' | 'email' | 'phone' | 'textarea' | 'select' | 'checkbox'
   required?: boolean
   placeholder?: string
   options?: string[]

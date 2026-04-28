@@ -72,6 +72,29 @@ function Field({ field, value, onChange, error }: {
   const borderColor = error ? '#ef4444' : '#e2e8f0'
   const style = { cssText: INPUT_BASE + `border-color:${borderColor}` } as React.CSSProperties
 
+  // Checkbox renders differently — inline label + checkbox
+  if (field.type === 'checkbox') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={value === 'true'}
+            onChange={e => onChange(e.target.checked ? 'true' : '')}
+            style={{ marginTop: 2, flexShrink: 0, width: 15, height: 15, accentColor: '#2563eb', cursor: 'pointer' }}
+          />
+          <span style={{ fontSize: 13, color: error ? '#ef4444' : '#475569', lineHeight: 1.4 }}>
+            {field.placeholder || field.label}
+            {field.required && <span style={{ color: '#ef4444' }}> *</span>}
+          </span>
+        </label>
+        {error && (
+          <span style={{ fontSize: 11, color: '#ef4444' }}>Debes aceptar para continuar</span>
+        )}
+      </div>
+    )
+  }
+
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
       <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>
@@ -176,7 +199,12 @@ function EmbedFormInner() {
     const newErrors: Record<string, boolean> = {}
     let valid = true
     for (const field of config.fields) {
-      if (field.required && !values[field.name]?.trim()) {
+      const val = values[field.name]
+      // Checkbox required = must be checked (value === 'true')
+      const isEmpty = field.type === 'checkbox'
+        ? val !== 'true'
+        : !val?.trim()
+      if (field.required && isEmpty) {
         newErrors[field.name] = true
         valid = false
       }

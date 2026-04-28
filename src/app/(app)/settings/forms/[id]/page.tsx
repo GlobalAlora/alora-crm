@@ -9,6 +9,21 @@ import {
   Plus, Trash2, GripVertical,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { formsApi } from '@/lib/api'
 import type { FormDetail } from '@/lib/api'
 import type { FormField } from '@/app/api/embed/config/route'
@@ -16,7 +31,21 @@ import { formatUSD } from '@/lib/utils'
 
 const INPUT = 'w-full border border-slate-200 rounded-md px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow'
 
-const FIELD_TYPES = ['text', 'email', 'phone', 'textarea', 'select'] as const
+const FIELD_TYPES = ['text', 'email', 'phone', 'textarea', 'select', 'checkbox'] as const
+
+const FIELD_TYPE_LABELS: Record<string, string> = {
+  text: 'Texto',
+  email: 'Email',
+  phone: 'Teléfono',
+  textarea: 'Texto largo',
+  select: 'Desplegable',
+  checkbox: 'Checkbox',
+}
+
+// Converts "Mi Campo" → "mi_campo"
+const toSlug = (str: string) =>
+  str.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
 
 export default function FormDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -37,6 +66,20 @@ export default function FormDetailPage({ params }: { params: Promise<{ id: strin
   const [tags, setTags]       = useState('')
   const [copied, setCopied]   = useState<'inline' | 'widget' | null>(null)
   const [activeTab, setActiveTab] = useState<'editor' | 'analytics' | 'snippet'>('editor')
+  const [isDirty, setIsDirty] = useState(false)
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    setFields(prev => {
+      const oldIdx = prev.findIndex((_, i) => `field-${i}` === active.id)
+      const newIdx = prev.findIndex((_, i) => `field-${i}` === over.id)
+      return arrayMove(prev, oldIdx, newIdx)
+    })
+    setIsDirty(true)
+  }
 
   // Sync form data into local state
   useEffect(() => {
@@ -56,6 +99,7 @@ export default function FormDetailPage({ params }: { params: Promise<{ id: strin
       tags: tags.split(',').map(t => t.trim()).filter(Boolean),
     }),
     onSuccess: () => {
+      setIsDirty(false)
       queryClient.invalidateQueries({ queryKey: ['form', id] })
       queryClient.invalidateQueries({ queryKey: ['forms'] })
       toast.success('Formulario guardado')
@@ -76,20 +120,31 @@ export default function FormDetailPage({ params }: { params: Promise<{ id: strin
 
   const addField = () => {
     setFields(prev => [...prev, {
-      name: `campo_${prev.length + 1}`,
-      label: `Campo ${prev.length + 1}`,
+      name: `campo_${Date.now()}`,
+      label: '',
       type: 'text',
       required: false,
       width: 'full',
     }])
+    setIsDirty(true)
   }
 
   const updateField = (idx: number, patch: Partial<FormField>) => {
-    setFields(prev => prev.map((f, i) => i === idx ? { ...f, ...patch } : f))
+    setFields(prev => prev.map((f, i) => {
+      if (i !== idx) return f
+      const updated = { ...f, ...patch }
+      // Auto-generate name from label if name still has the placeholder pattern
+      if (patch.label && /^campo_\d+$/.test(f.name)) {
+        updated.name = toSlug(patch.label) || f.name
+      }
+      return updated
+    }))
+    setIsDirty(true)
   }
 
   const removeField = (idx: number) => {
     setFields(prev => prev.filter((_, i) => i !== idx))
+    setIsDirty(true)
   }
 
   const d = (form as FormDetail | undefined)?.analytics
@@ -122,6 +177,11 @@ export default function FormDetailPage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {isDirty && (
+            <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md font-medium">
+              Cambios sin guardar
+            </span>
+          )}
           <a href={`/embed/form?formId=${id}`} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 border rounded-lg hover:bg-slate-50 transition-colors">
             <ExternalLink size={13} /> Preview
@@ -162,27 +222,27 @@ export default function FormDetailPage({ params }: { params: Promise<{ id: strin
               <div className="grid grid-cols-2 gap-4">
                 <label className="space-y-1">
                   <span className="text-xs font-medium text-slate-500">Nombre interno</span>
-                  <input value={name} onChange={e => setName(e.target.value)} className={INPUT} />
+                  <input value={name} onChange={e => { setName(e.target.value); setIsDirty(true) }} className={INPUT} />
                 </label>
                 <label className="space-y-1">
                   <span className="text-xs font-medium text-slate-500">Color principal</span>
                   <div className="flex items-center gap-2">
-                    <input type="color" value={color} onChange={e => setColor(e.target.value)}
+                    <input type="color" value={color} onChange={e => { setColor(e.target.value); setIsDirty(true) }}
                       className="w-9 h-9 rounded-md border cursor-pointer p-0.5" />
-                    <input value={color} onChange={e => setColor(e.target.value)} className={INPUT} />
+                    <input value={color} onChange={e => { setColor(e.target.value); setIsDirty(true) }} className={INPUT} />
                   </div>
                 </label>
                 <label className="space-y-1">
                   <span className="text-xs font-medium text-slate-500">Título del form</span>
-                  <input value={title} onChange={e => setTitle(e.target.value)} className={INPUT} />
+                  <input value={title} onChange={e => { setTitle(e.target.value); setIsDirty(true) }} className={INPUT} />
                 </label>
                 <label className="space-y-1">
                   <span className="text-xs font-medium text-slate-500">Subtítulo</span>
-                  <input value={subtitle} onChange={e => setSubtitle(e.target.value)} className={INPUT} />
+                  <input value={subtitle} onChange={e => { setSubtitle(e.target.value); setIsDirty(true) }} className={INPUT} />
                 </label>
                 <label className="col-span-2 space-y-1">
                   <span className="text-xs font-medium text-slate-500">Tags (separados por coma)</span>
-                  <input value={tags} onChange={e => setTags(e.target.value)}
+                  <input value={tags} onChange={e => { setTags(e.target.value); setIsDirty(true) }}
                     placeholder="b2b, ventas, landing" className={INPUT} />
                 </label>
               </div>
@@ -198,21 +258,29 @@ export default function FormDetailPage({ params }: { params: Promise<{ id: strin
                 </button>
               </div>
 
-              <div className="space-y-2">
-                {fields.map((field, idx) => (
-                  <FieldRow
-                    key={idx}
-                    field={field}
-                    onChange={patch => updateField(idx, patch)}
-                    onRemove={() => removeField(idx)}
-                  />
-                ))}
-                {fields.length === 0 && (
-                  <p className="text-xs text-slate-400 text-center py-4">
-                    Sin campos. Agregá al menos uno.
-                  </p>
-                )}
-              </div>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext
+                  items={fields.map((_, i) => `field-${i}`)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-2">
+                    {fields.map((field, idx) => (
+                      <SortableFieldRow
+                        key={`field-${idx}`}
+                        id={`field-${idx}`}
+                        field={field}
+                        onChange={patch => updateField(idx, patch)}
+                        onRemove={() => removeField(idx)}
+                      />
+                    ))}
+                    {fields.length === 0 && (
+                      <p className="text-xs text-slate-400 text-center py-4">
+                        Sin campos. Agregá al menos uno.
+                      </p>
+                    )}
+                  </div>
+                </SortableContext>
+              </DndContext>
             </div>
           </div>
 
@@ -323,42 +391,70 @@ X-Webhook-Secret: <tu-secreto>
 
 /* ── Sub-components ────────────────────────────────────────────── */
 
-function FieldRow({ field, onChange, onRemove }: {
+function SortableFieldRow({ id, field, onChange, onRemove }: {
+  id: string
   field: FormField
   onChange: (patch: Partial<FormField>) => void
   onRemove: () => void
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  }
+
   return (
-    <div className="flex items-start gap-2 p-3 border border-slate-100 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors">
-      <GripVertical size={14} className="text-slate-300 mt-2 flex-shrink-0" />
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-start gap-2 p-3 border border-slate-100 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing p-0.5 text-slate-300 hover:text-slate-500 mt-1.5 flex-shrink-0 touch-none"
+        tabIndex={-1}
+      >
+        <GripVertical size={14} /></button>
       <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {/* Label */}
         <input
           value={field.label}
           onChange={e => onChange({ label: e.target.value })}
-          placeholder="Label"
+          placeholder="Etiqueta del campo"
           className="border border-slate-200 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
+        {/* Name (slug) */}
         <input
           value={field.name}
           onChange={e => onChange({ name: e.target.value })}
           placeholder="nombre_campo"
           className="border border-slate-200 rounded px-2 py-1 text-xs bg-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
+        {/* Type */}
         <select
           value={field.type}
           onChange={e => onChange({ type: e.target.value as FormField['type'] })}
           className="border border-slate-200 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
-          {FIELD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          {FIELD_TYPES.map(t => <option key={t} value={t}>{FIELD_TYPE_LABELS[t]}</option>)}
         </select>
-        <select
-          value={field.width ?? 'full'}
-          onChange={e => onChange({ width: e.target.value as 'full' | 'half' })}
-          className="border border-slate-200 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-        >
-          <option value="full">Ancho completo</option>
-          <option value="half">Mitad</option>
-        </select>
+        {/* Width — hidden for checkbox (always full) */}
+        {field.type !== 'checkbox' ? (
+          <select
+            value={field.width ?? 'full'}
+            onChange={e => onChange({ width: e.target.value as 'full' | 'half' })}
+            className="border border-slate-200 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="full">Ancho completo</option>
+            <option value="half">Mitad</option>
+          </select>
+        ) : (
+          <div /> /* spacer */
+        )}
+        {/* Options for select */}
         {field.type === 'select' && (
           <input
             value={(field.options ?? []).join(', ')}
@@ -367,6 +463,16 @@ function FieldRow({ field, onChange, onRemove }: {
             className="col-span-2 sm:col-span-3 border border-slate-200 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         )}
+        {/* Checkbox: show text of the checkbox label as placeholder */}
+        {field.type === 'checkbox' && (
+          <input
+            value={field.placeholder ?? ''}
+            onChange={e => onChange({ placeholder: e.target.value })}
+            placeholder="Texto del checkbox (ej: Acepto la política de privacidad)"
+            className="col-span-2 sm:col-span-3 border border-slate-200 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        )}
+        {/* Required */}
         <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer">
           <input
             type="checkbox"
@@ -448,10 +554,12 @@ function FormPreview({ title, subtitle, color, fields }: {
               >
                 {row.map((field) => (
                   <div key={field.name} className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-500">
-                      {field.label || field.name}
-                      {field.required && <span className="text-red-400 ml-0.5">*</span>}
-                    </label>
+                    {field.type !== 'checkbox' && (
+                      <label className="text-xs font-semibold text-slate-500">
+                        {field.label || field.name}
+                        {field.required && <span className="text-red-400 ml-0.5">*</span>}
+                      </label>
+                    )}
                     {field.type === 'textarea' ? (
                       <textarea
                         disabled
@@ -467,6 +575,14 @@ function FormPreview({ title, subtitle, color, fields }: {
                         <option>Seleccionar…</option>
                         {(field.options ?? []).map((o) => <option key={o}>{o}</option>)}
                       </select>
+                    ) : field.type === 'checkbox' ? (
+                      <label className="flex items-start gap-2 cursor-default">
+                        <input type="checkbox" disabled className="mt-0.5 rounded" />
+                        <span className="text-xs text-slate-500 leading-snug">
+                          {field.placeholder || field.label}
+                          {field.required && <span className="text-red-400 ml-0.5">*</span>}
+                        </span>
+                      </label>
                     ) : (
                       <input
                         disabled

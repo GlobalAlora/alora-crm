@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+// Fields that map directly to lead columns
+const LEAD_COLUMN_FIELDS = new Set([
+  'nombre', 'email', 'telefono', 'empresa',
+  'servicio_interesado', 'mensaje', 'presupuesto_estimado',
+])
+
+// Fields to exclude from form_data (internal/meta)
+const INTERNAL_FIELDS = new Set(['formId', 'extra_fields', 'tags', 'notas'])
+
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Body inválido' }, { status: 400 })
@@ -67,6 +76,23 @@ export async function POST(req: NextRequest) {
     .limit(1)
     .maybeSingle()
 
+  // Build form_data: capture ALL fields submitted (known + custom)
+  const form_data: Record<string, string> = {}
+  for (const [key, val] of Object.entries(body)) {
+    if (INTERNAL_FIELDS.has(key)) continue
+    if (val && typeof val === 'string' && val.trim()) {
+      form_data[key] = val.trim()
+    }
+  }
+  // Also include extra_fields if present
+  if (body.extra_fields && typeof body.extra_fields === 'object') {
+    for (const [key, val] of Object.entries(body.extra_fields)) {
+      if (val && typeof val === 'string' && val.trim()) {
+        form_data[key] = val.trim()
+      }
+    }
+  }
+
   const { data: lead, error } = await supabase
     .from('leads')
     .insert({
@@ -75,9 +101,10 @@ export async function POST(req: NextRequest) {
       telefono: body.telefono || null,
       empresa: body.empresa || null,
       servicio_interesado: body.servicio_interesado || null,
-      notas: body.notas || null,
+      notas: body.notas || body.mensaje || null,
       fuente: 'formulario',
       form_id: body.formId || null,
+      form_data: Object.keys(form_data).length > 0 ? form_data : null,
       responsable_id: responsableId,
       created_by: responsableId,
       estado_pipeline: 'lead_entrante',
@@ -94,10 +121,8 @@ export async function POST(req: NextRequest) {
     tipo: 'webhook',
     descripcion: 'Lead recibido desde formulario web',
     metadata: {
-      fuente: body.fuente,
-      servicio: body.servicio_interesado,
       form_id: body.formId ?? null,
-      extra_fields: body.extra_fields ?? null,
+      form_data,
       tags: body.tags ?? null,
     },
   })

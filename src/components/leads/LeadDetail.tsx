@@ -18,6 +18,7 @@ import { InlineEdit } from '@/components/shared/InlineEdit'
 import { PropuestasSection } from './PropuestasSection'
 import { ServiciosEdit } from './ServiciosEdit'
 import { StageHistorySection } from './StageHistorySection'
+import { FormDataSection } from './FormDataSection'
 
 interface LeadDetailProps {
   lead: Lead
@@ -381,6 +382,9 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage = false }: L
                 </div>
               )}
             </Section>
+
+            {/* Datos del formulario de origen */}
+            <FormDataSection lead={displayLead} />
 
             {/* Stage History */}
             <StageHistorySection lead={displayLead} />
