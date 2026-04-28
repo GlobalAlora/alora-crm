@@ -51,9 +51,11 @@ export const leadsApi = {
   list(filters: LeadsFilters = {}): Promise<PaginatedResponse<Lead>> {
     const params = new URLSearchParams()
     Object.entries(filters).forEach(([k, v]) => {
-      if (v === undefined || v === '') return
+      if (v === undefined || v === '' || v === null) return
       if (Array.isArray(v)) {
-        v.forEach((val) => params.append(k, String(val)))
+        if (v.length > 0) {
+          v.forEach((val) => params.append(k, String(val)))
+        }
       } else {
         params.set(k, String(v))
       }

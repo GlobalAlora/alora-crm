@@ -51,11 +51,13 @@ export default function DashboardPage() {
   const [fechaHasta, setFechaHasta] = useState(getDefaultFechaHasta())
   const [responsableId, setResponsableId] = useState('')
 
-  const params = useMemo(() => ({
-    fecha_desde: fechaDesde || undefined,
-    fecha_hasta: fechaHasta || undefined,
-    responsable_id: responsableId || undefined,
-  }), [fechaDesde, fechaHasta, responsableId])
+  const params = useMemo(() => {
+    const p: Record<string, string> = {}
+    if (fechaDesde) p.fecha_desde = fechaDesde
+    if (fechaHasta) p.fecha_hasta = fechaHasta
+    if (responsableId) p.responsable_id = responsableId
+    return p
+  }, [fechaDesde, fechaHasta, responsableId])
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard', params],
