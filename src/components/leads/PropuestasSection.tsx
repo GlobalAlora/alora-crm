@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Check, X, DollarSign } from 'lucide-react'
 import toast from 'react-hot-toast'
-import type { Propuesta, Lead } from '@/types'
+import type { Propuesta, Lead, TipoPago } from '@/types'
 import { formatUSD } from '@/lib/utils'
 
 interface PropuestasSectionProps {
@@ -19,11 +19,12 @@ export function PropuestasSection({ lead, readOnly = false }: PropuestasSectionP
     descripcion: '',
     valor: '',
     moneda: 'USD' as 'USD' | 'ARS',
+    tipo_pago: 'unica_vez' as TipoPago,
     link: '',
   })
 
   const createMutation = useMutation({
-    mutationFn: async (data: { descripcion: string; valor_usd?: number; valor_ars?: number; moneda: 'USD' | 'ARS'; link?: string }) => {
+    mutationFn: async (data: { descripcion: string; valor_usd?: number; valor_ars?: number; moneda: 'USD' | 'ARS'; tipo_pago: TipoPago; link?: string }) => {
       const res = await fetch(`/api/leads/${lead.id}/propuestas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -34,7 +35,7 @@ export function PropuestasSection({ lead, readOnly = false }: PropuestasSectionP
     },
     onSuccess: () => {
       setShowAdd(false)
-      setNewPropuesta({ descripcion: '', valor: '', moneda: 'USD', link: '' })
+      setNewPropuesta({ descripcion: '', valor: '', moneda: 'USD', tipo_pago: 'unica_vez', link: '' })
       queryClient.invalidateQueries({ queryKey: ['lead', lead.id] })
       toast.success('Propuesta creada')
     },
@@ -73,9 +74,10 @@ export function PropuestasSection({ lead, readOnly = false }: PropuestasSectionP
 
   const handleCreate = () => {
     const valor = parseFloat(newPropuesta.valor) || 0
-    const data: { descripcion: string; valor_usd?: number; valor_ars?: number; moneda: 'USD' | 'ARS'; link?: string } = {
+    const data: { descripcion: string; valor_usd?: number; valor_ars?: number; moneda: 'USD' | 'ARS'; tipo_pago: TipoPago; link?: string } = {
       descripcion: newPropuesta.descripcion,
       moneda: newPropuesta.moneda,
+      tipo_pago: newPropuesta.tipo_pago,
     }
     if (newPropuesta.moneda === 'USD') {
       data.valor_usd = valor
@@ -134,6 +136,30 @@ export function PropuestasSection({ lead, readOnly = false }: PropuestasSectionP
               <option value="ARS">ARS</option>
             </select>
           </div>
+          <div className="flex gap-1 p-0.5 bg-slate-200 rounded-lg w-fit">
+            <button
+              type="button"
+              onClick={() => setNewPropuesta({ ...newPropuesta, tipo_pago: 'unica_vez' })}
+              className={`text-xs px-3 py-1 rounded-md transition-colors ${
+                newPropuesta.tipo_pago === 'unica_vez'
+                  ? 'bg-white text-slate-800 shadow-sm font-medium'
+                  : 'text-slate-600 hover:text-slate-800'
+              }`}
+            >
+              Única vez
+            </button>
+            <button
+              type="button"
+              onClick={() => setNewPropuesta({ ...newPropuesta, tipo_pago: 'mensual' })}
+              className={`text-xs px-3 py-1 rounded-md transition-colors ${
+                newPropuesta.tipo_pago === 'mensual'
+                  ? 'bg-white text-slate-800 shadow-sm font-medium'
+                  : 'text-slate-600 hover:text-slate-800'
+              }`}
+            >
+              Mensual
+            </button>
+          </div>
           <input
             type="url"
             placeholder="Link de la propuesta (Google Drive, PDF, etc.)"
@@ -178,9 +204,18 @@ export function PropuestasSection({ lead, readOnly = false }: PropuestasSectionP
             >
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-slate-800 truncate">{p.descripcion}</p>
-                <p className="text-xs text-slate-500">
-                  {p.moneda === 'USD' ? formatUSD(p.valor_usd || 0) : `ARS ${p.valor_ars?.toLocaleString('es-AR')}`}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-slate-500">
+                    {p.moneda === 'USD' ? formatUSD(p.valor_usd || 0) : `ARS ${p.valor_ars?.toLocaleString('es-AR')}`}
+                  </p>
+                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                    p.tipo_pago === 'mensual'
+                      ? 'bg-violet-100 text-violet-700'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {p.tipo_pago === 'mensual' ? 'Mensual' : 'Única vez'}
+                  </span>
+                </div>
                 {p.link && (
                   <a
                     href={p.link}

@@ -44,6 +44,8 @@ export interface User {
 
 export type PropuestaEstado = 'pendiente' | 'aceptada' | 'rechazada'
 
+export type TipoPago = 'unica_vez' | 'mensual'
+
 export interface Propuesta {
   id: string
   lead_id: string
@@ -51,6 +53,7 @@ export interface Propuesta {
   valor_usd: number | null
   valor_ars: number | null
   moneda: 'USD' | 'ARS'
+  tipo_pago: TipoPago
   estado: PropuestaEstado
   link: string | null
   created_at: string

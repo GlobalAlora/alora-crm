@@ -71,5 +71,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     metadata: { estado_anterior: current.estado_pipeline, estado_nuevo: estado_pipeline },
   })
 
+  // Record stage history (ignore error if table doesn't exist yet)
+  try {
+    await supabase.from('stage_history').insert({
+      lead_id: id,
+      etapa: estado_pipeline,
+      fecha_ingreso: now,
+    })
+  } catch {
+    // table may not exist yet
+  }
+
   return NextResponse.json({ data })
 }

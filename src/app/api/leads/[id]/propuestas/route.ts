@@ -11,7 +11,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const body = await req.json()
-  const { descripcion, valor_usd, valor_ars, moneda, link } = body
+  const { descripcion, valor_usd, valor_ars, moneda, tipo_pago, link } = body
 
   if (!descripcion) {
     return NextResponse.json({ error: 'La descripción es requerida' }, { status: 400 })
@@ -25,6 +25,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       valor_usd: valor_usd || null,
       valor_ars: valor_ars || null,
       moneda: moneda || 'USD',
+      tipo_pago: tipo_pago || 'unica_vez',
       estado: 'pendiente',
       link: link || null,
     })
