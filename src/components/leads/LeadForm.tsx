@@ -13,6 +13,7 @@ const FUENTES: { value: LeadFuente; label: string }[] = [
   { value: 'referido', label: 'Referido' },
   { value: 'linkedin', label: 'LinkedIn' },
   { value: 'instagram', label: 'Instagram' },
+  { value: 'chatbot', label: 'Chatbot' },
   { value: 'otro', label: 'Otro' },
 ]
 
