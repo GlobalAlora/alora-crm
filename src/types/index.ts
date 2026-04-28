@@ -29,6 +29,7 @@ export type LeadFuente =
   | 'referido'
   | 'linkedin'
   | 'instagram'
+  | 'chatbot'
   | 'otro'
 
 export interface User {
