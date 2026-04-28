@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { X, ChevronDown, Pencil } from 'lucide-react'
+import { X, ChevronDown, Pencil, Check } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import type { Lead, PipelineStage } from '@/types'
@@ -13,6 +13,7 @@ import { UserAvatar } from '@/components/shared/UserAvatar'
 import { ActivityFeed } from './ActivityFeed'
 import { TaskList } from './TaskList'
 import { useLeadFormStore } from '@/hooks/useLeadFormStore'
+import { RichTextEditor } from '@/components/shared/RichTextEditor'
 
 interface LeadDetailProps {
   lead: Lead
@@ -24,6 +25,8 @@ interface LeadDetailProps {
 export function LeadDetail({ lead, onClose, onStageChange, fullPage = false }: LeadDetailProps) {
   const queryClient = useQueryClient()
   const [showStageMenu, setShowStageMenu] = useState(false)
+  const [editingNotas, setEditingNotas] = useState(false)
+  const [notasContent, setNotasContent] = useState(lead.notas || '')
   const { open: openForm } = useLeadFormStore()
 
   const { data: freshLead } = useQuery({
@@ -47,6 +50,17 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage = false }: L
       toast.success('Etapa actualizada')
     },
     onError: () => toast.error('Error al cambiar la etapa'),
+  })
+
+  const notasMutation = useMutation({
+    mutationFn: (notas: string) => leadsApi.update(lead.id, { notas }),
+    onSuccess: () => {
+      setEditingNotas(false)
+      queryClient.invalidateQueries({ queryKey: ['leads'] })
+      queryClient.invalidateQueries({ queryKey: ['lead', lead.id] })
+      toast.success('Notas actualizadas')
+    },
+    onError: () => toast.error('Error al actualizar las notas'),
   })
 
   useEffect(() => {
@@ -185,11 +199,59 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage = false }: L
               </Section>
             )}
 
-            {displayLead.notas && (
-              <Section label="Notas">
-                <p className="text-sm text-slate-600 whitespace-pre-wrap">{displayLead.notas}</p>
-              </Section>
-            )}
+            <Section label="Notas">
+              {editingNotas ? (
+                <div className="space-y-2">
+                  <RichTextEditor
+                    content={notasContent}
+                    onChange={setNotasContent}
+                    editable={true}
+                    minimal={true}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => notasMutation.mutate(notasContent)}
+                      disabled={notasMutation.isPending}
+                      className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      <Check size={12} />
+                      Guardar
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingNotas(false)
+                        setNotasContent(displayLead.notas || '')
+                      }}
+                      className="flex items-center gap-1 text-xs text-slate-600 px-2 py-1 rounded hover:bg-slate-100"
+                    >
+                      <X size={12} />
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {displayLead.notas ? (
+                    <div
+                      className="text-sm text-slate-600 prose prose-sm max-w-none"
+                      dangerouslySetInnerHTML={{ __html: displayLead.notas }}
+                    />
+                  ) : (
+                    <p className="text-sm text-slate-400 italic">Sin notas</p>
+                  )}
+                  <button
+                    onClick={() => {
+                      setEditingNotas(true)
+                      setNotasContent(displayLead.notas || '')
+                    }}
+                    className="flex items-center gap-1 text-xs text-slate-400 hover:text-blue-600 mt-1"
+                  >
+                    <Pencil size={12} />
+                    {displayLead.notas ? 'Editar notas' : 'Agregar notas'}
+                  </button>
+                </div>
+              )}
+            </Section>
           </div>
 
           {/* Tasks */}
