@@ -220,7 +220,7 @@ export const PAISES = [
 
 export const SERVICIOS = [
   'Diseño web', 'Mantenimiento web', 'SEO', 'Google Ads', 'Meta Ads',
-  'Redes sociales', 'Branding', 'Email marketing', 'Chatbot', 'IA automatización', 'Otro',
+  'Redes sociales', 'Branding', 'Email marketing', 'Chatbot', 'IA automatización', 'Ecommerce', 'Otro',
 ]
 
 export const FUENTES: { value: LeadFuente; label: string }[] = [
