@@ -15,18 +15,29 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
     setLoading(true)
+    console.log('[Login] Starting sign in...')
 
-    const supabase = createClient()
-    const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
+    try {
+      const supabase = createClient()
+      console.log('[Login] Supabase client created')
 
-    if (authError) {
-      setError('Email o contraseña incorrectos')
+      const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password })
+      console.log('[Login] Response:', { data, authError })
+
+      if (authError) {
+        setError('Email o contraseña incorrectos')
+        setLoading(false)
+        return
+      }
+
+      console.log('[Login] Success, redirecting...')
+      router.push('/leads')
+      router.refresh()
+    } catch (err) {
+      console.error('[Login] Error:', err)
+      setError('Error al conectar con el servidor')
       setLoading(false)
-      return
     }
-
-    router.push('/leads')
-    router.refresh()
   }
 
   return (

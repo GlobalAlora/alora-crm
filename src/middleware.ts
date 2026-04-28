@@ -4,6 +4,7 @@ export function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname
 
   console.log(`[Middleware] ${path}`)
+  console.log(`[Middleware] Cookies:`, req.cookies.getAll().map(c => c.name))
 
   // Public routes
   const isPublic =
@@ -18,8 +19,9 @@ export function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  // Check auth cookie
-  const hasAuth = req.cookies.has('sb-access-token') || req.cookies.has('sb-refresh-token')
+  // Check for any Supabase auth cookie (pattern: sb-{project-ref}-auth-token or similar)
+  const cookies = req.cookies.getAll()
+  const hasAuth = cookies.some(c => c.name.startsWith('sb-') && (c.name.includes('auth') || c.name.includes('token')))
   console.log(`[Middleware] Has auth: ${hasAuth}`)
 
   if (!hasAuth) {
