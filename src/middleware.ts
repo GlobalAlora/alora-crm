@@ -1,10 +1,11 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(req: NextRequest) {
+// Simple auth check using cookie presence
+// Full auth validation happens in client/components
+export function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname
 
-  // Static files y rutas públicas excluidas
+  // Public routes - no auth needed
   const isPublicRoute =
     path === '/login' ||
     path.startsWith('/_next') ||
@@ -17,55 +18,29 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  // Check env vars exist
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!supabaseUrl || !supabaseKey) {
-    console.error('Missing Supabase env vars')
-    // Allow through but log error - will fail gracefully in components
-    return NextResponse.next()
-  }
-
-  let res = NextResponse.next({ request: req })
-
-  const supabase = createServerClient(supabaseUrl, supabaseKey, {
-    cookies: {
-      getAll() {
-        return req.cookies.getAll()
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value))
-        res = NextResponse.next({ request: req })
-        cookiesToSet.forEach(({ name, value, options }) =>
-          res.cookies.set(name, value, options)
-        )
-      },
-    },
-  })
-
-  // Refresh session
-  const { data: { user } } = await supabase.auth.getUser()
+  // Check for auth cookie (sb-access-token or sb-refresh-token)
+  const hasAuthCookie = req.cookies.has('sb-access-token') || req.cookies.has('sb-refresh-token')
 
   const isLoginRoute = path === '/login'
   const isApiRoute = path.startsWith('/api')
 
-  if (!user && !isLoginRoute) {
+  if (!hasAuthCookie && !isLoginRoute) {
     if (isApiRoute) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
     const url = req.nextUrl.clone()
     url.pathname = '/login'
+    url.searchParams.set('redirect', path)
     return NextResponse.redirect(url)
   }
 
-  if (user && isLoginRoute) {
+  if (hasAuthCookie && isLoginRoute) {
     const url = req.nextUrl.clone()
     url.pathname = '/leads'
     return NextResponse.redirect(url)
   }
 
-  return res
+  return NextResponse.next()
 }
 
 export const config = {
