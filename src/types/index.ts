@@ -45,15 +45,19 @@ export interface User {
 export interface Lead {
   id: string
   nombre: string
+  apellido: string | null
   email: string | null
   telefono: string | null
   empresa: string | null
   pais: string | null
-  servicio_interesado: string | null
-  presupuesto_estimado: number | null
+  servicios_interesados: string[]
+  servicio_interesado: string | null        // kept for embed backward-compat
+  presupuesto_estimado: number | null       // hidden from UI, kept in DB
   estado_pipeline: PipelineStage
   fuente: LeadFuente | null
   valor_propuesta_usd: number | null
+  valor_propuesta_ars: number | null
+  valor_propuesta_moneda: 'USD' | 'ARS'
   tipo_cambio_usd_ars: number | null
   kanban_position: number
   notas: string | null

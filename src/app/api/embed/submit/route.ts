@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
       servicio_interesado: body.servicio_interesado || null,
       notas: body.notas || null,
       fuente: 'formulario',
+      form_id: body.formId || null,
       responsable_id: responsableId,
       created_by: responsableId,
       estado_pipeline: 'lead_entrante',

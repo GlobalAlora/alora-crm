@@ -33,7 +33,17 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
       (lead.estado_pipeline === 'lead_contactado' || lead.estado_pipeline === 'sin_respuesta')
     : false
 
-  const isHighValue = (lead.valor_propuesta_usd ?? 0) >= 5000
+  const valorNum = lead.valor_propuesta_moneda === 'ARS'
+    ? (lead.valor_propuesta_ars ?? 0) / 1000  // rough USD equiv for high-value check
+    : (lead.valor_propuesta_usd ?? 0)
+  const isHighValue = valorNum >= 5000
+
+  const valorLabel = (() => {
+    if (lead.valor_propuesta_moneda === 'ARS' && lead.valor_propuesta_ars != null)
+      return `ARS ${lead.valor_propuesta_ars.toLocaleString('es-AR')}`
+    if (lead.valor_propuesta_usd != null) return formatUSD(lead.valor_propuesta_usd)
+    return null
+  })()
 
   return (
     <div
@@ -52,10 +62,14 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
           {lead.empresa && (
             <p className="text-xs text-slate-500 truncate mb-0.5">{lead.empresa}</p>
           )}
-          <p className="text-sm font-semibold text-slate-900 truncate">{lead.nombre}</p>
-          {lead.servicio_interesado && (
+          <p className="text-sm font-semibold text-slate-900 truncate">
+            {[lead.nombre, lead.apellido].filter(Boolean).join(' ')}
+          </p>
+          {(lead.servicios_interesados?.length > 0) ? (
+            <p className="text-xs text-slate-500 truncate mt-0.5">{lead.servicios_interesados[0]}{lead.servicios_interesados.length > 1 ? ` +${lead.servicios_interesados.length - 1}` : ''}</p>
+          ) : lead.servicio_interesado ? (
             <p className="text-xs text-slate-500 truncate mt-0.5">{lead.servicio_interesado}</p>
-          )}
+          ) : null}
         </div>
         <div
           {...attributes}
@@ -69,15 +83,10 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
 
       <div className="flex items-center justify-between mt-3 gap-2">
         <div className="flex items-center gap-1.5">
-          {lead.valor_propuesta_usd != null && (
-            <span
-              className={cn(
-                'text-xs font-medium',
-                isHighValue ? 'text-emerald-600' : 'text-slate-600'
-              )}
-            >
+          {valorLabel && (
+            <span className={cn('text-xs font-medium', isHighValue ? 'text-emerald-600' : 'text-slate-600')}>
               {isHighValue && <DollarSign size={10} className="inline -mt-0.5" />}
-              {formatUSD(lead.valor_propuesta_usd)}
+              {valorLabel}
             </span>
           )}
         </div>

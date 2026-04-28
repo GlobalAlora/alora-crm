@@ -11,7 +11,7 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import type { Lead, PipelineStage } from '@/types'
@@ -42,6 +42,21 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
   const queryClient = useQueryClient()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [overColumnId, setOverColumnId] = useState<PipelineStage | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Horizontal scroll with mouse wheel
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const handler = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return // natural trackpad horizontal
+      if (e.deltaY === 0) return
+      e.preventDefault()
+      el.scrollLeft += e.deltaY * 1.5
+    }
+    el.addEventListener('wheel', handler, { passive: false })
+    return () => el.removeEventListener('wheel', handler)
+  }, [])
 
   const { data, isLoading } = useQuery({
     queryKey: ['leads', { view: 'kanban' }],
@@ -179,7 +194,7 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="kanban-board">
+      <div ref={scrollRef} className="kanban-board">
         {PIPELINE_STAGES.map((stage) => (
           <KanbanColumn
             key={stage.value}

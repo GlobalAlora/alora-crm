@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { X, ChevronDown } from 'lucide-react'
+import { X, ChevronDown, Pencil } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import type { Lead, PipelineStage } from '@/types'
@@ -12,6 +12,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { ActivityFeed } from './ActivityFeed'
 import { TaskList } from './TaskList'
+import { useLeadFormStore } from '@/hooks/useLeadFormStore'
 
 interface LeadDetailProps {
   lead: Lead
@@ -23,8 +24,8 @@ interface LeadDetailProps {
 export function LeadDetail({ lead, onClose, onStageChange, fullPage = false }: LeadDetailProps) {
   const queryClient = useQueryClient()
   const [showStageMenu, setShowStageMenu] = useState(false)
+  const { open: openForm } = useLeadFormStore()
 
-  // Always fetch fresh detail
   const { data: freshLead } = useQuery({
     queryKey: ['lead', lead.id],
     queryFn: () => leadsApi.get(lead.id),
@@ -48,118 +49,164 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage = false }: L
     onError: () => toast.error('Error al cambiar la etapa'),
   })
 
-  // Close on Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
+  const stageConfig = PIPELINE_STAGE_MAP[displayLead.estado_pipeline]
+
+  // Display name
+  const fullName = [displayLead.nombre, displayLead.apellido].filter(Boolean).join(' ')
+
+  // Valor propuesta display
+  const valorDisplay = (() => {
+    if (displayLead.valor_propuesta_moneda === 'ARS' && displayLead.valor_propuesta_ars != null) {
+      return `ARS ${displayLead.valor_propuesta_ars.toLocaleString('es-AR')}`
+    }
+    if (displayLead.valor_propuesta_usd != null) return formatUSD(displayLead.valor_propuesta_usd)
+    return null
+  })()
+
   const panelContent = (
     <div className={fullPage ? 'flex w-full h-full' : 'flex w-full max-w-3xl shadow-2xl'}>
-        {/* Left panel — Lead info */}
-        <div className="w-80 flex-shrink-0 bg-white border-r flex flex-col">
-          <div className="flex items-start justify-between p-4 border-b">
-            <div className="min-w-0">
-              {displayLead.empresa && (
-                <p className="text-xs text-slate-500 truncate">{displayLead.empresa}</p>
-              )}
-              <h2 className="font-semibold text-slate-900 truncate">{displayLead.nombre}</h2>
-            </div>
+      {/* Left panel */}
+      <div className="w-80 flex-shrink-0 bg-white border-r flex flex-col">
+        <div className="flex items-start justify-between p-4 border-b">
+          <div className="min-w-0 flex-1">
+            {displayLead.empresa && (
+              <p className="text-xs text-slate-500 truncate">{displayLead.empresa}</p>
+            )}
+            <h2 className="font-semibold text-slate-900 truncate">{fullName}</h2>
+            {/* Stage pill */}
+            <span
+              className="inline-block mt-1 text-xs font-medium px-2 py-0.5 rounded-full"
+              style={{ color: stageConfig.color, backgroundColor: stageConfig.bgColor }}
+            >
+              {stageConfig.label}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+            <button
+              onClick={() => openForm(displayLead)}
+              title="Editar lead"
+              className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition-colors"
+            >
+              <Pencil size={14} />
+            </button>
             <button
               onClick={onClose}
-              className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex-shrink-0 ml-2"
+              className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
             >
               <X size={16} />
             </button>
           </div>
+        </div>
 
-          <div className="flex-1 overflow-y-auto">
-            {/* Quick actions */}
-            <div className="p-4 border-b space-y-2">
-              <div className="relative">
-                <button
-                  onClick={() => setShowStageMenu(!showStageMenu)}
-                  className="w-full flex items-center justify-between text-sm border rounded-md px-3 py-2 hover:bg-slate-50 transition-colors"
-                >
-                  <StatusBadge stage={displayLead.estado_pipeline} />
-                  <ChevronDown size={14} className="text-slate-400" />
-                </button>
+        <div className="flex-1 overflow-y-auto">
+          {/* Stage change */}
+          <div className="p-4 border-b space-y-2">
+            <div className="relative">
+              <button
+                onClick={() => setShowStageMenu(!showStageMenu)}
+                className="w-full flex items-center justify-between text-sm border rounded-md px-3 py-2 hover:bg-slate-50 transition-colors"
+              >
+                <StatusBadge stage={displayLead.estado_pipeline} />
+                <ChevronDown size={14} className="text-slate-400" />
+              </button>
+              {showStageMenu && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-10 max-h-64 overflow-y-auto">
+                  {PIPELINE_STAGES.map((s) => (
+                    <button
+                      key={s.value}
+                      onClick={() => stageMutation.mutate(s.value)}
+                      disabled={s.value === displayLead.estado_pipeline || stageMutation.isPending}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-40 transition-colors"
+                    >
+                      <StatusBadge stage={s.value} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
 
-                {showStageMenu && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-10 max-h-64 overflow-y-auto">
-                    {PIPELINE_STAGES.map((s) => (
-                      <button
-                        key={s.value}
-                        onClick={() => stageMutation.mutate(s.value)}
-                        disabled={s.value === displayLead.estado_pipeline || stageMutation.isPending}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-40 transition-colors"
+          {/* Lead data */}
+          <div className="p-4 space-y-3 border-b">
+            <Section label="Contacto">
+              <Field label="Email" value={displayLead.email} />
+              <Field label="Teléfono" value={displayLead.telefono} />
+              <Field label="País" value={displayLead.pais} />
+            </Section>
+
+            <Section label="Negocio">
+              {/* Servicios as tags */}
+              {(displayLead.servicios_interesados?.length > 0) && (
+                <div>
+                  <span className="text-xs text-slate-400 block mb-1">Servicios</span>
+                  <div className="flex flex-wrap gap-1">
+                    {displayLead.servicios_interesados.map((s) => (
+                      <span
+                        key={s}
+                        className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium"
                       >
-                        <StatusBadge stage={s.value} />
-                      </button>
+                        {s}
+                      </span>
                     ))}
                   </div>
-                )}
-              </div>
-            </div>
-
-            {/* Lead data */}
-            <div className="p-4 space-y-3 border-b">
-              <Section label="Contacto">
-                <Field label="Email" value={displayLead.email} />
-                <Field label="Teléfono" value={displayLead.telefono} />
-                <Field label="País" value={displayLead.pais} />
-              </Section>
-
-              <Section label="Negocio">
+                </div>
+              )}
+              {/* Fallback: old single field */}
+              {(!displayLead.servicios_interesados?.length && displayLead.servicio_interesado) && (
                 <Field label="Servicio" value={displayLead.servicio_interesado} />
-                <Field label="Presupuesto" value={displayLead.presupuesto_estimado ? `~${formatUSD(displayLead.presupuesto_estimado)}` : null} />
-                <Field label="Propuesta" value={displayLead.valor_propuesta_usd ? formatUSD(displayLead.valor_propuesta_usd) : null} />
-                <Field label="Calidad" value={displayLead.calidad_lead} />
-                <Field label="Fuente" value={displayLead.fuente} />
-              </Section>
-
-              <Section label="Fechas">
-                <Field label="Ingresó" value={displayLead.fecha_ingreso ? timeAgo(displayLead.fecha_ingreso) : null} />
-                <Field label="Contactado" value={displayLead.fecha_contacto ? timeAgo(displayLead.fecha_contacto) : null} />
-                <Field label="Reunión" value={displayLead.fecha_reunion ? timeAgo(displayLead.fecha_reunion) : null} />
-              </Section>
-
-              {displayLead.responsable && (
-                <Section label="Responsable">
-                  <div className="flex items-center gap-2">
-                    <UserAvatar
-                      name={displayLead.responsable.full_name}
-                      avatarUrl={displayLead.responsable.avatar_url}
-                      size="sm"
-                    />
-                    <span className="text-sm text-slate-700">{displayLead.responsable.full_name}</span>
-                  </div>
-                </Section>
               )}
+              <Field label="Propuesta" value={valorDisplay} />
+              <Field label="Calidad" value={displayLead.calidad_lead} />
+              <Field label="Fuente" value={displayLead.fuente} />
+            </Section>
 
-              {displayLead.notas && (
-                <Section label="Notas">
-                  <p className="text-sm text-slate-600 whitespace-pre-wrap">{displayLead.notas}</p>
-                </Section>
-              )}
-            </div>
+            <Section label="Fechas">
+              <Field label="Ingresó" value={displayLead.fecha_ingreso ? timeAgo(displayLead.fecha_ingreso) : null} />
+              <Field label="Contactado" value={displayLead.fecha_contacto ? timeAgo(displayLead.fecha_contacto) : null} />
+              <Field label="Reunión" value={displayLead.fecha_reunion ? timeAgo(displayLead.fecha_reunion) : null} />
+            </Section>
 
-            {/* Tasks */}
-            <TaskList leadId={lead.id} />
-          </div>
-        </div>
+            {displayLead.responsable && (
+              <Section label="Responsable">
+                <div className="flex items-center gap-2">
+                  <UserAvatar
+                    name={displayLead.responsable.full_name}
+                    avatarUrl={displayLead.responsable.avatar_url}
+                    size="sm"
+                  />
+                  <span className="text-sm text-slate-700">{displayLead.responsable.full_name}</span>
+                </div>
+              </Section>
+            )}
 
-        {/* Right panel — Activity */}
-        <div className="flex-1 bg-white flex flex-col min-w-0">
-          <div className="px-4 py-3 border-b">
-            <h3 className="text-sm font-semibold text-slate-700">Actividad</h3>
+            {displayLead.notas && (
+              <Section label="Notas">
+                <p className="text-sm text-slate-600 whitespace-pre-wrap">{displayLead.notas}</p>
+              </Section>
+            )}
           </div>
-          <div className="flex-1 overflow-hidden">
-            <ActivityFeed leadId={lead.id} />
-          </div>
+
+          {/* Tasks */}
+          <TaskList leadId={lead.id} />
         </div>
       </div>
+
+      {/* Right panel — Activity */}
+      <div className="flex-1 bg-white flex flex-col min-w-0">
+        <div className="px-4 py-3 border-b">
+          <h3 className="text-sm font-semibold text-slate-700">Actividad</h3>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <ActivityFeed leadId={lead.id} />
+        </div>
+      </div>
+    </div>
   )
 
   if (fullPage) return panelContent

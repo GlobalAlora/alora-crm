@@ -4,6 +4,53 @@ import { useState, useRef, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { FormConfig, FormField } from '@/app/api/embed/config/route'
 
+/* ── Event tracking helpers ────────────────────────────────────── */
+function useFormTracking(formId: string) {
+  const sessionId = useRef(crypto.randomUUID())
+  const hasStarted = useRef(false)
+  const hasSubmitted = useRef(false)
+
+  const track = useCallback((eventType: string, metadata?: Record<string, unknown>) => {
+    if (!formId) return
+    const payload = { form_id: formId, event_type: eventType, session_id: sessionId.current, metadata }
+    // Also notify parent embed.js via postMessage (for widget mode)
+    window.parent.postMessage({ type: 'alora:event', formId, eventType, metadata }, '*')
+    // Direct fire (works in inline mode and standalone)
+    fetch('/api/embed/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(() => {})
+  }, [formId])
+
+  const trackStart = useCallback(() => {
+    if (hasStarted.current) return
+    hasStarted.current = true
+    track('form_started')
+  }, [track])
+
+  const trackSubmit = useCallback(() => {
+    hasSubmitted.current = true
+    track('form_submitted')
+  }, [track])
+
+  // Abandoned: user leaves without submitting after starting
+  useEffect(() => {
+    if (!formId) return
+    const handleUnload = () => {
+      if (!hasStarted.current || hasSubmitted.current) return
+      const payload = JSON.stringify({
+        form_id: formId, event_type: 'form_abandoned', session_id: sessionId.current, metadata: {},
+      })
+      navigator.sendBeacon('/api/embed/events', new Blob([payload], { type: 'application/json' }))
+    }
+    window.addEventListener('beforeunload', handleUnload)
+    return () => window.removeEventListener('beforeunload', handleUnload)
+  }, [formId])
+
+  return { trackStart, trackSubmit }
+}
+
 const INPUT_BASE = `
   width:100%;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;
   font-size:14px;color:#1e293b;background:#fff;outline:none;
@@ -80,6 +127,7 @@ function EmbedFormInner() {
   const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
   const honeypotRef = useRef<HTMLInputElement>(null)
+  const { trackStart, trackSubmit } = useFormTracking(formId)
 
   // Fetch config
   useEffect(() => {
@@ -118,6 +166,7 @@ function EmbedFormInner() {
   const color = colorOverride || config?.color || '#2563eb'
 
   const set = (name: string) => (v: string) => {
+    trackStart()
     setValues(prev => ({ ...prev, [name]: v }))
     if (errors[name]) setErrors(prev => ({ ...prev, [name]: false }))
   }
@@ -167,6 +216,7 @@ function EmbedFormInner() {
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Error al enviar')
+      trackSubmit()
       setStatus('success')
     } catch (err) {
       setStatus('error')

@@ -54,10 +54,29 @@
     return iframe;
   }
 
-  /* ── Auto-resize via postMessage ───────────────────────────────── */
+  /* ── Event tracking ────────────────────────────────────────────── */
+  function trackEvent(eventType, meta) {
+    if (!formId) return;
+    var payload = JSON.stringify({ form_id: formId, event_type: eventType, metadata: meta || {} });
+    try {
+      fetch(baseUrl + '/api/embed/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+      }).catch(function () {});
+    } catch (_) {}
+  }
+
+  /* ── Auto-resize + event bus via postMessage ───────────────────── */
   function listenResize(iframe) {
     global.addEventListener('message', function (e) {
-      if (!e.data || e.data.type !== 'alora:resize') return;
+      if (!e.data) return;
+      // Forward events from inside the iframe
+      if (e.data.type === 'alora:event' && e.data.formId === formId) {
+        trackEvent(e.data.eventType, e.data.metadata);
+        return;
+      }
+      if (e.data.type !== 'alora:resize') return;
       if (iframe.src.indexOf(baseUrl) !== 0) return;
       iframe.style.minHeight = (e.data.height + 24) + 'px';
     });
@@ -68,6 +87,7 @@
     var iframe = createIframe(buildIframeUrl());
     script.parentNode.insertBefore(iframe, script);
     listenResize(iframe);
+    iframe.addEventListener('load', function () { trackEvent('form_opened'); });
     return { open: noop, close: noop, toggle: noop };
   }
 
@@ -79,6 +99,7 @@
     var iframe = createIframe(buildIframeUrl('_widget=1'), '520px');
     panel.appendChild(iframe);
     listenResize(iframe);
+    iframe.addEventListener('load', function () { trackEvent('form_opened'); });
 
     var btn = document.createElement('button');
     btn.className = 'alora-widget-btn';

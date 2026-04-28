@@ -111,9 +111,20 @@ export const activitiesApi = {
 
 // ─── Tasks ────────────────────────────────────────────────────────────────────
 
+export type GlobalTask = Task & {
+  lead: { id: string; nombre: string; apellido: string | null; estado_pipeline: string } | null
+}
+
 export const tasksApi = {
   list(leadId: string): Promise<Task[]> {
     return request(`${BASE}/leads/${leadId}/tasks`)
+  },
+
+  listAll(filters?: { asignado_a?: string; completada?: boolean }): Promise<GlobalTask[]> {
+    const params = new URLSearchParams()
+    if (filters?.asignado_a) params.set('asignado_a', filters.asignado_a)
+    if (filters?.completada !== undefined) params.set('completada', String(filters.completada))
+    return request(`${BASE}/tasks?${params}`)
   },
 
   create(leadId: string, data: Partial<Task>): Promise<Task> {
@@ -125,6 +136,17 @@ export const tasksApi = {
 
   complete(taskId: string): Promise<Task> {
     return request(`${BASE}/tasks/${taskId}/complete`, { method: 'PATCH' })
+  },
+
+  update(taskId: string, data: Partial<Pick<Task, 'titulo' | 'descripcion' | 'vencimiento'>>): Promise<Task> {
+    return request(`${BASE}/tasks/${taskId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  },
+
+  remove(taskId: string): Promise<{ ok: boolean }> {
+    return request(`${BASE}/tasks/${taskId}`, { method: 'DELETE' })
   },
 }
 
@@ -143,4 +165,62 @@ export const usersApi = {
   list(): Promise<User[]> {
     return request(`${BASE}/users`)
   },
+}
+
+// ─── Forms ────────────────────────────────────────────────────────────────────
+
+export const formsApi = {
+  list(): Promise<FormWithStats[]> {
+    return request(`${BASE}/embed/forms`)
+  },
+  get(id: string): Promise<FormDetail> {
+    return request(`${BASE}/embed/forms/${id}`)
+  },
+  create(body: Partial<FormConfig>): Promise<{ id: string; name: string }> {
+    return request(`${BASE}/embed/forms`, { method: 'POST', body: JSON.stringify(body) })
+  },
+  update(id: string, body: Partial<FormConfig>): Promise<{ id: string }> {
+    return request(`${BASE}/embed/forms/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+  },
+  remove(id: string): Promise<{ ok: boolean }> {
+    return request(`${BASE}/embed/forms/${id}`, { method: 'DELETE' })
+  },
+}
+
+export interface FormConfig {
+  id: string
+  name: string
+  title: string
+  subtitle: string
+  color: string
+  fields: import('@/app/api/embed/config/route').FormField[]
+  tags: string[]
+  active: boolean
+  created_at: string
+  updated_at?: string
+}
+
+export interface FormWithStats extends FormConfig {
+  stats: {
+    total_leads: number
+    leads_7d: number
+    opened: number
+    started: number
+    submitted: number
+    conversion_rate: number
+  }
+}
+
+export interface FormDetail extends FormConfig {
+  analytics: {
+    total_leads: number
+    leads_7d: number
+    revenue_usd: number
+    opened: number
+    started: number
+    submitted: number
+    abandoned: number
+    conversion_rate: number
+    abandonment_rate: number
+  }
 }
