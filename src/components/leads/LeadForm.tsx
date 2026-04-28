@@ -6,29 +6,7 @@ import { X, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useLeadFormStore } from '@/hooks/useLeadFormStore'
 import { leadsApi, usersApi } from '@/lib/api'
-import type { LeadFuente } from '@/types'
-
-const FUENTES: { value: LeadFuente; label: string }[] = [
-  { value: 'formulario', label: 'Formulario web' },
-  { value: 'referido', label: 'Referido' },
-  { value: 'linkedin', label: 'LinkedIn' },
-  { value: 'instagram', label: 'Instagram' },
-  { value: 'whatsapp', label: 'WhatsApp' },
-  { value: 'chatbot', label: 'Chatbot' },
-  { value: 'otro', label: 'Otro' },
-]
-
-const SERVICIOS = [
-  'Diseño web', 'Mantenimiento web', 'SEO', 'Google Ads', 'Meta Ads',
-  'Redes sociales', 'Branding', 'Email marketing', 'Chatbot', 'IA automatización', 'Otro',
-]
-
-const PAISES = [
-  'Argentina', 'Bolivia', 'Brasil', 'Chile', 'Colombia', 'Costa Rica',
-  'Ecuador', 'El Salvador', 'España', 'Guatemala', 'Honduras', 'México',
-  'Nicaragua', 'Panamá', 'Paraguay', 'Perú', 'Uruguay', 'Venezuela',
-  'Estados Unidos', 'Canadá', 'Otro',
-]
+import { SERVICIOS, PAISES, FUENTES } from '@/types'
 
 const INPUT =
   'w-full border border-slate-200 rounded-md px-3 py-1.5 text-sm text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow'
