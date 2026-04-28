@@ -101,7 +101,7 @@ export default function DashboardPage() {
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             {(d?.alertas.sin_respuesta_48h ?? 0) > 0 && (
               <button
-                onClick={() => router.push('/pipeline?estado=sin_respuesta')}
+                onClick={() => router.push('/leads?view=kanban&estado_pipeline=sin_respuesta')}
                 className="text-sm text-amber-800 hover:text-amber-900 hover:underline"
               >
                 <strong>{d!.alertas.sin_respuesta_48h}</strong> lead{d!.alertas.sin_respuesta_48h !== 1 ? 's' : ''} sin respuesta +48h
@@ -109,7 +109,7 @@ export default function DashboardPage() {
             )}
             {(d?.alertas.tareas_vencidas ?? 0) > 0 && (
               <button
-                onClick={() => router.push('/tasks')}
+                onClick={() => router.push('/leads/tareas')}
                 className="text-sm text-amber-800 hover:text-amber-900 hover:underline"
               >
                 <strong>{d!.alertas.tareas_vencidas}</strong> tarea{d!.alertas.tareas_vencidas !== 1 ? 's' : ''} vencida{d!.alertas.tareas_vencidas !== 1 ? 's' : ''}
@@ -117,7 +117,7 @@ export default function DashboardPage() {
             )}
             {(d?.alertas.leads_inactivos ?? 0) > 0 && (
               <button
-                onClick={() => router.push('/pipeline')}
+                onClick={() => router.push('/leads')}
                 className="text-sm text-amber-800 hover:text-amber-900 hover:underline"
               >
                 <strong>{d!.alertas.leads_inactivos}</strong> lead{d!.alertas.leads_inactivos !== 1 ? 's' : ''} inactivo{d!.alertas.leads_inactivos !== 1 ? 's' : ''} (sin movimiento &gt;7d)
@@ -212,7 +212,7 @@ export default function DashboardPage() {
                   <div
                     key={value}
                     className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 rounded px-1 py-1 -mx-1 -my-1 transition-colors"
-                    onClick={() => router.push(`/pipeline?estado=${value}`)}
+                    onClick={() => router.push(`/leads?view=kanban&estado_pipeline=${value}`)}
                   >
                     <span className="text-xs text-slate-500 w-32 flex-shrink-0 truncate">{config.label}</span>
                     <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -247,7 +247,7 @@ export default function DashboardPage() {
                 <div
                   key={value}
                   className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 rounded px-1 py-1 -mx-1 -my-1 transition-colors"
-                  onClick={() => router.push(`/pipeline?estado=${value}`)}
+                  onClick={() => router.push(`/leads?view=kanban&estado_pipeline=${value}`)}
                 >
                   <span className="text-xs text-slate-500 w-36 flex-shrink-0 truncate">{config.label}</span>
                   <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -287,7 +287,7 @@ export default function DashboardPage() {
                 <div
                   key={u.id}
                   className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
-                  onClick={() => router.push(`/pipeline?responsable=${u.id}`)}
+                  onClick={() => router.push(`/leads?view=kanban&responsable_id=${u.id}`)}
                 >
                   <span className="text-xs text-slate-400 w-4 text-right">{idx + 1}</span>
                   <UserAvatar name={u.full_name} avatarUrl={u.avatar_url} size="sm" />
@@ -342,7 +342,7 @@ export default function DashboardPage() {
                   <div
                     key={`lead-${lead.id}`}
                     className="flex items-start gap-3 px-2 py-2 rounded-lg hover:bg-slate-50 cursor-pointer"
-                    onClick={() => router.push(`/leads/${lead.id}`)}
+                    onClick={() => { if (lead.id) router.push(`/leads/${lead.id}`) }}
                   >
                     <div
                       className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
@@ -368,7 +368,7 @@ export default function DashboardPage() {
                   <div
                     key={`act-${act.id}`}
                     className="flex items-start gap-3 px-2 py-2 rounded-lg hover:bg-slate-50 cursor-pointer"
-                    onClick={() => act.lead_id && router.push(`/leads/${act.lead_id}`)}
+                    onClick={() => { if (act.lead_id) router.push(`/leads/${act.lead_id}`) }}
                   >
                     <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 mt-0.5">
                       <Icon size={11} className="text-slate-500" />
