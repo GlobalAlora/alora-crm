@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 import { useLeadFormStore } from '@/hooks/useLeadFormStore'
 import { leadsApi, usersApi } from '@/lib/api'
 import { SERVICIOS, PAISES, FUENTES } from '@/types'
+import type { LeadFuente } from '@/types'
 
 const INPUT =
   'w-full border border-slate-200 rounded-md px-3 py-1.5 text-sm text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow'
