@@ -13,6 +13,7 @@ const FUENTES: { value: LeadFuente; label: string }[] = [
   { value: 'referido', label: 'Referido' },
   { value: 'linkedin', label: 'LinkedIn' },
   { value: 'instagram', label: 'Instagram' },
+  { value: 'whatsapp', label: 'WhatsApp' },
   { value: 'chatbot', label: 'Chatbot' },
   { value: 'otro', label: 'Otro' },
 ]
@@ -20,6 +21,13 @@ const FUENTES: { value: LeadFuente; label: string }[] = [
 const SERVICIOS = [
   'Diseño web', 'Mantenimiento web', 'SEO', 'Google Ads', 'Meta Ads',
   'Redes sociales', 'Branding', 'Email marketing', 'Chatbot', 'IA automatización', 'Otro',
+]
+
+const PAISES = [
+  'Argentina', 'Bolivia', 'Brasil', 'Chile', 'Colombia', 'Costa Rica',
+  'Ecuador', 'El Salvador', 'España', 'Guatemala', 'Honduras', 'México',
+  'Nicaragua', 'Panamá', 'Paraguay', 'Perú', 'Uruguay', 'Venezuela',
+  'Estados Unidos', 'Canadá', 'Otro',
 ]
 
 const INPUT =
@@ -151,7 +159,10 @@ export function LeadForm() {
                 </label>
                 <label className="space-y-1">
                   <span className="text-xs font-medium text-slate-600">País</span>
-                  <input value={form.pais} onChange={set('pais')} placeholder="Argentina" className={INPUT} />
+                  <select value={form.pais} onChange={set('pais')} className={INPUT}>
+                    <option value="">Seleccionar...</option>
+                    {PAISES.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
                 </label>
                 <label className="space-y-1">
                   <span className="text-xs font-medium text-slate-600">Fuente</span>
