@@ -51,12 +51,15 @@ body {
   display: flex;
   gap: 1rem;
   overflow-x: auto;
+  overflow-y: hidden;
   padding-bottom: 1rem;
   min-height: calc(100vh - 120px);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
 
 .kanban-board::-webkit-scrollbar {
-  height: 6px;
+  height: 8px;
 }
 
 .kanban-board::-webkit-scrollbar-track {
@@ -65,7 +68,11 @@ body {
 
 .kanban-board::-webkit-scrollbar-thumb {
   background: var(--border);
-  border-radius: 3px;
+  border-radius: 4px;
+}
+
+.kanban-board::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
 }
 
 .kanban-column {

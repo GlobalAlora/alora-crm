@@ -56,6 +56,14 @@ export interface Propuesta {
   updated_at: string
 }
 
+export interface StageHistory {
+  id: string
+  lead_id: string
+  etapa: PipelineStage
+  fecha_ingreso: string
+  created_at: string
+}
+
 export interface Lead {
   id: string
   nombre: string
@@ -95,6 +103,7 @@ export interface Lead {
   calidad_lead?: LeadQuality
   dias_sin_respuesta?: number
   propuestas?: Propuesta[]
+  stage_history?: StageHistory[]
 }
 
 export interface Activity {

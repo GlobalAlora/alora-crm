@@ -17,6 +17,7 @@ import { RichTextEditor } from '@/components/shared/RichTextEditor'
 import { InlineEdit } from '@/components/shared/InlineEdit'
 import { PropuestasSection } from './PropuestasSection'
 import { ServiciosEdit } from './ServiciosEdit'
+import { StageHistorySection } from './StageHistorySection'
 
 interface LeadDetailProps {
   lead: Lead
@@ -380,6 +381,9 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage = false }: L
                 </div>
               )}
             </Section>
+
+            {/* Stage History */}
+            <StageHistorySection lead={displayLead} />
           </div>
 
           {/* Tasks */}

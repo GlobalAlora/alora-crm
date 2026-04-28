@@ -43,6 +43,9 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [overColumnId, setOverColumnId] = useState<PipelineStage | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [startX, setStartX] = useState(0)
+  const [scrollLeft, setScrollLeft] = useState(0)
 
   // Horizontal scroll with mouse wheel
   useEffect(() => {
@@ -57,6 +60,33 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
     el.addEventListener('wheel', handler, { passive: false })
     return () => el.removeEventListener('wheel', handler)
   }, [])
+
+  // Click and drag scroll
+  const handleMouseDown = (e: React.MouseEvent) => {
+    const el = scrollRef.current
+    if (!el) return
+    setIsDragging(true)
+    setStartX(e.pageX - el.offsetLeft)
+    setScrollLeft(el.scrollLeft)
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return
+    const el = scrollRef.current
+    if (!el) return
+    e.preventDefault()
+    const x = e.pageX - el.offsetLeft
+    const walk = (x - startX) * 2
+    el.scrollLeft = scrollLeft - walk
+  }
+
+  const handleMouseUp = () => {
+    setIsDragging(false)
+  }
+
+  const handleMouseLeave = () => {
+    setIsDragging(false)
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ['leads', { view: 'kanban' }],
@@ -194,7 +224,15 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div ref={scrollRef} className="kanban-board">
+      <div
+        ref={scrollRef}
+        className="kanban-board"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
+        style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+      >
         {PIPELINE_STAGES.map((stage) => (
           <KanbanColumn
             key={stage.value}

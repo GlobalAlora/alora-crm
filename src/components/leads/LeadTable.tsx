@@ -137,7 +137,8 @@ export function LeadTable({ onLeadClick }: LeadTableProps) {
               <SortHeader column="empresa" sortBy={filters.sortBy} sortOrder={filters.sortOrder} onSort={handleSort}>Empresa</SortHeader>
               <th className="text-left font-medium text-slate-600 px-4 py-3">Servicio</th>
               <th className="text-left font-medium text-slate-600 px-4 py-3">Etapa</th>
-              <SortHeader column="valor_propuesta_usd" sortBy={filters.sortBy} sortOrder={filters.sortOrder} onSort={handleSort} className="text-right">Valor USD</SortHeader>
+              <th className="text-right font-medium text-slate-600 px-4 py-3">Valor USD</th>
+              <th className="text-right font-medium text-slate-600 px-4 py-3">Valor ARS</th>
               <th className="text-left font-medium text-slate-600 px-4 py-3">Responsable</th>
               <SortHeader column="last_activity_at" sortBy={filters.sortBy} sortOrder={filters.sortOrder} onSort={handleSort}>Última actividad</SortHeader>
             </tr>
@@ -209,6 +210,12 @@ export function LeadTable({ onLeadClick }: LeadTableProps) {
                     onClick={() => onLeadClick(lead)}
                   >
                     {lead.valor_propuesta_usd ? formatUSD(lead.valor_propuesta_usd) : '—'}
+                  </td>
+                  <td
+                    className="px-4 py-3 text-right text-slate-600 cursor-pointer"
+                    onClick={() => onLeadClick(lead)}
+                  >
+                    {lead.valor_propuesta_ars ? `ARS ${lead.valor_propuesta_ars.toLocaleString('es-AR')}` : '—'}
                   </td>
                   <td
                     className="px-4 py-3 cursor-pointer"

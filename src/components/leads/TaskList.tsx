@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Plus, AlertCircle } from 'lucide-react'
+import { Plus, AlertCircle, Trash2 } from 'lucide-react'
 import { format, isPast, isToday, isTomorrow } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
@@ -44,6 +44,15 @@ export function TaskList({ leadId }: TaskListProps) {
       queryClient.invalidateQueries({ queryKey: ['activities', leadId] })
     },
     onError: () => toast.error('Error al completar la tarea'),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (taskId: string) => tasksApi.remove(taskId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', leadId] })
+      toast.success('Tarea eliminada')
+    },
+    onError: () => toast.error('Error al eliminar la tarea'),
   })
 
   const pending = tasks.filter((t) => !t.completada)
@@ -103,11 +112,28 @@ export function TaskList({ leadId }: TaskListProps) {
             key={task.id}
             task={task}
             onComplete={() => completeMutation.mutate(task.id)}
+            onDelete={() => {
+              if (confirm('¿Eliminar esta tarea?')) {
+                deleteMutation.mutate(task.id)
+              }
+            }}
             isCompleting={completeMutation.isPending}
+            isDeleting={deleteMutation.isPending}
           />
         ))}
         {done.slice(0, 3).map((task) => (
-          <TaskItem key={task.id} task={task} onComplete={() => {}} isCompleting={false} />
+          <TaskItem
+            key={task.id}
+            task={task}
+            onComplete={() => {}}
+            onDelete={() => {
+              if (confirm('¿Eliminar esta tarea?')) {
+                deleteMutation.mutate(task.id)
+              }
+            }}
+            isCompleting={false}
+            isDeleting={deleteMutation.isPending}
+          />
         ))}
       </div>
 
@@ -129,14 +155,16 @@ function dueDateLabel(date: string): { label: string; urgent: boolean } {
 interface TaskItemProps {
   task: Task
   onComplete: () => void
+  onDelete: () => void
   isCompleting: boolean
+  isDeleting: boolean
 }
 
-function TaskItem({ task, onComplete, isCompleting }: TaskItemProps) {
+function TaskItem({ task, onComplete, onDelete, isCompleting, isDeleting }: TaskItemProps) {
   const due = task.vencimiento ? dueDateLabel(task.vencimiento) : null
 
   return (
-    <div className={cn('flex items-start gap-2 p-2 rounded-lg', task.completada ? 'opacity-50' : 'hover:bg-slate-50')}>
+    <div className={cn('flex items-start gap-2 p-2 rounded-lg group', task.completada ? 'opacity-50' : 'hover:bg-slate-50')}>
       <button
         onClick={onComplete}
         disabled={task.completada || isCompleting}
@@ -162,6 +190,14 @@ function TaskItem({ task, onComplete, isCompleting }: TaskItemProps) {
           </div>
         )}
       </div>
+      <button
+        onClick={onDelete}
+        disabled={isDeleting}
+        className="p-1 text-slate-400 hover:text-red-600 disabled:opacity-50"
+        title="Eliminar tarea"
+      >
+        <Trash2 size={12} />
+      </button>
     </div>
   )
 }

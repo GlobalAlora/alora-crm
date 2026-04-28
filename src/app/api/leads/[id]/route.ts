@@ -7,11 +7,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params
   const supabase = await createClient()
 
-  // Fetch lead with propuestas
-  const [{ data: lead, error: leadError }, { data: propuestas }] = await Promise.all([
+  // Fetch lead with propuestas and stage history
+  const [{ data: lead, error: leadError }, { data: propuestas }, { data: stageHistory }] = await Promise.all([
     supabase
       .from('leads')
-      .select('*, responsable:users!responsable_id(id, full_name, avatar_url)')
+      .select('*, responsable:users!responsible_id(id, full_name, avatar_url)')
       .eq('id', id)
       .is('deleted_at', null)
       .single(),
@@ -20,6 +20,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
       .select('*')
       .eq('lead_id', id)
       .order('created_at', { ascending: false }),
+    supabase
+      .from('stage_history')
+      .select('*')
+      .eq('lead_id', id)
+      .order('fecha_ingreso', { ascending: false }),
   ])
 
   if (leadError || !lead) return NextResponse.json({ error: 'Lead no encontrado' }, { status: 404 })
@@ -37,7 +42,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     ? Math.floor((Date.now() - new Date(lead.stage_updated_at).getTime()) / 86_400_000)
     : 0
 
-  return NextResponse.json({ data: { ...lead, propuestas: propuestas || [], calidad_lead, dias_sin_respuesta } })
+  return NextResponse.json({ data: { ...lead, propuestas: propuestas || [], stage_history: stageHistory || [], calidad_lead, dias_sin_respuesta } })
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {

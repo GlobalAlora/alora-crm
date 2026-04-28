@@ -18,6 +18,20 @@ export function KanbanColumn({ stage, leads, onLeadClick, isOver }: KanbanColumn
   const config = PIPELINE_STAGE_MAP[stage]
   const { setNodeRef } = useDroppable({ id: stage })
 
+  // Calculate totals
+  const totalUSD = leads.reduce((sum, lead) => sum + (lead.valor_propuesta_usd || 0), 0)
+  const totalARS = leads.reduce((sum, lead) => sum + (lead.valor_propuesta_ars || 0), 0)
+
+  const formatUSD = (val: number) => {
+    if (val === 0) return '$0'
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(val)
+  }
+
+  const formatARS = (val: number) => {
+    if (val === 0) return 'ARS 0'
+    return `ARS ${val.toLocaleString('es-AR')}`
+  }
+
   return (
     <div className={cn('kanban-column rounded-xl border bg-slate-50', isOver && 'ring-2 ring-blue-400')}>
       {/* Column header */}
@@ -33,6 +47,24 @@ export function KanbanColumn({ stage, leads, onLeadClick, isOver }: KanbanColumn
           {leads.length}
         </span>
       </div>
+
+      {/* Totals */}
+      {(totalUSD > 0 || totalARS > 0) && (
+        <div className="px-3 py-2 border-b bg-slate-50 text-xs space-y-1">
+          {totalUSD > 0 && (
+            <div className="flex justify-between">
+              <span className="text-slate-500">Total USD:</span>
+              <span className="font-medium text-slate-700">{formatUSD(totalUSD)}</span>
+            </div>
+          )}
+          {totalARS > 0 && (
+            <div className="flex justify-between">
+              <span className="text-slate-500">Total ARS:</span>
+              <span className="font-medium text-slate-700">{formatARS(totalARS)}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Cards */}
       <div ref={setNodeRef} className="kanban-cards space-y-2 p-2">
