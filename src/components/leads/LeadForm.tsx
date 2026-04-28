@@ -6,8 +6,8 @@ import { X, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useLeadFormStore } from '@/hooks/useLeadFormStore'
 import { leadsApi, usersApi } from '@/lib/api'
-import { SERVICIOS, PAISES, FUENTES } from '@/types'
-import type { LeadFuente } from '@/types'
+import { SERVICIOS, PAISES, FUENTES, PIPELINE_STAGES } from '@/types'
+import type { LeadFuente, PipelineStage } from '@/types'
 
 const INPUT =
   'w-full border border-slate-200 rounded-md px-3 py-1.5 text-sm text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow'
@@ -16,11 +16,13 @@ interface FormState {
   nombre: string
   apellido: string
   email: string
+  email_secundario: string
   telefono: string
   empresa: string
   pais: string
   servicios_interesados: string[]
   fuente: LeadFuente | ''
+  estado_pipeline: PipelineStage | ''
   valor_propuesta: string
   valor_propuesta_moneda: 'USD' | 'ARS'
   notas: string
@@ -28,8 +30,8 @@ interface FormState {
 }
 
 const emptyForm: FormState = {
-  nombre: '', apellido: '', email: '', telefono: '', empresa: '', pais: '',
-  servicios_interesados: [], fuente: '',
+  nombre: '', apellido: '', email: '', email_secundario: '', telefono: '', empresa: '', pais: '',
+  servicios_interesados: [], fuente: '', estado_pipeline: '',
   valor_propuesta: '', valor_propuesta_moneda: 'USD',
   notas: '', responsable_id: '',
 }
@@ -46,11 +48,13 @@ export function LeadForm() {
         nombre: editingLead.nombre ?? '',
         apellido: editingLead.apellido ?? '',
         email: editingLead.email ?? '',
+        email_secundario: editingLead.email_secundario ?? '',
         telefono: editingLead.telefono ?? '',
         empresa: editingLead.empresa ?? '',
         pais: editingLead.pais ?? '',
         servicios_interesados: editingLead.servicios_interesados ?? [],
         fuente: editingLead.fuente ?? '',
+        estado_pipeline: editingLead.estado_pipeline ?? '',
         valor_propuesta: editingLead.valor_propuesta_moneda === 'ARS'
           ? (editingLead.valor_propuesta_ars?.toString() ?? '')
           : (editingLead.valor_propuesta_usd?.toString() ?? ''),
@@ -77,12 +81,14 @@ export function LeadForm() {
         nombre: form.nombre.trim(),
         apellido: form.apellido.trim() || undefined,
         email: form.email || undefined,
+        email_secundario: form.email_secundario || undefined,
         telefono: form.telefono || undefined,
         empresa: form.empresa || undefined,
         pais: form.pais || undefined,
         servicios_interesados: form.servicios_interesados,
         servicio_interesado: form.servicios_interesados[0] || undefined,
         fuente: (form.fuente || undefined) as LeadFuente | undefined,
+        estado_pipeline: form.estado_pipeline || undefined,
         valor_propuesta_usd: form.valor_propuesta_moneda === 'USD' && form.valor_propuesta
           ? Number(form.valor_propuesta) : undefined,
         valor_propuesta_ars: form.valor_propuesta_moneda === 'ARS' && form.valor_propuesta
@@ -163,6 +169,10 @@ export function LeadForm() {
                 <label className="space-y-1">
                   <span className="text-xs font-medium text-slate-600">Email</span>
                   <input type="email" value={form.email} onChange={set('email')} placeholder="juan@empresa.com" className={INPUT} />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-xs font-medium text-slate-600">Email secundario</span>
+                  <input type="email" value={form.email_secundario} onChange={set('email_secundario')} placeholder="juan.personal@gmail.com" className={INPUT} />
                 </label>
                 <label className="space-y-1">
                   <span className="text-xs font-medium text-slate-600">Teléfono</span>
@@ -250,6 +260,15 @@ export function LeadForm() {
                   </div>
                 </div>
 
+                {!editingLead && (
+                  <label className="space-y-1">
+                    <span className="text-xs font-medium text-slate-600">Etapa del pipeline</span>
+                    <select value={form.estado_pipeline} onChange={set('estado_pipeline')} className={INPUT}>
+                      <option value="">Lead entrante (por defecto)</option>
+                      {PIPELINE_STAGES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    </select>
+                  </label>
+                )}
                 <label className="space-y-1">
                   <span className="text-xs font-medium text-slate-600">Fuente</span>
                   <select value={form.fuente} onChange={set('fuente')} className={INPUT}>

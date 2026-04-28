@@ -19,10 +19,11 @@ export function PropuestasSection({ lead, readOnly = false }: PropuestasSectionP
     descripcion: '',
     valor: '',
     moneda: 'USD' as 'USD' | 'ARS',
+    link: '',
   })
 
   const createMutation = useMutation({
-    mutationFn: async (data: { descripcion: string; valor_usd?: number; valor_ars?: number; moneda: 'USD' | 'ARS' }) => {
+    mutationFn: async (data: { descripcion: string; valor_usd?: number; valor_ars?: number; moneda: 'USD' | 'ARS'; link?: string }) => {
       const res = await fetch(`/api/leads/${lead.id}/propuestas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -33,7 +34,7 @@ export function PropuestasSection({ lead, readOnly = false }: PropuestasSectionP
     },
     onSuccess: () => {
       setShowAdd(false)
-      setNewPropuesta({ descripcion: '', valor: '', moneda: 'USD' })
+      setNewPropuesta({ descripcion: '', valor: '', moneda: 'USD', link: '' })
       queryClient.invalidateQueries({ queryKey: ['lead', lead.id] })
       toast.success('Propuesta creada')
     },
@@ -72,7 +73,7 @@ export function PropuestasSection({ lead, readOnly = false }: PropuestasSectionP
 
   const handleCreate = () => {
     const valor = parseFloat(newPropuesta.valor) || 0
-    const data: { descripcion: string; valor_usd?: number; valor_ars?: number; moneda: 'USD' | 'ARS' } = {
+    const data: { descripcion: string; valor_usd?: number; valor_ars?: number; moneda: 'USD' | 'ARS'; link?: string } = {
       descripcion: newPropuesta.descripcion,
       moneda: newPropuesta.moneda,
     }
@@ -80,6 +81,9 @@ export function PropuestasSection({ lead, readOnly = false }: PropuestasSectionP
       data.valor_usd = valor
     } else {
       data.valor_ars = valor
+    }
+    if (newPropuesta.link) {
+      data.link = newPropuesta.link
     }
     createMutation.mutate(data)
   }
@@ -130,6 +134,13 @@ export function PropuestasSection({ lead, readOnly = false }: PropuestasSectionP
               <option value="ARS">ARS</option>
             </select>
           </div>
+          <input
+            type="url"
+            placeholder="Link de la propuesta (Google Drive, PDF, etc.)"
+            value={newPropuesta.link}
+            onChange={(e) => setNewPropuesta({ ...newPropuesta, link: e.target.value })}
+            className="w-full text-sm border rounded px-2 py-1"
+          />
           <div className="flex gap-2">
             <button
               onClick={handleCreate}
@@ -170,6 +181,17 @@ export function PropuestasSection({ lead, readOnly = false }: PropuestasSectionP
                 <p className="text-xs text-slate-500">
                   {p.moneda === 'USD' ? formatUSD(p.valor_usd || 0) : `ARS ${p.valor_ars?.toLocaleString('es-AR')}`}
                 </p>
+                {p.link && (
+                  <a
+                    href={p.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-600 hover:underline truncate block"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Ver propuesta
+                  </a>
+                )}
               </div>
               {!readOnly && (
                 <div className="flex items-center gap-1">

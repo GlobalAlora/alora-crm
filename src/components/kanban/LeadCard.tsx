@@ -3,13 +3,30 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { AlertTriangle, DollarSign, CheckSquare, GripVertical } from 'lucide-react'
-import type { Lead } from '@/types'
+import { useQuery } from '@tanstack/react-query'
+import type { Lead, Task } from '@/types'
 import { cn, formatUSD, timeAgo, hoursSince } from '@/lib/utils'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 
 interface LeadCardProps {
   lead: Lead
   onClick: (lead: Lead) => void
+}
+
+function useTasksCount(leadId: string) {
+  const { data } = useQuery({
+    queryKey: ['tasks-count', leadId],
+    queryFn: async () => {
+      const res = await fetch(`/api/leads/${leadId}/tasks`)
+      if (!res.ok) return { data: [] }
+      return res.json() as Promise<{ data: Task[] }>
+    },
+    staleTime: 60_000,
+    enabled: !!leadId,
+  })
+  const tasks = data?.data ?? []
+  const pendingCount = tasks.filter((t: Task) => !t.completada).length
+  return pendingCount
 }
 
 export function LeadCard({ lead, onClick }: LeadCardProps) {
@@ -21,6 +38,8 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
     transition,
     isDragging,
   } = useSortable({ id: lead.id, data: { lead } })
+
+  const pendingTasksCount = useTasksCount(lead.id)
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -92,6 +111,18 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
         </div>
 
         <div className="flex items-center gap-1.5">
+          {pendingTasksCount > 0 && (
+            <span
+              className={cn(
+                'flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full font-medium',
+                'bg-amber-100 text-amber-700'
+              )}
+              title={`${pendingTasksCount} tarea${pendingTasksCount > 1 ? 's' : ''} pendiente${pendingTasksCount > 1 ? 's' : ''}`}
+            >
+              <CheckSquare size={10} />
+              {pendingTasksCount}
+            </span>
+          )}
           {sinRespuesta && (
             <AlertTriangle size={12} className="text-red-400 flex-shrink-0" />
           )}

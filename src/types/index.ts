@@ -52,6 +52,7 @@ export interface Propuesta {
   valor_ars: number | null
   moneda: 'USD' | 'ARS'
   estado: PropuestaEstado
+  link: string | null
   created_at: string
   updated_at: string
 }
@@ -69,6 +70,7 @@ export interface Lead {
   nombre: string
   apellido: string | null
   email: string | null
+  email_secundario: string | null
   telefono: string | null
   empresa: string | null
   pais: string | null
