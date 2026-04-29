@@ -231,7 +231,7 @@ function ResponsablePicker({ lead, users, onAssign }: ResponsablePickerProps) {
   }, [isOpen])
 
   return (
-    <div ref={pickerRef} className="relative">
+    <div ref={pickerRef} className="relative z-50">
       <button
         onClick={(e) => {
           e.stopPropagation()
@@ -255,7 +255,7 @@ function ResponsablePicker({ lead, users, onAssign }: ResponsablePickerProps) {
 
       {isOpen && (
         <div
-          className="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-lg shadow-lg border z-50 py-1"
+          className="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-lg shadow-lg border z-[100] py-1"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between px-2 py-1 border-b">
