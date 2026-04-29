@@ -27,8 +27,10 @@ export async function getLeadsByFilters(
 
     if (error) throw new Error(error.message)
 
-    const leads = (data ?? []).map((r) => r.lead as SegmentedLead)
-    return leads.filter((l) => l.email)
+    const leads = (data ?? [])
+      .flatMap((r) => (Array.isArray(r.lead) ? r.lead : [r.lead]))
+      .filter((l): l is SegmentedLead => !!l && !!l.email)
+    return leads
   }
 
   // Base query on leads
