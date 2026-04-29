@@ -39,8 +39,9 @@ export function ListsSection({ leadId, readOnly = false }: ListsSectionProps) {
   })
 
   const allLists = allListsData?.data ?? []
-  const leadLists: LeadList[] = leadListsData?.data ?? []
-  const leadListIds = new Set(leadLists.map((l: LeadList) => l.id))
+  const leadListMemberships = leadListsData?.data ?? []
+  const leadLists: LeadList[] = leadListMemberships.map((m) => m.list)
+  const leadListIds = new Set(leadLists.map((l) => l.id))
   const availableLists = allLists.filter((l) => !leadListIds.has(l.id))
 
   const invalidate = () => {
@@ -88,7 +89,7 @@ export function ListsSection({ leadId, readOnly = false }: ListsSectionProps) {
         {leadLists.length === 0 && !showPicker && (
           <span className="text-xs text-slate-300 italic">Sin listas</span>
         )}
-        {leadLists.map((list: LeadList) => (
+        {leadLists.map((list) => (
           <span key={list.id} className="flex items-center gap-1 text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
             <List size={10} className="text-slate-400" />
             {list.name}
