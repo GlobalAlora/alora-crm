@@ -419,47 +419,102 @@ export default function FormDetailPage({ params }: { params: Promise<{ id: strin
       {/* ── Snippet ─────────────────────────────────────────────── */}
       {activeTab === 'snippet' && (
         <div className="space-y-4">
+
+          {/* ── Opción 1: Embed directo ── */}
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex gap-3">
+            <span className="text-blue-500 text-lg leading-none">💡</span>
+            <p className="text-xs text-blue-700 leading-relaxed">
+              <strong>Recomendado:</strong> usá el formulario embed (opciones 1 y 2) para que el diseño, los campos y el mensaje de gracias se gestionen desde acá. Si ya tenés tu propio formulario en tu web, usá la opción 3.
+            </p>
+          </div>
+
           <SnippetBlock
-            label="Formulario inline"
-            description="Se inserta directamente en el HTML donde pongas el script."
+            label="1 · Formulario embed (inline)"
+            description="Insertá este script donde querés que aparezca el formulario. Se adapta al ancho del contenedor."
             code={`<script src="${origin}/embed.js" data-form-id="${id}"></script>`}
             copied={copied === 'inline'}
             onCopy={() => copy('inline')}
           />
+
           <SnippetBlock
-            label="Widget flotante"
-            description="Muestra un botón flotante en la esquina inferior derecha, como Intercom."
+            label="2 · Widget flotante"
+            description="Aparece un botón fijo en la esquina inferior derecha. Al hacer clic, se abre el formulario."
             code={`<script\n  src="${origin}/embed.js"\n  data-form-id="${id}"\n  data-mode="widget"\n  data-color="${color}">\n</script>`}
             copied={copied === 'widget'}
             onCopy={() => copy('widget')}
           />
+
+          {/* ── Opción 3: Form propio via API ── */}
           <div className="bg-white rounded-xl border p-5 space-y-3">
-            <h3 className="text-sm font-semibold text-slate-700">API programática</h3>
-            <p className="text-xs text-slate-500">Controlá el widget desde JavaScript:</p>
-            <pre className="bg-slate-50 rounded-lg p-4 text-xs text-slate-700 overflow-x-auto">{
-`// Abrir / cerrar / toggle
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700">3 · Tu propio formulario → enviar a Alora</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Si ya tenés un formulario en tu web y solo querés que los leads lleguen al CRM, hacé un <code className="bg-slate-100 px-1 rounded">fetch</code> desde tu código al enviarlo:
+              </p>
+            </div>
+            <pre className="bg-slate-50 rounded-lg p-4 text-xs text-slate-700 overflow-x-auto leading-relaxed">{
+`// En el onSubmit de tu formulario:
+fetch('${origin}/api/embed/submit', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    nombre: data.nombre,        // requerido
+    email: data.email,          // opcional
+    telefono: data.telefono,    // opcional
+    pais: data.pais,            // opcional
+    empresa: data.empresa,      // opcional
+    mensaje: data.mensaje,      // opcional
+    // Cualquier otro campo extra también se guarda:
+    sitio_web: data.sitio_web,
+    formId: '${id}',
+  }),
+}).catch(() => {});`
+            }</pre>
+            <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-700 leading-relaxed">
+              <strong>⚠️ No uses</strong> <code className="bg-amber-100 px-1 rounded">/api/webhooks/lead</code> desde el browser — ese endpoint requiere un secreto que no debe quedar expuesto en el código frontend. Usá siempre <code className="bg-amber-100 px-1 rounded">/api/embed/submit</code>.
+            </div>
+          </div>
+
+          {/* ── Opción 4: Widget con control manual ── */}
+          <div className="bg-white rounded-xl border p-5 space-y-3">
+            <h3 className="text-sm font-semibold text-slate-700">4 · Control manual del widget (JavaScript)</h3>
+            <p className="text-xs text-slate-500">Una vez que el widget flotante (opción 2) está en la página, podés controlarlo desde cualquier script:</p>
+            <pre className="bg-slate-50 rounded-lg p-4 text-xs text-slate-700 overflow-x-auto leading-relaxed">{
+`// Abrir el formulario
 window.AloraLeadForm.open()
+
+// Cerrar el formulario
 window.AloraLeadForm.close()
+
+// Toggle abre/cierra
 window.AloraLeadForm.toggle()
 
-// Disparar desde un botón
-<button onclick="window.AloraLeadForm.open()">Contactar</button>`
+// Ejemplo: abrirlo desde un botón propio
+<button onclick="window.AloraLeadForm.open()">
+  Contactar
+</button>`
             }</pre>
           </div>
+
+          {/* ── Opción 5: Webhook server-side ── */}
           <div className="bg-white rounded-xl border p-5 space-y-3">
-            <h3 className="text-sm font-semibold text-slate-700">Endpoint webhook</h3>
-            <p className="text-xs text-slate-500">Integraciones externas (Zapier, Make, n8n):</p>
-            <pre className="bg-slate-50 rounded-lg p-4 text-xs text-slate-700 overflow-x-auto">{
+            <h3 className="text-sm font-semibold text-slate-700">5 · Webhook desde servidor (Zapier / Make / n8n)</h3>
+            <p className="text-xs text-slate-500">Para integraciones server-side donde el secreto no queda expuesto en el browser:</p>
+            <pre className="bg-slate-50 rounded-lg p-4 text-xs text-slate-700 overflow-x-auto leading-relaxed">{
 `POST ${origin}/api/webhooks/lead
-X-Webhook-Secret: <tu-secreto>
+Content-Type: application/json
+X-Webhook-Secret: <configurado en tus variables de entorno>
 
 {
   "nombre": "Juan Pérez",
   "email": "juan@empresa.com",
-  "telefono": "+54 11 0000-0000"
+  "telefono": "+54 11 0000-0000",
+  "empresa": "Mi Empresa",
+  "mensaje": "Quiero más info"
 }`
             }</pre>
           </div>
+
         </div>
       )}
     </div>
