@@ -140,7 +140,31 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500, headers: CORS_HEADERS })
+    console.error('Error al crear lead:', error)
+    console.error('Error details:', JSON.stringify(error, null, 2))
+    
+    // Handle 409 conflict (duplicate email/phone) - fetch existing lead
+    if (error.code === '23505' || error.message?.includes('duplicate')) {
+      const conditions: string[] = []
+      if (body.email) conditions.push(`email.eq.${body.email}`)
+      if (body.telefono) conditions.push(`telefono.eq.${body.telefono}`)
+      
+      if (conditions.length > 0) {
+        const { data: existing } = await supabase
+          .from('leads')
+          .select('id, nombre, estado_pipeline')
+          .or(conditions.join(','))
+          .is('deleted_at', null)
+          .limit(1)
+          .maybeSingle()
+        
+        if (existing) {
+          return NextResponse.json({ data: existing, duplicate: true }, { status: 200, headers: CORS_HEADERS })
+        }
+      }
+    }
+    
+    return NextResponse.json({ error: error.message, details: error }, { status: 500, headers: CORS_HEADERS })
   }
 
   await supabase.from('activities').insert({
