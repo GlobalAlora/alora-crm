@@ -255,7 +255,11 @@ function ResponsablePicker({ lead, users, onAssign }: ResponsablePickerProps) {
 
       {isOpen && (
         <div
-          className="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-lg shadow-lg border z-[100] py-1"
+          className="fixed right-0 bottom-auto mb-2 w-48 bg-white rounded-lg shadow-lg border z-[100] py-1"
+          style={{
+            transform: 'translateX(-100%) translateY(-100%)',
+            marginTop: '-8px',
+          }}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between px-2 py-1 border-b">
