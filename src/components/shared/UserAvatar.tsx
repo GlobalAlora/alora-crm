@@ -4,11 +4,11 @@ import { cn } from '@/lib/utils'
 interface UserAvatarProps {
   name: string
   avatarUrl?: string | null
-  size?: 'sm' | 'md'
+  size?: 'xs' | 'sm' | 'md'
   className?: string
 }
 
-const sizes = { sm: 'w-6 h-6 text-xs', md: 'w-8 h-8 text-sm' }
+const sizes = { xs: 'w-5 h-5 text-[10px]', sm: 'w-6 h-6 text-xs', md: 'w-8 h-8 text-sm' }
 
 export function UserAvatar({ name, avatarUrl, size = 'sm', className }: UserAvatarProps) {
   if (avatarUrl) {

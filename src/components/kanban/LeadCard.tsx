@@ -1,10 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertTriangle, DollarSign, CheckSquare, GripVertical } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
-import type { Lead, Task, Propuesta } from '@/types'
+import { AlertTriangle, DollarSign, CheckSquare, GripVertical, X } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import type { Lead, Task, Propuesta, User } from '@/types'
 import { cn, timeAgo, hoursSince } from '@/lib/utils'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 
@@ -48,6 +49,9 @@ function usePropuestasSummary(leadId: string) {
 }
 
 export function LeadCard({ lead, onClick }: LeadCardProps) {
+  const queryClient = useQueryClient()
+  const [showResponsablePicker, setShowResponsablePicker] = useState(false)
+  
   const {
     attributes,
     listeners,
@@ -59,6 +63,33 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
 
   const pendingTasksCount = useTasksCount(lead.id)
   const propuestasSummary = usePropuestasSummary(lead.id)
+
+  // Fetch users for responsable picker
+  const { data: users = [] } = useQuery<User[]>({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const res = await fetch('/api/users')
+      if (!res.ok) return []
+      return res.json()
+    },
+    staleTime: 5 * 60_000,
+  })
+
+  const updateResponsableMutation = useMutation({
+    mutationFn: async (userId: string | null) => {
+      const res = await fetch(`/api/leads/${lead.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ responsable_id: userId }),
+      })
+      if (!res.ok) throw new Error('Error al actualizar responsable')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] })
+      setShowResponsablePicker(false)
+    },
+  })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -163,13 +194,73 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
           {sinRespuesta && (
             <AlertTriangle size={12} className="text-red-400 flex-shrink-0" />
           )}
-          {lead.responsable && (
-            <UserAvatar
-              name={lead.responsable.full_name}
-              avatarUrl={lead.responsable.avatar_url}
-              size="sm"
-            />
-          )}
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowResponsablePicker(!showResponsablePicker)
+              }}
+              className="hover:ring-2 hover:ring-blue-400 rounded-full transition-all"
+              title={lead.responsable ? lead.responsable.full_name : 'Asignar responsable'}
+            >
+              {lead.responsable ? (
+                <UserAvatar
+                  name={lead.responsable.full_name}
+                  avatarUrl={lead.responsable.avatar_url}
+                  size="sm"
+                />
+              ) : (
+                <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs text-slate-500 hover:bg-slate-300">
+                  +
+                </div>
+              )}
+            </button>
+            
+            {showResponsablePicker && (
+              <div 
+                className="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-lg shadow-lg border z-50 py-1"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-2 py-1 border-b">
+                  <span className="text-xs font-medium text-slate-600">Asignar a</span>
+                  <button 
+                    onClick={() => setShowResponsablePicker(false)}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+                <div className="max-h-40 overflow-y-auto">
+                  {users.map((user) => (
+                    <button
+                      key={user.id}
+                      onClick={() => updateResponsableMutation.mutate(user.id)}
+                      className={cn(
+                        'w-full flex items-center gap-2 px-2 py-1.5 text-xs hover:bg-slate-50 text-left',
+                        lead.responsable_id === user.id && 'bg-blue-50'
+                      )}
+                    >
+                      <UserAvatar name={user.full_name} avatarUrl={user.avatar_url} size="xs" />
+                      <span className={cn(
+                        'truncate',
+                        lead.responsable_id === user.id ? 'text-blue-700 font-medium' : 'text-slate-700'
+                      )}>
+                        {user.full_name}
+                      </span>
+                    </button>
+                  ))}
+                  {lead.responsable && (
+                    <button
+                      onClick={() => updateResponsableMutation.mutate(null)}
+                      className="w-full px-2 py-1.5 text-xs text-slate-500 hover:bg-slate-50 text-left border-t"
+                    >
+                      Quitar asignación
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
           <span className="text-xs text-slate-400">
             {timeAgo(lead.last_activity_at)}
           </span>
