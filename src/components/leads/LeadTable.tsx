@@ -209,13 +209,13 @@ export function LeadTable({ onLeadClick }: LeadTableProps) {
                     className="px-4 py-3 text-right text-slate-600 cursor-pointer"
                     onClick={() => onLeadClick(lead)}
                   >
-                    {lead.valor_propuesta_usd ? formatUSD(lead.valor_propuesta_usd) : '—'}
+                    {lead.propuestas_total_usd ? formatUSD(lead.propuestas_total_usd) : '—'}
                   </td>
                   <td
                     className="px-4 py-3 text-right text-slate-600 cursor-pointer"
                     onClick={() => onLeadClick(lead)}
                   >
-                    {lead.valor_propuesta_ars ? `ARS ${lead.valor_propuesta_ars.toLocaleString('es-AR')}` : '—'}
+                    {lead.propuestas_total_ars ? `ARS ${lead.propuestas_total_ars.toLocaleString('es-AR')}` : '—'}
                   </td>
                   <td
                     className="px-4 py-3 cursor-pointer"

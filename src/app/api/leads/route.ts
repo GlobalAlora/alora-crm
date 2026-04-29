@@ -63,8 +63,28 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // Enrich leads with propuestas totals
+  const leadsWithPropuestas = await Promise.all(
+    (data ?? []).map(async (lead: { id: string }) => {
+      const { data: propuestas } = await supabase
+        .from('propuestas')
+        .select('valor_usd, valor_ars, moneda')
+        .eq('lead_id', lead.id)
+
+      const totalUSD = (propuestas ?? []).reduce((sum, p) => sum + (p.valor_usd || 0), 0)
+      const totalARS = (propuestas ?? []).reduce((sum, p) => sum + (p.valor_ars || 0), 0)
+
+      return {
+        ...lead,
+        propuestas_total_usd: totalUSD,
+        propuestas_total_ars: totalARS,
+        propuestas_count: (propuestas ?? []).length,
+      }
+    })
+  )
+
   return NextResponse.json({
-    data,
+    data: leadsWithPropuestas,
     meta: {
       total: count ?? 0,
       page,

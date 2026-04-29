@@ -18,9 +18,9 @@ export function KanbanColumn({ stage, leads, onLeadClick, isOver }: KanbanColumn
   const config = PIPELINE_STAGE_MAP[stage]
   const { setNodeRef } = useDroppable({ id: stage })
 
-  // Calculate totals
-  const totalUSD = leads.reduce((sum, lead) => sum + (lead.valor_propuesta_usd || 0), 0)
-  const totalARS = leads.reduce((sum, lead) => sum + (lead.valor_propuesta_ars || 0), 0)
+  // Calculate totals (use propuestas totals if available, fallback to legacy fields)
+  const totalUSD = leads.reduce((sum, lead) => sum + (lead.propuestas_total_usd || lead.valor_propuesta_usd || 0), 0)
+  const totalARS = leads.reduce((sum, lead) => sum + (lead.propuestas_total_ars || lead.valor_propuesta_ars || 0), 0)
 
   const formatUSD = (val: number) => {
     if (val === 0) return '$0'

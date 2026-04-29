@@ -111,6 +111,10 @@ export interface Lead {
   dias_sin_respuesta?: number
   propuestas?: Propuesta[]
   stage_history?: StageHistory[]
+  // Computed on GET /leads (list)
+  propuestas_total_usd?: number
+  propuestas_total_ars?: number
+  propuestas_count?: number
 }
 
 export interface Activity {
