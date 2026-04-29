@@ -64,6 +64,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Email inválido' }, { status: 400 })
   }
 
+  if (body.email_secundario && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email_secundario)) {
+    return NextResponse.json({ error: 'Email secundario inválido' }, { status: 400 })
+  }
+
   const { data, error } = await supabase
     .from('leads')
     .update({ ...body, updated_at: new Date().toISOString() })

@@ -11,7 +11,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const body = await req.json()
-  const { estado, descripcion, valor_usd, valor_ars, moneda } = body
+  const { estado, descripcion, valor_usd, valor_ars, moneda, tipo_pago, link } = body
 
   const updateData: Record<string, unknown> = {}
   if (estado !== undefined) updateData.estado = estado
@@ -19,6 +19,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (valor_usd !== undefined) updateData.valor_usd = valor_usd
   if (valor_ars !== undefined) updateData.valor_ars = valor_ars
   if (moneda !== undefined) updateData.moneda = moneda
+  if (tipo_pago !== undefined) updateData.tipo_pago = tipo_pago
+  if (link !== undefined) updateData.link = link
 
   const { data, error } = await supabase
     .from('propuestas')

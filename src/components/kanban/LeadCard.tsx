@@ -139,7 +139,11 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
               title={`${propuestasSummary.count} propuesta${propuestasSummary.count > 1 ? 's' : ''}`}
             >
               <DollarSign size={10} />
-              {propuestasSummary.count}
+              {propuestasSummary.totalUSD > 0
+                ? formatUSD(propuestasSummary.totalUSD)
+                : propuestasSummary.totalARS > 0
+                  ? `ARS ${propuestasSummary.totalARS.toLocaleString('es-AR')}`
+                  : propuestasSummary.count}
             </span>
           )}
           {pendingTasksCount > 0 && (

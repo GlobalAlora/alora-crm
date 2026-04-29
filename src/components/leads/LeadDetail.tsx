@@ -17,6 +17,7 @@ import { RichTextEditor } from '@/components/shared/RichTextEditor'
 import { InlineEdit } from '@/components/shared/InlineEdit'
 import { PropuestasSection } from './PropuestasSection'
 import { ServiciosEdit } from './ServiciosEdit'
+import { EmailsSection } from './EmailsSection'
 import { StageHistorySection } from './StageHistorySection'
 import { FormDataSection } from './FormDataSection'
 
@@ -175,12 +176,10 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage = false }: L
                 onSave={(v) => handleFieldUpdate('apellido', v || null)}
                 isLoading={fieldMutation.isPending}
               />
-              <InlineEdit
-                label="Email"
-                value={displayLead.email}
-                onSave={(v) => handleFieldUpdate('email', v || null)}
-                type="email"
+              <EmailsSection
+                lead={displayLead}
                 isLoading={fieldMutation.isPending}
+                onSave={(data) => fieldMutation.mutate(data)}
               />
               <InlineEdit
                 label="Teléfono"
