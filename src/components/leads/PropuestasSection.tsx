@@ -124,7 +124,7 @@ export function PropuestasSection({ lead, readOnly = false }: PropuestasSectionP
   })
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, ...data }: { id: string } & object) => {
+    mutationFn: async ({ id, ...data }: { id: string; [key: string]: unknown }) => {
       const res = await fetch(`/api/propuestas/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
