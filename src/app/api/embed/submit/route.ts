@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+}
+
 // Fields that map directly to lead columns
 const LEAD_COLUMN_FIELDS = new Set([
   'nombre', 'email', 'telefono', 'empresa', 'pais',
@@ -10,16 +16,22 @@ const LEAD_COLUMN_FIELDS = new Set([
 // Fields to exclude from form_data (internal/meta)
 const INTERNAL_FIELDS = new Set(['formId', 'extra_fields', 'tags', 'notas'])
 
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS_HEADERS })
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
-  if (!body) return NextResponse.json({ error: 'Body inválido' }, { status: 400 })
+  if (!body) {
+    return NextResponse.json({ error: 'Body inválido' }, { status: 400, headers: CORS_HEADERS })
+  }
 
   if (!body.nombre?.trim()) {
-    return NextResponse.json({ error: 'El nombre es requerido' }, { status: 400 })
+    return NextResponse.json({ error: 'El nombre es requerido' }, { status: 400, headers: CORS_HEADERS })
   }
 
   if (body.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
-    return NextResponse.json({ error: 'Email inválido' }, { status: 400 })
+    return NextResponse.json({ error: 'Email inválido' }, { status: 400, headers: CORS_HEADERS })
   }
 
   const supabase = createAdminClient()
@@ -33,7 +45,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
 
     if (formConfig && formConfig.active === false) {
-      return NextResponse.json({ error: 'Este formulario no está activo' }, { status: 403 })
+      return NextResponse.json({ error: 'Este formulario no está activo' }, { status: 403, headers: CORS_HEADERS })
     }
   }
 
@@ -53,7 +65,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
 
     if (existing) {
-      return NextResponse.json({ data: existing, duplicate: true }, { status: 200 })
+      return NextResponse.json({ data: existing, duplicate: true }, { status: 200, headers: CORS_HEADERS })
     }
   }
 
@@ -127,7 +139,9 @@ export async function POST(req: NextRequest) {
     .select('id, nombre, estado_pipeline')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500, headers: CORS_HEADERS })
+  }
 
   await supabase.from('activities').insert({
     lead_id: lead.id,
@@ -141,5 +155,5 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  return NextResponse.json({ data: lead }, { status: 201 })
+  return NextResponse.json({ data: lead }, { status: 201, headers: CORS_HEADERS })
 }
