@@ -4,7 +4,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { AlertTriangle, DollarSign, CheckSquare, GripVertical } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import type { Lead, Task } from '@/types'
+import type { Lead, Task, Propuesta } from '@/types'
 import { cn, formatUSD, timeAgo, hoursSince } from '@/lib/utils'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 
@@ -29,6 +29,24 @@ function useTasksCount(leadId: string) {
   return pendingCount
 }
 
+function usePropuestasSummary(leadId: string) {
+  const { data } = useQuery({
+    queryKey: ['propuestas-count', leadId],
+    queryFn: async () => {
+      const res = await fetch(`/api/leads/${leadId}/propuestas`)
+      if (!res.ok) return { data: [] }
+      return res.json() as Promise<{ data: Propuesta[] }>
+    },
+    staleTime: 60_000,
+    enabled: !!leadId,
+  })
+  const propuestas = data?.data ?? []
+  const count = propuestas.length
+  const totalUSD = propuestas.reduce((sum, p) => sum + (p.valor_usd || 0), 0)
+  const totalARS = propuestas.reduce((sum, p) => sum + (p.valor_ars || 0), 0)
+  return { count, totalUSD, totalARS }
+}
+
 export function LeadCard({ lead, onClick }: LeadCardProps) {
   const {
     attributes,
@@ -40,6 +58,7 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
   } = useSortable({ id: lead.id, data: { lead } })
 
   const pendingTasksCount = useTasksCount(lead.id)
+  const propuestasSummary = usePropuestasSummary(lead.id)
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -111,6 +130,18 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
         </div>
 
         <div className="flex items-center gap-1.5">
+          {propuestasSummary.count > 0 && (
+            <span
+              className={cn(
+                'flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full font-medium',
+                'bg-blue-100 text-blue-700'
+              )}
+              title={`${propuestasSummary.count} propuesta${propuestasSummary.count > 1 ? 's' : ''}`}
+            >
+              <DollarSign size={10} />
+              {propuestasSummary.count}
+            </span>
+          )}
           {pendingTasksCount > 0 && (
             <span
               className={cn(
