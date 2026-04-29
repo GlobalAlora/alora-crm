@@ -67,6 +67,10 @@ export default function FormDetailPage({ params }: { params: Promise<{ id: strin
   const [copied, setCopied]   = useState<'inline' | 'widget' | null>(null)
   const [activeTab, setActiveTab] = useState<'editor' | 'analytics' | 'snippet'>('editor')
   const [isDirty, setIsDirty] = useState(false)
+  const [successType, setSuccessType]       = useState<'message' | 'redirect'>('message')
+  const [successTitle, setSuccessTitle]     = useState('¡Mensaje recibido!')
+  const [successMessage, setSuccessMessage] = useState('Gracias por contactarte. Te vamos a responder en las próximas 24 horas.')
+  const [successRedirectUrl, setSuccessRedirectUrl] = useState('')
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -90,6 +94,14 @@ export default function FormDetailPage({ params }: { params: Promise<{ id: strin
     setColor(form.color)
     setFields(form.fields ?? [])
     setTags((form.tags ?? []).join(', '))
+    if (form.success_redirect_url) {
+      setSuccessType('redirect')
+      setSuccessRedirectUrl(form.success_redirect_url)
+    } else {
+      setSuccessType('message')
+      if (form.success_title) setSuccessTitle(form.success_title)
+      if (form.success_message) setSuccessMessage(form.success_message)
+    }
   }, [form])
 
   const saveMutation = useMutation({
@@ -97,6 +109,9 @@ export default function FormDetailPage({ params }: { params: Promise<{ id: strin
       name, title, subtitle, color,
       fields,
       tags: tags.split(',').map(t => t.trim()).filter(Boolean),
+      success_title: successType === 'message' ? successTitle : undefined,
+      success_message: successType === 'message' ? successMessage : undefined,
+      success_redirect_url: successType === 'redirect' ? successRedirectUrl : undefined,
     }),
     onSuccess: () => {
       setIsDirty(false)
@@ -281,6 +296,68 @@ export default function FormDetailPage({ params }: { params: Promise<{ id: strin
                   </div>
                 </SortableContext>
               </DndContext>
+            </div>
+
+            {/* Success / confirmation */}
+            <div className="bg-white rounded-xl border p-5 space-y-4">
+              <h2 className="text-sm font-semibold text-slate-700">Mensaje de confirmación</h2>
+              <p className="text-xs text-slate-500">¿Qué ve el usuario después de enviar el formulario?</p>
+
+              {/* Toggle */}
+              <div className="flex gap-2">
+                {(['message', 'redirect'] as const).map(opt => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => { setSuccessType(opt); setIsDirty(true) }}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                      successType === opt
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    {opt === 'message' ? 'Mostrar mensaje' : 'Redirigir a página'}
+                  </button>
+                ))}
+              </div>
+
+              {successType === 'message' && (
+                <div className="space-y-3">
+                  <label className="block">
+                    <span className="text-xs text-slate-500 mb-1 block">Título</span>
+                    <input
+                      value={successTitle}
+                      onChange={e => { setSuccessTitle(e.target.value); setIsDirty(true) }}
+                      placeholder="¡Mensaje recibido!"
+                      className={INPUT}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs text-slate-500 mb-1 block">Texto</span>
+                    <textarea
+                      value={successMessage}
+                      onChange={e => { setSuccessMessage(e.target.value); setIsDirty(true) }}
+                      placeholder="Gracias por contactarte. Te vamos a responder en las próximas 24 horas."
+                      rows={3}
+                      className={INPUT + ' resize-none'}
+                    />
+                  </label>
+                </div>
+              )}
+
+              {successType === 'redirect' && (
+                <label className="block">
+                  <span className="text-xs text-slate-500 mb-1 block">URL de destino</span>
+                  <input
+                    value={successRedirectUrl}
+                    onChange={e => { setSuccessRedirectUrl(e.target.value); setIsDirty(true) }}
+                    placeholder="https://misitioweb.com/gracias"
+                    type="url"
+                    className={INPUT}
+                  />
+                  <p className="text-xs text-slate-400 mt-1">El usuario será redirigido a esta página al enviar el formulario.</p>
+                </label>
+              )}
             </div>
           </div>
 

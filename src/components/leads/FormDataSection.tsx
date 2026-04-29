@@ -21,7 +21,7 @@ interface FormDataSectionProps {
 
 // Fields already shown in the standard lead info section — skip them here
 const STANDARD_FIELDS = new Set([
-  'nombre', 'apellido', 'email', 'telefono', 'empresa',
+  'nombre', 'apellido', 'email', 'telefono', 'empresa', 'pais',
   'servicio_interesado', 'mensaje', 'notas', 'presupuesto_estimado',
 ])
 

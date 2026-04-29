@@ -76,13 +76,16 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   const { data, error } = await admin
     .from('form_configs')
     .update({
-      ...(body.name      !== undefined && { name: body.name }),
-      ...(body.title     !== undefined && { title: body.title }),
-      ...(body.subtitle  !== undefined && { subtitle: body.subtitle }),
-      ...(body.color     !== undefined && { color: body.color }),
-      ...(body.fields    !== undefined && { fields: body.fields }),
-      ...(body.tags      !== undefined && { tags: body.tags }),
-      ...(body.active    !== undefined && { active: body.active }),
+      ...(body.name                !== undefined && { name: body.name }),
+      ...(body.title               !== undefined && { title: body.title }),
+      ...(body.subtitle            !== undefined && { subtitle: body.subtitle }),
+      ...(body.color               !== undefined && { color: body.color }),
+      ...(body.fields              !== undefined && { fields: body.fields }),
+      ...(body.tags                !== undefined && { tags: body.tags }),
+      ...(body.active              !== undefined && { active: body.active }),
+      ...(body.success_title       !== undefined ? { success_title: body.success_title } : { success_title: null }),
+      ...(body.success_message     !== undefined ? { success_message: body.success_message } : { success_message: null }),
+      ...(body.success_redirect_url !== undefined ? { success_redirect_url: body.success_redirect_url } : { success_redirect_url: null }),
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)

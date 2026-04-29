@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 // Fields that map directly to lead columns
 const LEAD_COLUMN_FIELDS = new Set([
-  'nombre', 'email', 'telefono', 'empresa',
+  'nombre', 'email', 'telefono', 'empresa', 'pais',
   'servicio_interesado', 'mensaje', 'presupuesto_estimado',
 ])
 
@@ -113,6 +113,7 @@ export async function POST(req: NextRequest) {
       email: body.email || null,
       telefono: body.telefono || null,
       empresa: body.empresa || null,
+      pais: body.pais || null,
       servicio_interesado: body.servicio_interesado || null,
       notas: body.notas || body.mensaje || null,
       fuente: 'formulario',

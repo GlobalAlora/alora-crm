@@ -245,6 +245,11 @@ function EmbedFormInner() {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Error al enviar')
       trackSubmit()
+      // Redirect if configured
+      if (config?.success_redirect_url) {
+        window.parent.location.href = config.success_redirect_url
+        return
+      }
       setStatus('success')
     } catch (err) {
       setStatus('error')
@@ -262,6 +267,8 @@ function EmbedFormInner() {
   }
 
   if (status === 'success') {
+    const sTitle   = config.success_title   || '¡Mensaje recibido!'
+    const sMessage = config.success_message || 'Gracias por contactarte. Te vamos a responder en las próximas 24 horas.'
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 280, padding: '40px 24px', textAlign: 'center' }}>
         <div style={{ width: 56, height: 56, borderRadius: '50%', background: color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
@@ -269,10 +276,8 @@ function EmbedFormInner() {
             <polyline points="20 6 9 17 4 12" />
           </svg>
         </div>
-        <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700, color: '#0f172a' }}>¡Mensaje recibido!</h2>
-        <p style={{ margin: 0, fontSize: 14, color: '#64748b', maxWidth: 300 }}>
-          Gracias por contactarte. Te vamos a responder en las próximas 24 horas.
-        </p>
+        <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700, color: '#0f172a' }}>{sTitle}</h2>
+        <p style={{ margin: 0, fontSize: 14, color: '#64748b', maxWidth: 300 }}>{sMessage}</p>
       </div>
     )
   }

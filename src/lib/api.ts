@@ -211,6 +211,9 @@ export interface FormConfig {
   active: boolean
   created_at: string
   updated_at?: string
+  success_title?: string
+  success_message?: string
+  success_redirect_url?: string
 }
 
 export interface FormWithStats extends FormConfig {

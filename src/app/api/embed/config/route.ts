@@ -17,6 +17,9 @@ export interface FormConfig {
   color: string
   fields: FormField[]
   tags: string[]
+  success_title?: string
+  success_message?: string
+  success_redirect_url?: string
 }
 
 const DEFAULT_CONFIG: FormConfig = {
@@ -53,7 +56,7 @@ export async function GET(req: NextRequest) {
     // (el toggle active solo bloquea nuevas submissions en /api/embed/submit)
     const { data } = await supabase
       .from('form_configs')
-      .select('title, subtitle, color, fields, tags')
+      .select('title, subtitle, color, fields, tags, success_title, success_message, success_redirect_url')
       .eq('id', formId)
       .maybeSingle()
 

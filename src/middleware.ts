@@ -12,7 +12,10 @@ export function middleware(req: NextRequest) {
     path.startsWith('/_next') ||
     path.startsWith('/favicon') ||
     path.startsWith('/api/') ||
-    path.startsWith('/embed/')
+    path.startsWith('/embed/') ||
+    path.endsWith('.html') ||
+    path.endsWith('.js') ||
+    path.endsWith('.css')
 
   if (isPublic) {
     console.log(`[Middleware] Public route, allowing`)
