@@ -115,6 +115,8 @@ export interface Lead {
   propuestas_total_usd?: number
   propuestas_total_ars?: number
   propuestas_count?: number
+  // Tags & lists (loaded on demand)
+  tags?: LeadTag[]
 }
 
 export interface Activity {
@@ -141,6 +143,65 @@ export interface Task {
   created_at: string
   asignado?: Pick<User, 'id' | 'full_name' | 'avatar_url'>
 }
+
+// ── Email Marketing ────────────────────────────────────────
+
+export interface LeadTag {
+  id: string
+  name: string
+  color: string
+  created_at: string
+}
+
+export interface LeadList {
+  id: string
+  name: string
+  description: string | null
+  created_at: string
+  lead_count?: number
+}
+
+export type CampaignStatus = 'draft' | 'sending' | 'sent' | 'failed'
+export type RecipientStatus = 'pending' | 'sent' | 'failed'
+
+export interface SegmentFilters {
+  tag_ids?: string[]
+  list_ids?: string[]
+  estado_pipeline?: string[]
+  servicios_interesados?: string[]
+  responsable_ids?: string[]
+  paises?: string[]
+}
+
+export interface Campaign {
+  id: string
+  name: string
+  subject: string
+  body: string
+  from_name: string
+  from_email: string
+  status: CampaignStatus
+  filters: SegmentFilters | null
+  total_sent: number
+  total_failed: number
+  sent_at: string | null
+  created_at: string
+  updated_at: string
+  recipient_count?: number
+}
+
+export interface CampaignRecipient {
+  id: string
+  campaign_id: string
+  lead_id: string
+  email: string
+  status: RecipientStatus
+  sent_at: string | null
+  error: string | null
+  lead?: Pick<Lead, 'id' | 'nombre' | 'apellido' | 'empresa'>
+}
+
+// ────────────────────────────────────────────────────────────
 
 export interface PaginatedResponse<T> {
   data: T[]

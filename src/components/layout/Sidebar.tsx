@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, Settings, FileCode2, CheckSquare } from 'lucide-react'
+import { LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, List } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const nav = [
@@ -15,10 +15,13 @@ const nav = [
       { href: '/leads/tareas', label: 'Tareas', icon: CheckSquare },
     ],
   },
+  { href: '/email', label: 'Email Marketing', icon: Mail },
 ]
 
 const settingsNav = [
   { href: '/settings/forms', label: 'Formularios', icon: FileCode2 },
+  { href: '/settings/tags', label: 'Etiquetas', icon: Tag },
+  { href: '/settings/lists', label: 'Listas', icon: List },
 ]
 
 export function Sidebar() {

@@ -20,6 +20,8 @@ import { ServiciosEdit } from './ServiciosEdit'
 import { EmailsSection } from './EmailsSection'
 import { StageHistorySection } from './StageHistorySection'
 import { FormDataSection } from './FormDataSection'
+import { TagsSection } from './TagsSection'
+import { ListsSection } from './ListsSection'
 
 interface LeadDetailProps {
   lead: Lead
@@ -226,6 +228,12 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage = false }: L
                   isLoading={fieldMutation.isPending}
                 />
               </div>
+            </Section>
+
+            {/* Tags & Listas */}
+            <Section label="Etiquetas y Listas">
+              <TagsSection leadId={displayLead.id} />
+              <ListsSection leadId={displayLead.id} />
             </Section>
 
             {/* Propuestas */}
