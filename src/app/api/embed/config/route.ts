@@ -49,11 +49,12 @@ export async function GET(req: NextRequest) {
 
   try {
     const supabase = createAdminClient()
+    // No filtramos por active — un form inactivo igual debe mostrarse
+    // (el toggle active solo bloquea nuevas submissions en /api/embed/submit)
     const { data } = await supabase
       .from('form_configs')
       .select('title, subtitle, color, fields, tags')
       .eq('id', formId)
-      .eq('active', true)
       .maybeSingle()
 
     return NextResponse.json({ data: data ?? DEFAULT_CONFIG }, {

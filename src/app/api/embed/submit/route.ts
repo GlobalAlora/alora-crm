@@ -24,6 +24,19 @@ export async function POST(req: NextRequest) {
 
   const supabase = createAdminClient()
 
+  // Verificar que el form esté activo antes de aceptar submissions
+  if (body.formId && body.formId !== 'default') {
+    const { data: formConfig } = await supabase
+      .from('form_configs')
+      .select('active')
+      .eq('id', body.formId)
+      .maybeSingle()
+
+    if (formConfig && formConfig.active === false) {
+      return NextResponse.json({ error: 'Este formulario no está activo' }, { status: 403 })
+    }
+  }
+
   // Dedup: same email OR phone in last 24h
   if (body.email || body.telefono) {
     const conditions: string[] = []
