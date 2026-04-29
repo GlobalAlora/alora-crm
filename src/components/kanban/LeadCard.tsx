@@ -5,7 +5,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { AlertTriangle, DollarSign, CheckSquare, GripVertical } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import type { Lead, Task, Propuesta } from '@/types'
-import { cn, formatUSD, timeAgo, hoursSince } from '@/lib/utils'
+import { cn, timeAgo, hoursSince } from '@/lib/utils'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 
 interface LeadCardProps {
@@ -79,7 +79,9 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
   const valorLabel = (() => {
     if (lead.valor_propuesta_moneda === 'ARS' && lead.valor_propuesta_ars != null)
       return `ARS ${lead.valor_propuesta_ars.toLocaleString('es-AR')}`
-    if (lead.valor_propuesta_usd != null) return formatUSD(lead.valor_propuesta_usd)
+    if (lead.valor_propuesta_usd != null) {
+      return `USD ${lead.valor_propuesta_usd.toLocaleString('en-US')}`
+    }
     return null
   })()
 
@@ -140,7 +142,7 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
             >
               <DollarSign size={10} />
               {propuestasSummary.totalUSD > 0
-                ? formatUSD(propuestasSummary.totalUSD)
+                ? `USD ${propuestasSummary.totalUSD.toLocaleString('en-US')}`
                 : propuestasSummary.totalARS > 0
                   ? `ARS ${propuestasSummary.totalARS.toLocaleString('es-AR')}`
                   : propuestasSummary.count}
