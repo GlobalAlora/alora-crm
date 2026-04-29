@@ -87,7 +87,6 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] })
-      setShowResponsablePicker(false)
     },
   })
 
