@@ -57,7 +57,7 @@ export function EmailsSection({ lead, isLoading, onSave }: EmailsSectionProps) {
         <div className="space-y-1.5">
           {/* Primary email */}
           <div className="flex items-center gap-1.5">
-            <Star size={12} className="text-amber-400 flex-shrink-0" title="Principal" />
+            <Star size={12} className="text-amber-400 flex-shrink-0" />
             <input
               type="email"
               value={primary}
