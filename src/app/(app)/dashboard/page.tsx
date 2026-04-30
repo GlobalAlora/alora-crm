@@ -81,7 +81,7 @@ export default function DashboardPage() {
     (d?.alertas.leads_calientes ?? 0)
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -128,7 +128,7 @@ export default function DashboardPage() {
 
       {/* Alertas */}
       {!isLoading && totalAlertas > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {(d?.alertas.sin_respuesta_24h ?? 0) > 0 && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
               <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
@@ -229,13 +229,13 @@ export default function DashboardPage() {
 
       {/* KPI cards */}
       {isLoading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-28 bg-white rounded-xl border animate-pulse" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
           <KpiCard
             icon={Users}
             label="Leads totales"
@@ -272,10 +272,10 @@ export default function DashboardPage() {
       )}
 
       {/* Revenue Intelligence + Funnel */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* Revenue Intelligence */}
-        <div className="bg-white rounded-xl border p-5 space-y-5">
+        <div className="bg-white rounded-xl border p-6 space-y-6">
           <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
             <DollarSign size={15} className="text-slate-400" />
             Revenue Intelligence
@@ -333,7 +333,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Pipeline funnel */}
-        <div className="bg-white rounded-xl border p-5 space-y-4">
+        <div className="bg-white rounded-xl border p-6 space-y-5">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
               <Activity size={15} className="text-slate-400" />
@@ -397,10 +397,10 @@ export default function DashboardPage() {
       </div>
 
       {/* Top responsables + Live feed */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* Top responsables */}
-        <div className="bg-white rounded-xl border p-5">
+        <div className="bg-white rounded-xl border p-6">
           <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-4">
             <Users size={15} className="text-slate-400" />
             Performance por usuario
@@ -460,7 +460,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Live feed */}
-        <div className="bg-white rounded-xl border p-5">
+        <div className="bg-white rounded-xl border p-6">
           <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-4">
             <Zap size={15} className="text-slate-400" />
             Live feed
@@ -534,7 +534,7 @@ export default function DashboardPage() {
 
       {/* Leads por fuente */}
       {!isLoading && d && Object.keys(d.leads.por_fuente).length > 0 && (
-        <div className="bg-white rounded-xl border p-5">
+        <div className="bg-white rounded-xl border p-6">
           <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-4">
             <Clock size={15} className="text-slate-400" />
             Leads por fuente
@@ -557,7 +557,7 @@ export default function DashboardPage() {
 
       {/* Leads por país */}
       {!isLoading && d && Object.keys(d.leads.por_pais).length > 0 && (
-        <div className="bg-white rounded-xl border p-5">
+        <div className="bg-white rounded-xl border p-6">
           <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-4">
             <Globe size={15} className="text-slate-400" />
             Leads por país
@@ -580,7 +580,7 @@ export default function DashboardPage() {
 
       {/* Top oportunidades */}
       {!isLoading && d && d.top_oportunidades.length > 0 && (
-        <div className="bg-white rounded-xl border p-5">
+        <div className="bg-white rounded-xl border p-6">
           <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-4">
             <Target size={15} className="text-slate-400" />
             Top 5 oportunidades
