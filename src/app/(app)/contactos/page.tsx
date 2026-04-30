@@ -1,12 +1,13 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import { Users } from 'lucide-react'
 import { LeadTable } from '@/components/leads/LeadTable'
 import { useLeadsRealtime } from '@/hooks/useLeadsRealtime'
 import type { Lead } from '@/types'
 
-export default function ContactosPage() {
+function ContactosContent() {
   const router = useRouter()
   useLeadsRealtime()
 
@@ -27,5 +28,13 @@ export default function ContactosPage() {
         <LeadTable onLeadClick={handleLeadClick} />
       </div>
     </div>
+  )
+}
+
+export default function ContactosPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-full text-slate-400">Cargando...</div>}>
+      <ContactosContent />
+    </Suspense>
   )
 }
