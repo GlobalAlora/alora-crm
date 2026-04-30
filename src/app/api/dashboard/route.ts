@@ -33,11 +33,11 @@ export async function GET(req: NextRequest) {
   // Run all independent queries in parallel
   const [
     { data: allLeads },
-    { count: sinRespuesta },
+    { data: sinRespuestaLeads },
     { count: tareasVencidas },
-    { count: leadsInactivos },
-    { count: leadsEstancados },
-    { count: leadsCalientes },
+    { data: leadsInactivosLeads },
+    { data: leadsEstancadosLeads },
+    { data: leadsCalientesLeads },
     { data: responsablesRaw },
     { data: actividadRaw },
     { data: ultimosLeadsRaw },
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
     applyFilters(
       supabase
         .from('leads')
-        .select('id', { count: 'exact', head: true })
+        .select('id, nombre, apellido')
         .eq('estado_pipeline', 'lead_contactado')
         .lt('stage_updated_at', twentyFourHoursAgo)
     ),
@@ -60,19 +60,19 @@ export async function GET(req: NextRequest) {
       .lt('vencimiento', new Date().toISOString()),
     supabase
       .from('leads')
-      .select('id', { count: 'exact', head: true })
-      .is('deleted_at', null)
+      .select('id, nombre, apellido')
+        .is('deleted_at', null)
       .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado)')
       .lt('stage_updated_at', sevenDaysAgo),
     supabase
       .from('leads')
-      .select('id', { count: 'exact', head: true })
+      .select('id, nombre, apellido')
       .is('deleted_at', null)
       .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado)')
       .lt('stage_updated_at', threeDaysAgo),
     supabase
       .from('leads')
-      .select('id', { count: 'exact', head: true })
+      .select('id, nombre, apellido')
       .is('deleted_at', null)
       .gt('last_activity_at', oneHourAgo),
     supabase.from('users').select('id, full_name, avatar_url').in('role', ['admin', 'sales']),
@@ -348,11 +348,15 @@ export async function GET(req: NextRequest) {
         bottleneck: bottleneckStage,
       },
       alertas: {
-        sin_respuesta_24h: sinRespuesta ?? 0,
+        sin_respuesta_24h: sinRespuestaLeads?.length ?? 0,
+        sin_respuesta_leads: (sinRespuestaLeads ?? []).map((l: { id: string; nombre: string; apellido: string | null }) => ({ id: l.id, nombre: [l.nombre, l.apellido].filter(Boolean).join(' ') })),
         tareas_vencidas: tareasVencidas ?? 0,
-        leads_inactivos: leadsInactivos ?? 0,
-        leads_estancados: leadsEstancados ?? 0,
-        leads_calientes: leadsCalientes ?? 0,
+        leads_inactivos: leadsInactivosLeads?.length ?? 0,
+        leads_inactivos_leads: (leadsInactivosLeads ?? []).map((l: { id: string; nombre: string; apellido: string | null }) => ({ id: l.id, nombre: [l.nombre, l.apellido].filter(Boolean).join(' ') })),
+        leads_estancados: leadsEstancadosLeads?.length ?? 0,
+        leads_estancados_leads: (leadsEstancadosLeads ?? []).map((l: { id: string; nombre: string; apellido: string | null }) => ({ id: l.id, nombre: [l.nombre, l.apellido].filter(Boolean).join(' ') })),
+        leads_calientes: leadsCalientesLeads?.length ?? 0,
+        leads_calientes_leads: (leadsCalientesLeads ?? []).map((l: { id: string; nombre: string; apellido: string | null }) => ({ id: l.id, nombre: [l.nombre, l.apellido].filter(Boolean).join(' ') })),
       },
       top_responsables: topResponsables,
       actividad_reciente: actividadReciente,

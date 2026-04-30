@@ -281,10 +281,14 @@ export interface DashboardMetrics {
   }
   alertas: {
     sin_respuesta_24h: number
+    sin_respuesta_leads: { id: string; nombre: string }[]
     tareas_vencidas: number
     leads_inactivos: number
+    leads_inactivos_leads: { id: string; nombre: string }[]
     leads_estancados: number
+    leads_estancados_leads: { id: string; nombre: string }[]
     leads_calientes: number
+    leads_calientes_leads: { id: string; nombre: string }[]
   }
   top_responsables: {
     id: string

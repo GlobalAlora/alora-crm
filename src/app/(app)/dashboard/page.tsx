@@ -128,50 +128,102 @@ export default function DashboardPage() {
 
       {/* Alertas */}
       {!isLoading && totalAlertas > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
-          <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
-          <div className="flex flex-wrap gap-x-4 gap-y-1">
-            {(d?.alertas.sin_respuesta_24h ?? 0) > 0 && (
-              <button
-                onClick={() => router.push('/leads?view=kanban&estado_pipeline=lead_contactado')}
-                className="text-sm text-amber-800 hover:text-amber-900 hover:underline"
-              >
-                <strong>{d!.alertas.sin_respuesta_24h}</strong> lead{d!.alertas.sin_respuesta_24h !== 1 ? 's' : ''} sin respuesta +24h
-              </button>
-            )}
-            {(d?.alertas.leads_estancados ?? 0) > 0 && (
-              <button
-                onClick={() => router.push('/leads?view=kanban')}
-                className="text-sm text-amber-800 hover:text-amber-900 hover:underline"
-              >
-                <strong>{d!.alertas.leads_estancados}</strong> lead{d!.alertas.leads_estancados !== 1 ? 's' : ''} estancado{d!.alertas.leads_estancados !== 1 ? 's' : ''} (+3d)
-              </button>
-            )}
-            {(d?.alertas.leads_calientes ?? 0) > 0 && (
-              <button
-                onClick={() => router.push('/leads?view=kanban')}
-                className="text-sm text-green-700 hover:text-green-800 hover:underline"
-              >
-                <strong>{d!.alertas.leads_calientes}</strong> lead{d!.alertas.leads_calientes !== 1 ? 's' : ''} caliente{d!.alertas.leads_calientes !== 1 ? 's' : ''} (&lt;1h)
-              </button>
-            )}
-            {(d?.alertas.tareas_vencidas ?? 0) > 0 && (
-              <button
-                onClick={() => router.push('/leads/tareas')}
-                className="text-sm text-amber-800 hover:text-amber-900 hover:underline"
-              >
+        <div className="space-y-2">
+          {(d?.alertas.sin_respuesta_24h ?? 0) > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
+              <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-800">
+                  {d!.alertas.sin_respuesta_24h} lead{d!.alertas.sin_respuesta_24h !== 1 ? 's' : ''} sin respuesta +24h
+                </p>
+                <div className="flex flex-wrap gap-x-2 gap-y-1 mt-1">
+                  {d!.alertas.sin_respuesta_leads.map((l) => (
+                    <button
+                      key={l.id}
+                      onClick={() => router.push(`/leads/${l.id}`)}
+                      className="text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded hover:bg-amber-200 transition-colors"
+                    >
+                      {l.nombre}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          {(d?.alertas.leads_estancados ?? 0) > 0 && (
+            <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 flex items-start gap-3">
+              <AlertTriangle size={16} className="text-orange-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-orange-800">
+                  {d!.alertas.leads_estancados} lead{d!.alertas.leads_estancados !== 1 ? 's' : ''} estancado{d!.alertas.leads_estancados !== 1 ? 's' : ''} (+3d)
+                </p>
+                <div className="flex flex-wrap gap-x-2 gap-y-1 mt-1">
+                  {d!.alertas.leads_estancados_leads.map((l) => (
+                    <button
+                      key={l.id}
+                      onClick={() => router.push(`/leads/${l.id}`)}
+                      className="text-xs bg-orange-100 text-orange-900 px-2 py-0.5 rounded hover:bg-orange-200 transition-colors"
+                    >
+                      {l.nombre}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          {(d?.alertas.leads_calientes ?? 0) > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-start gap-3">
+              <Zap size={16} className="text-green-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-green-800">
+                  {d!.alertas.leads_calientes} lead{d!.alertas.leads_calientes !== 1 ? 's' : ''} caliente{d!.alertas.leads_calientes !== 1 ? 's' : ''} (&lt;1h)
+                </p>
+                <div className="flex flex-wrap gap-x-2 gap-y-1 mt-1">
+                  {d!.alertas.leads_calientes_leads.map((l) => (
+                    <button
+                      key={l.id}
+                      onClick={() => router.push(`/leads/${l.id}`)}
+                      className="text-xs bg-green-100 text-green-900 px-2 py-0.5 rounded hover:bg-green-200 transition-colors"
+                    >
+                      {l.nombre}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          {(d?.alertas.tareas_vencidas ?? 0) > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-3">
+              <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm font-medium text-red-800">
                 <strong>{d!.alertas.tareas_vencidas}</strong> tarea{d!.alertas.tareas_vencidas !== 1 ? 's' : ''} vencida{d!.alertas.tareas_vencidas !== 1 ? 's' : ''}
-              </button>
-            )}
-            {(d?.alertas.leads_inactivos ?? 0) > 0 && (
-              <button
-                onClick={() => router.push('/leads')}
-                className="text-sm text-amber-800 hover:text-amber-900 hover:underline"
-              >
-                <strong>{d!.alertas.leads_inactivos}</strong> lead{d!.alertas.leads_inactivos !== 1 ? 's' : ''} inactivo{d!.alertas.leads_inactivos !== 1 ? 's' : ''} (sin movimiento &gt;7d)
-              </button>
-            )}
-          </div>
+                <button onClick={() => router.push('/leads/tareas')} className="ml-2 text-xs bg-red-100 text-red-900 px-2 py-0.5 rounded hover:bg-red-200 transition-colors">
+                  Ver tareas
+                </button>
+              </p>
+            </div>
+          )}
+          {(d?.alertas.leads_inactivos ?? 0) > 0 && (
+            <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 flex items-start gap-3">
+              <Clock size={16} className="text-slate-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-slate-700">
+                  {d!.alertas.leads_inactivos} lead{d!.alertas.leads_inactivos !== 1 ? 's' : ''} inactivo{d!.alertas.leads_inactivos !== 1 ? 's' : ''} (sin movimiento &gt;7d)
+                </p>
+                <div className="flex flex-wrap gap-x-2 gap-y-1 mt-1">
+                  {d!.alertas.leads_inactivos_leads.map((l) => (
+                    <button
+                      key={l.id}
+                      onClick={() => router.push(`/leads/${l.id}`)}
+                      className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded hover:bg-slate-200 transition-colors"
+                    >
+                      {l.nombre}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
