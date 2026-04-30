@@ -51,9 +51,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'El título es requerido' }, { status: 400 })
   }
 
-  if (vencimiento && new Date(vencimiento) < new Date()) {
-    return NextResponse.json({ error: 'El vencimiento debe ser una fecha futura' }, { status: 400 })
-  }
+  // Permitir tareas para cualquier hora del día actual
+  // if (vencimiento && new Date(vencimiento) < new Date()) {
+  //   return NextResponse.json({ error: 'El vencimiento debe ser una fecha futura' }, { status: 400 })
+  // }
 
   // Default assignee: lead's responsable
   let assignee = asignado_a
