@@ -23,6 +23,8 @@ export default function TareasPage() {
   const [filter, setFilter] = useState<Filter>('pendientes')
   const [rescheduleId, setRescheduleId] = useState<string | null>(null)
   const [rescheduleDate, setRescheduleDate] = useState('')
+  const [rescheduleTitle, setRescheduleTitle] = useState('')
+  const [rescheduleDescription, setRescheduleDescription] = useState('')
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ['tasks-global', filter],
@@ -32,7 +34,7 @@ export default function TareasPage() {
         : filter === 'completadas' ? { completada: true }
         : undefined
       ),
-    staleTime: 10_000,
+    staleTime: 0,
   })
 
   const completeMutation = useMutation({
@@ -54,15 +56,17 @@ export default function TareasPage() {
   })
 
   const rescheduleMutation = useMutation({
-    mutationFn: ({ id, vencimiento }: { id: string; vencimiento: string }) =>
-      tasksApi.update(id, { vencimiento }),
+    mutationFn: ({ id, vencimiento, titulo, descripcion }: { id: string; vencimiento: string; titulo?: string; descripcion?: string }) =>
+      tasksApi.update(id, { vencimiento, titulo, descripcion }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks-global'] })
       setRescheduleId(null)
       setRescheduleDate('')
-      toast.success('Tarea reagendada')
+      setRescheduleTitle('')
+      setRescheduleDescription('')
+      toast.success('Tarea actualizada')
     },
-    onError: () => toast.error('Error al reagendar'),
+    onError: () => toast.error('Error al actualizar tarea'),
   })
 
   // Group pending tasks by urgency
@@ -158,15 +162,26 @@ export default function TareasPage() {
                 task={task}
                 rescheduleId={rescheduleId}
                 rescheduleDate={rescheduleDate}
+                rescheduleTitle={rescheduleTitle}
+                rescheduleDescription={rescheduleDescription}
                 onComplete={() => completeMutation.mutate(task.id)}
                 onDelete={() => deleteMutation.mutate(task.id)}
                 onRescheduleOpen={() => {
                   setRescheduleId(task.id)
                   setRescheduleDate(task.vencimiento ? task.vencimiento.slice(0, 16) : '')
+                  setRescheduleTitle(task.titulo)
+                  setRescheduleDescription(task.descripcion || '')
                 }}
                 onRescheduleCancel={() => setRescheduleId(null)}
-                onRescheduleSave={() => rescheduleMutation.mutate({ id: task.id, vencimiento: rescheduleDate })}
+                onRescheduleSave={() => rescheduleMutation.mutate({ 
+                  id: task.id, 
+                  vencimiento: rescheduleDate,
+                  titulo: rescheduleTitle,
+                  descripcion: rescheduleDescription
+                })}
                 onRescheduleDateChange={setRescheduleDate}
+                onRescheduleTitleChange={setRescheduleTitle}
+                onRescheduleDescriptionChange={setRescheduleDescription}
                 onLeadClick={() => task.lead && router.push(`/leads?lead=${task.lead.id}`)}
                 isCompleting={completeMutation.isPending}
                 isDeleting={deleteMutation.isPending}
@@ -183,21 +198,26 @@ interface TaskRowProps {
   task: GlobalTask
   rescheduleId: string | null
   rescheduleDate: string
+  rescheduleTitle: string
+  rescheduleDescription: string
   onComplete: () => void
   onDelete: () => void
   onRescheduleOpen: () => void
   onRescheduleCancel: () => void
   onRescheduleSave: () => void
   onRescheduleDateChange: (v: string) => void
+  onRescheduleTitleChange: (v: string) => void
+  onRescheduleDescriptionChange: (v: string) => void
   onLeadClick: () => void
   isCompleting: boolean
   isDeleting: boolean
 }
 
 function TaskRow({
-  task, rescheduleId, rescheduleDate,
+  task, rescheduleId, rescheduleDate, rescheduleTitle, rescheduleDescription,
   onComplete, onDelete, onRescheduleOpen, onRescheduleCancel, onRescheduleSave,
-  onRescheduleDateChange, onLeadClick, isCompleting, isDeleting,
+  onRescheduleDateChange, onRescheduleTitleChange, onRescheduleDescriptionChange,
+  onLeadClick, isCompleting, isDeleting,
 }: TaskRowProps) {
   const isRescheduling = rescheduleId === task.id
 
@@ -286,26 +306,42 @@ function TaskRow({
 
           {/* Reschedule form */}
           {isRescheduling && (
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2 space-y-2 p-2 bg-slate-50 rounded-lg">
               <input
-                type="datetime-local"
-                value={rescheduleDate}
-                onChange={(e) => onRescheduleDateChange(e.target.value)}
-                className="text-xs border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                type="text"
+                value={rescheduleTitle}
+                onChange={(e) => onRescheduleTitleChange(e.target.value)}
+                placeholder="Título de la tarea"
+                className="w-full text-xs border rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <button
-                onClick={onRescheduleSave}
-                disabled={!rescheduleDate}
-                className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
-              >
-                Guardar
-              </button>
-              <button
-                onClick={onRescheduleCancel}
-                className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
-              >
-                Cancelar
-              </button>
+              <textarea
+                value={rescheduleDescription}
+                onChange={(e) => onRescheduleDescriptionChange(e.target.value)}
+                placeholder="Descripción (opcional)"
+                rows={2}
+                className="w-full text-xs border rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="datetime-local"
+                  value={rescheduleDate}
+                  onChange={(e) => onRescheduleDateChange(e.target.value)}
+                  className="text-xs border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={onRescheduleSave}
+                  disabled={!rescheduleTitle.trim()}
+                  className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  Guardar
+                </button>
+                <button
+                  onClick={onRescheduleCancel}
+                  className="text-xs text-slate-500 hover:text-slate-700 transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
             </div>
           )}
         </div>
