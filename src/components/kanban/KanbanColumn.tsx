@@ -67,7 +67,7 @@ export function KanbanColumn({ stage, leads, onLeadClick, isOver }: KanbanColumn
       )}
 
       {/* Cards */}
-      <div ref={setNodeRef} className="kanban-cards space-y-2 p-2 overflow-y-auto max-h-[calc(100vh-200px)]">
+      <div ref={setNodeRef} className="kanban-cards space-y-2 p-2 overflow-y-auto flex-1">
         <SortableContext items={leads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
           {leads.map((lead) => (
             <LeadCard key={lead.id} lead={lead} onClick={onLeadClick} />
