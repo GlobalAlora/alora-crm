@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { LayoutGrid, List } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { KanbanBoard } from '@/components/kanban/KanbanBoard'
@@ -12,10 +13,19 @@ import type { Lead } from '@/types'
 type View = 'kanban' | 'list'
 
 export default function LeadsPage() {
+  const router = useRouter()
   const [view, setView] = useState<View>('kanban')
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
 
   useLeadsRealtime()
+
+  const handleLeadClick = (lead: Lead) => {
+    if (view === 'list') {
+      router.push(`/leads/${lead.id}`)
+    } else {
+      setSelectedLead(lead)
+    }
+  }
 
   return (
     <div className="flex flex-col h-full -m-6">
@@ -52,15 +62,15 @@ export default function LeadsPage() {
       {/* Content */}
       <div className="flex-1 overflow-hidden px-6 py-4">
         {view === 'kanban' && (
-          <KanbanBoard onLeadClick={setSelectedLead} />
+          <KanbanBoard onLeadClick={handleLeadClick} />
         )}
         {view === 'list' && (
-          <LeadTable onLeadClick={setSelectedLead} />
+          <LeadTable onLeadClick={handleLeadClick} />
         )}
       </div>
 
-      {/* Lead detail slide-over */}
-      {selectedLead && (
+      {/* Lead detail slide-over (solo para kanban) */}
+      {selectedLead && view === 'kanban' && (
         <LeadDetail
           lead={selectedLead}
           onClose={() => setSelectedLead(null)}
