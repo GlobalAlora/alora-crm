@@ -120,7 +120,7 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
       ref={setNodeRef}
       style={style}
       className={cn(
-        'bg-white rounded-lg border shadow-sm p-4 cursor-pointer select-none group',
+        'bg-white rounded-lg border shadow-sm p-4 cursor-pointer select-none group min-h-[140px]',
         'hover:shadow-md transition-shadow',
         sinRespuesta && 'border-l-4 border-l-red-400',
         isDragging && 'shadow-xl rotate-1'
@@ -151,7 +151,7 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
         </div>
       </div>
 
-      <div className="mt-3 space-y-1.5">
+      <div className="mt-3 space-y-1">
         {lead.email && (
           <p className="text-xs text-slate-600 truncate">{lead.email}</p>
         )}
@@ -164,17 +164,9 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
       </div>
 
       <div className="flex items-center justify-between mt-3 gap-2">
-        <div className="flex items-center gap-1.5">
-          {valorLabel && (
-            <span className={cn('text-xs font-medium', isHighValue ? 'text-emerald-600' : 'text-slate-600')}>
-              {isHighValue && <DollarSign size={10} className="inline -mt-0.5" />}
-              {valorLabel}
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          {propuestasSummary.count > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Mostrar propuestas de la tabla si existen, sino mostrar campos legacy */}
+          {propuestasSummary.count > 0 ? (
             <span
               className={cn(
                 'flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full font-medium',
@@ -189,7 +181,15 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
                   ? `ARS ${propuestasSummary.totalARS.toLocaleString('es-AR')}`
                   : propuestasSummary.count}
             </span>
-          )}
+          ) : valorLabel ? (
+            <span className={cn('text-xs font-medium', isHighValue ? 'text-emerald-600' : 'text-slate-600')}>
+              {isHighValue && <DollarSign size={10} className="inline -mt-0.5" />}
+              {valorLabel}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           {pendingTasksCount > 0 && (
             <span
               className={cn(
@@ -210,7 +210,7 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
             users={users}
             onAssign={(userId) => updateResponsableMutation.mutate(userId)}
           />
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-slate-400 whitespace-nowrap">
             {timeAgo(lead.last_activity_at)}
           </span>
         </div>
