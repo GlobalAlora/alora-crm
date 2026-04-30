@@ -20,6 +20,7 @@ const TYPE_ICON = {
   cambio_estado: ArrowRight,
   tarea_completada: CheckSquare,
   webhook: Webhook,
+  whatsapp: MessageSquare,
 }
 
 const TYPE_COLOR: Record<Activity['tipo'], string> = {
@@ -30,6 +31,7 @@ const TYPE_COLOR: Record<Activity['tipo'], string> = {
   cambio_estado: '#94a3b8',
   tarea_completada: '#22c55e',
   webhook: '#06b6d4',
+  whatsapp: '#22c55e',
 }
 
 interface ActivityFeedProps {
