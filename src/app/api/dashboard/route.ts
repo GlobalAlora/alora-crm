@@ -90,11 +90,10 @@ export async function GET(req: NextRequest) {
     applyFilters(
       supabase
         .from('leads')
-        .select('id, nombre, empresa, estado_pipeline, valor_propuesta_usd, valor_propuesta_ars, valor_propuesta_moneda, responsable_id')
+        .select('id, nombre, empresa, estado_pipeline, responsable_id, propuestas(valor_usd, valor_ars, moneda)')
         .is('deleted_at', null)
         .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado)')
-        .order('valor_propuesta_usd', { ascending: false, nullsFirst: false })
-        .limit(5)
+        .limit(50)
     ),
   ])
 
@@ -283,6 +282,40 @@ export async function GET(req: NextRequest) {
     }
   })
 
+  // Procesar top oportunidades: calcular valor total de propuestas por lead
+  type RawLeadWithPropuestas = {
+    id: string
+    nombre: string
+    empresa: string | null
+    estado_pipeline: PipelineStage
+    responsable_id: string | null
+    propuestas: { valor_usd: number | null; valor_ars: number | null; moneda: 'USD' | 'ARS' }[] | null
+  }
+  const topOportunidades = ((topOportunidadesRaw as unknown as RawLeadWithPropuestas[]) ?? [])
+    .map((lead) => {
+      const propuestas = lead.propuestas ?? []
+      const totalUSD = propuestas.reduce((sum, p) => sum + (p.valor_usd ?? 0), 0)
+      const totalARS = propuestas.reduce((sum, p) => sum + (p.valor_ars ?? 0), 0)
+      const hasUSD = propuestas.some((p) => p.moneda === 'USD' && (p.valor_usd ?? 0) > 0)
+
+      return {
+        id: lead.id,
+        nombre: lead.nombre,
+        empresa: lead.empresa,
+        estado_pipeline: lead.estado_pipeline,
+        responsable_id: lead.responsable_id,
+        valor_propuesta_usd: hasUSD ? totalUSD : null,
+        valor_propuesta_ars: hasUSD ? null : totalARS,
+        valor_propuesta_moneda: hasUSD ? 'USD' : 'ARS',
+      }
+    })
+    .sort((a, b) => {
+      const valA = (a.valor_propuesta_usd ?? 0) + (a.valor_propuesta_ars ?? 0) / 1000 // rough USD equiv for ARS
+      const valB = (b.valor_propuesta_usd ?? 0) + (b.valor_propuesta_ars ?? 0) / 1000
+      return valB - valA
+    })
+    .slice(0, 5)
+
   return NextResponse.json({
     data: {
       leads: {
@@ -324,7 +357,7 @@ export async function GET(req: NextRequest) {
       top_responsables: topResponsables,
       actividad_reciente: actividadReciente,
       ultimos_leads: ultimosLeadsRaw ?? [],
-      top_oportunidades: topOportunidadesRaw ?? [],
+      top_oportunidades: topOportunidades,
     },
   })
 }
