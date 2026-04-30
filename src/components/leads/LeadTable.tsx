@@ -87,7 +87,7 @@ export function LeadTable({ onLeadClick }: LeadTableProps) {
 
   const leads = data?.data ?? []
   const total = data?.meta?.total ?? 0
-  const pages = data?.meta?.pages ?? 1
+  const pages = data?.meta?.total_pages ?? 1
 
   const handleSort = useCallback((col: SortColumn) => {
     if (col === sortBy) {
