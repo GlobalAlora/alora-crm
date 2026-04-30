@@ -290,7 +290,7 @@ export default function DashboardPage() {
                   onClick={() => router.push(`/leads?view=kanban&responsable_id=${u.id}`)}
                 >
                   <span className="text-xs text-slate-400 w-4 text-right">{idx + 1}</span>
-                  <UserAvatar name={u.full_name} avatarUrl={u.avatar_url} size="sm" />
+                  <UserAvatar user={u} size="sm" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-800 truncate">{u.full_name}</p>
                     <div className="flex items-center gap-2 mt-0.5">

@@ -299,7 +299,7 @@ function ResponsablePicker({ lead, users, onAssign }: ResponsablePickerProps) {
                   lead.responsable_id === user.id && 'bg-blue-50'
                 )}
               >
-                <UserAvatar name={user.full_name} avatarUrl={user.avatar_url} size="xs" />
+                <UserAvatar user={user} size="xs" />
                 <span
                   className={cn(
                     'truncate',

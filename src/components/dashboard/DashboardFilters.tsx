@@ -79,11 +79,7 @@ export function DashboardFilters({
         >
           {selectedResponsable ? (
             <>
-              <UserAvatar
-                name={selectedResponsable.full_name}
-                avatarUrl={selectedResponsable.avatar_url}
-                size="sm"
-              />
+              <UserAvatar user={selectedResponsable} size="sm" />
               <span className="max-w-24 truncate">{selectedResponsable.full_name}</span>
             </>
           ) : (
@@ -120,9 +116,7 @@ export function DashboardFilters({
                     responsableId === user.id && 'bg-slate-50'
                   )}
                 >
-                  <UserAvatar
-                    name={user.full_name}
-                    avatarUrl={user.avatar_url}
+                  <UserAvatar user={user}
                     size="sm"
                   />
                   <span className="truncate">{user.full_name}</span>
