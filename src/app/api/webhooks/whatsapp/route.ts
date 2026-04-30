@@ -171,7 +171,9 @@ async function upsertLeadAndActivity({ supabase, phone, name, text, rawMessage, 
       descripcion: description,
       metadata: {
         source: 'whatsapp_webhook',
-        phone,
+        direction: 'inbound',
+        phone: normalizedPhone,
+        text: text ?? null,
         message_id: (rawMessage as Record<string, unknown>)?.id ?? null,
         message_type: (rawMessage as Record<string, unknown>)?.type ?? null,
         phone_number_id: (rawValue as Record<string, unknown>)?.metadata
@@ -185,5 +187,22 @@ async function upsertLeadAndActivity({ supabase, phone, name, text, rawMessage, 
     console.error(`[WhatsApp] Failed to create activity for lead ${leadId}:`, actError.message)
   } else {
     console.log(`[WhatsApp] Activity created for lead ${leadId}`)
+  }
+
+  // ── 4. Upsert conversation record (atomic: insert or increment unread) ───────
+  const previewText = text
+    ? (text.length > 100 ? text.slice(0, 100) + '…' : text)
+    : '[Mensaje de WhatsApp]'
+
+  const { error: convError } = await supabase.rpc('upsert_wa_conversation', {
+    p_phone: normalizedPhone,
+    p_lead_id: leadId,
+    p_last_text: previewText,
+  })
+
+  if (convError) {
+    console.error(`[WhatsApp] Failed to upsert conversation for ${normalizedPhone}:`, convError.message)
+  } else {
+    console.log(`[WhatsApp] Conversation updated for ${normalizedPhone}`)
   }
 }

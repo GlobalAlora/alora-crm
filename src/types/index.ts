@@ -23,6 +23,7 @@ export type ActivityType =
   | 'cambio_estado'
   | 'tarea_completada'
   | 'webhook'
+  | 'whatsapp'
 
 export type LeadFuente =
   | 'formulario'
@@ -144,7 +145,45 @@ export interface Task {
   asignado?: Pick<User, 'id' | 'full_name' | 'avatar_url'>
 }
 
-// ── Email Marketing ────────────────────────────────────────
+// ── WhatsApp Inbox ─────────────────────────────────────────
+
+export interface WhatsAppConversation {
+  id: string
+  phone_number: string
+  lead_id: string | null
+  last_message_at: string
+  last_message_text: string | null
+  unread_count: number
+  status: 'open' | 'closed'
+  created_at: string
+  updated_at: string
+  // Joined from leads
+  lead?: {
+    id: string
+    nombre: string
+    apellido: string | null
+    email: string | null
+  } | null
+}
+
+export interface WhatsAppMessage {
+  id: string
+  lead_id: string | null
+  created_at: string
+  descripcion: string
+  metadata: {
+    direction?: 'inbound' | 'outbound'
+    phone?: string
+    message_id?: string
+    message_type?: string
+    source?: string
+    text?: string
+    phone_number_id?: string
+    raw_message?: unknown
+  } | null
+}
+
+// ── Email Marketing ─────────────────────────────────────────
 
 export interface LeadTag {
   id: string

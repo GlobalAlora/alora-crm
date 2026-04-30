@@ -2,21 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, List } from 'lucide-react'
+import { LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, List, MessageCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-const nav = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  {
-    href: '/leads',
-    label: 'Leads',
-    icon: Users,
-    sub: [
-      { href: '/leads/tareas', label: 'Tareas', icon: CheckSquare },
-    ],
-  },
-  { href: '/email', label: 'Email Marketing', icon: Mail },
-]
+import { useQuery } from '@tanstack/react-query'
+import type { WhatsAppConversation } from '@/types'
 
 const settingsNav = [
   { href: '/settings/forms', label: 'Formularios', icon: FileCode2 },
@@ -27,7 +16,30 @@ const settingsNav = [
 export function Sidebar() {
   const pathname = usePathname()
   const inSettings = pathname.startsWith('/settings')
-  const inLeads = pathname.startsWith('/leads')
+
+  // Unread WhatsApp count for the sidebar badge
+  const { data: waData } = useQuery<{ data: WhatsAppConversation[] }>({
+    queryKey: ['whatsapp-conversations'],
+    queryFn: () => fetch('/api/whatsapp/conversations').then(r => r.json()),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  })
+  const totalUnread = (waData?.data ?? []).reduce((sum, c) => sum + c.unread_count, 0)
+
+  const nav = [
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null, sub: undefined },
+    {
+      href: '/leads',
+      label: 'Leads',
+      icon: Users,
+      badge: null,
+      sub: [
+        { href: '/leads/tareas', label: 'Tareas', icon: CheckSquare },
+      ],
+    },
+    { href: '/inbox/whatsapp', label: 'WhatsApp', icon: MessageCircle, badge: totalUnread || null, sub: undefined },
+    { href: '/email', label: 'Email Marketing', icon: Mail, badge: null, sub: undefined },
+  ]
 
   return (
     <aside className="w-60 flex-shrink-0 flex flex-col h-full" style={{ background: 'var(--sidebar-bg)' }}>
@@ -36,7 +48,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-0.5">
-        {nav.map(({ href, label, icon: Icon, sub }) => {
+        {nav.map(({ href, label, icon: Icon, badge, sub }) => {
           const isParentActive = pathname.startsWith(href)
 
           return (
@@ -51,7 +63,12 @@ export function Sidebar() {
                 )}
               >
                 <Icon size={16} />
-                {label}
+                <span className="flex-1">{label}</span>
+                {badge != null && badge > 0 && (
+                  <span className="ml-auto min-w-[18px] h-[18px] rounded-full bg-green-500 text-white text-[10px] font-bold flex items-center justify-center px-1">
+                    {badge > 99 ? '99+' : badge}
+                  </span>
+                )}
               </Link>
 
               {/* Sub-nav shown when parent is active */}

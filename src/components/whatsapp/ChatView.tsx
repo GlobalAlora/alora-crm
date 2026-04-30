@@ -1,0 +1,247 @@
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { createClient } from '@/lib/supabase/client'
+import Link from 'next/link'
+import { Send, User, X, MessageCircle } from 'lucide-react'
+import { format, isSameDay } from 'date-fns'
+import { es } from 'date-fns/locale'
+import toast from 'react-hot-toast'
+import { cn } from '@/lib/utils'
+import { MessageBubble, DateSeparator } from './MessageBubble'
+import type { WhatsAppConversation, WhatsAppMessage } from '@/types'
+
+interface Props {
+  phone: string
+  conversation: WhatsAppConversation | undefined
+  onClose?: () => void
+}
+
+export function ChatView({ phone, conversation, onClose }: Props) {
+  const queryClient = useQueryClient()
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const [text, setText] = useState('')
+
+  // Fetch messages
+  const { data, isLoading } = useQuery<{ data: WhatsAppMessage[] }>({
+    queryKey: ['whatsapp-messages', phone],
+    queryFn: () => fetch(`/api/whatsapp/conversations/${phone}`).then(r => r.json()),
+    enabled: !!phone,
+  })
+
+  const messages = data?.data ?? []
+
+  // Mark as read when conversation opens
+  useEffect(() => {
+    if (!phone || !conversation?.unread_count) return
+    fetch(`/api/whatsapp/conversations/${phone}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ unread_count: 0 }),
+    }).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] })
+    }).catch(() => {/* noop */})
+  }, [phone, conversation?.unread_count, queryClient])
+
+  // Scroll to bottom on new messages
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages.length])
+
+  // Realtime: new activities for this phone
+  useEffect(() => {
+    if (!phone) return
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`wa-messages-${phone}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'activities',
+        filter: 'tipo=eq.whatsapp',
+      }, (payload) => {
+        const meta = payload.new.metadata as Record<string, unknown> | null
+        if (meta?.phone === phone) {
+          queryClient.invalidateQueries({ queryKey: ['whatsapp-messages', phone] })
+          queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] })
+        }
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [phone, queryClient])
+
+  // Send message mutation
+  const sendMutation = useMutation({
+    mutationFn: async (message: string) => {
+      const res = await fetch('/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone,
+          message,
+          lead_id: conversation?.lead_id ?? null,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error((err as { error?: string }).error ?? 'Error al enviar')
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      setText('')
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-messages', phone] })
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] })
+    },
+    onError: (err: Error) => {
+      toast.error(err.message)
+    },
+  })
+
+  const handleSend = () => {
+    const trimmed = text.trim()
+    if (!trimmed || sendMutation.isPending) return
+    sendMutation.mutate(trimmed)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }
+
+  const displayName = conversation?.lead
+    ? [conversation.lead.nombre, conversation.lead.apellido].filter(Boolean).join(' ')
+    : `+${phone}`
+
+  // Group messages by date for separators
+  const groupedMessages: { date: string; msgs: WhatsAppMessage[] }[] = []
+  for (const msg of messages) {
+    const dateKey = format(new Date(msg.created_at), 'yyyy-MM-dd')
+    const last = groupedMessages[groupedMessages.length - 1]
+    if (last?.date === dateKey) {
+      last.msgs.push(msg)
+    } else {
+      groupedMessages.push({ date: msg.created_at, msgs: [msg] })
+    }
+  }
+
+  return (
+    <div className="flex-1 flex flex-col bg-slate-50 min-w-0">
+      {/* Chat Header */}
+      <div className="flex items-center gap-3 px-5 py-3.5 bg-white border-b border-slate-200 shadow-sm flex-shrink-0">
+        <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 text-slate-600 font-semibold text-sm">
+          {conversation?.lead?.nombre
+            ? conversation.lead.nombre[0].toUpperCase()
+            : phone.slice(-2)}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-slate-900 text-sm truncate">{displayName}</p>
+          <p className="text-xs text-slate-400">+{phone}</p>
+        </div>
+
+        {conversation?.lead_id && (
+          <Link
+            href={`/leads/${conversation.lead_id}`}
+            className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 px-2.5 py-1.5 rounded-md hover:bg-blue-50 transition-colors"
+          >
+            <User size={12} />
+            Ver lead
+          </Link>
+        )}
+
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            <X size={15} />
+          </button>
+        )}
+      </div>
+
+      {/* Messages area */}
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        {isLoading ? (
+          <div className="flex flex-col gap-3">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className={cn('flex', i % 2 === 0 ? 'justify-start' : 'justify-end')}>
+                <div className={cn(
+                  'h-10 rounded-2xl animate-pulse',
+                  i % 2 === 0 ? 'w-48 bg-slate-200' : 'w-36 bg-blue-200'
+                )} />
+              </div>
+            ))}
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
+            <MessageCircle size={36} className="text-slate-300" />
+            <div>
+              <p className="text-sm font-medium text-slate-500">Sin mensajes aún</p>
+              <p className="text-xs text-slate-400 mt-0.5">Escribí el primer mensaje abajo</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {groupedMessages.map(({ date, msgs }) => (
+              <div key={date}>
+                <DateSeparator date={date} />
+                {msgs.map(msg => (
+                  <MessageBubble key={msg.id} message={msg} />
+                ))}
+              </div>
+            ))}
+          </>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input area */}
+      <div className="flex-shrink-0 bg-white border-t border-slate-200 px-4 py-3">
+        <div className="flex items-end gap-2">
+          <textarea
+            value={text}
+            onChange={e => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Escribí un mensaje... (Enter para enviar)"
+            rows={1}
+            className={cn(
+              'flex-1 resize-none rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm',
+              'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
+              'max-h-32 overflow-y-auto leading-relaxed'
+            )}
+            style={{ minHeight: '42px' }}
+            onInput={e => {
+              const el = e.currentTarget
+              el.style.height = 'auto'
+              el.style.height = Math.min(el.scrollHeight, 128) + 'px'
+            }}
+          />
+          <button
+            onClick={handleSend}
+            disabled={!text.trim() || sendMutation.isPending}
+            className={cn(
+              'w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all',
+              text.trim() && !sendMutation.isPending
+                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+            )}
+          >
+            {sendMutation.isPending ? (
+              <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Send size={16} />
+            )}
+          </button>
+        </div>
+        <p className="text-[10px] text-slate-400 mt-1.5 ml-1">
+          Shift+Enter para nueva línea
+        </p>
+      </div>
+    </div>
+  )
+}
