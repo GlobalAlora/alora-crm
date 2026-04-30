@@ -25,8 +25,10 @@ export async function GET(req: NextRequest) {
     return q
   }
 
-  const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
 
   // Run all independent queries in parallel
   const [
@@ -34,19 +36,22 @@ export async function GET(req: NextRequest) {
     { count: sinRespuesta },
     { count: tareasVencidas },
     { count: leadsInactivos },
+    { count: leadsEstancados },
+    { count: leadsCalientes },
     { data: responsablesRaw },
     { data: actividadRaw },
     { data: ultimosLeadsRaw },
+    { data: topOportunidadesRaw },
   ] = await Promise.all([
     applyFilters(
-      supabase.from('leads').select('estado_pipeline, fuente, fecha_ingreso, valor_propuesta_usd, valor_propuesta_ars, valor_propuesta_moneda, pais, responsable_id, created_at')
+      supabase.from('leads').select('estado_pipeline, fuente, fecha_ingreso, valor_propuesta_usd, valor_propuesta_ars, valor_propuesta_moneda, pais, responsable_id, created_at, stage_updated_at, last_activity_at')
     ),
     applyFilters(
       supabase
         .from('leads')
         .select('id', { count: 'exact', head: true })
         .eq('estado_pipeline', 'lead_contactado')
-        .lt('stage_updated_at', fortyEightHoursAgo)
+        .lt('stage_updated_at', twentyFourHoursAgo)
     ),
     supabase
       .from('tasks')
@@ -59,6 +64,17 @@ export async function GET(req: NextRequest) {
       .is('deleted_at', null)
       .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado)')
       .lt('stage_updated_at', sevenDaysAgo),
+    supabase
+      .from('leads')
+      .select('id', { count: 'exact', head: true })
+      .is('deleted_at', null)
+      .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado)')
+      .lt('stage_updated_at', threeDaysAgo),
+    supabase
+      .from('leads')
+      .select('id', { count: 'exact', head: true })
+      .is('deleted_at', null)
+      .gt('last_activity_at', oneHourAgo),
     supabase.from('users').select('id, full_name, avatar_url').in('role', ['admin', 'sales']),
     supabase
       .from('activities')
@@ -71,6 +87,15 @@ export async function GET(req: NextRequest) {
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(8),
+    applyFilters(
+      supabase
+        .from('leads')
+        .select('id, nombre, empresa, estado_pipeline, valor_propuesta_usd, valor_propuesta_ars, valor_propuesta_moneda, responsable_id')
+        .is('deleted_at', null)
+        .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado)')
+        .order('valor_propuesta_usd', { ascending: false, nullsFirst: false })
+        .limit(5)
+    ),
   ])
 
   const leads = allLeads ?? []
@@ -103,6 +128,34 @@ export async function GET(req: NextRequest) {
       }
       revenuePorResponsable[lead.responsable_id].usd += lead.valor_propuesta_usd ?? 0
       revenuePorResponsable[lead.responsable_id].ars += lead.valor_propuesta_ars ?? 0
+    }
+  }
+
+  // Calcular conversión entre etapas y cuello de botella
+  const stageOrder: PipelineStage[] = [
+    'lead_entrante', 'lead_contactado', 'sin_respuesta', 'reunion_reservada',
+    'reunion_realizada', 'propuesta_en_armado', 'propuesta_enviada', 'follow_up', 'cliente_ganado'
+  ]
+  const conversionRates: Record<string, number> = {}
+  let maxDropRate = 0
+  let bottleneckStage: PipelineStage | null = null
+
+  for (let i = 0; i < stageOrder.length - 1; i++) {
+    const fromStage = stageOrder[i]
+    const toStage = stageOrder[i + 1]
+    const fromCount = porEtapaCount[fromStage] ?? 0
+    const toCount = porEtapaCount[toStage] ?? 0
+
+    if (fromCount > 0) {
+      const rate = (toCount / fromCount) * 100
+      conversionRates[`${fromStage}->${toStage}`] = rate
+
+      // Identificar cuello de botella (mayor caída)
+      const dropRate = 100 - rate
+      if (dropRate > maxDropRate && fromCount > 0) {
+        maxDropRate = dropRate
+        bottleneckStage = fromStage
+      }
     }
   }
 
@@ -258,15 +311,20 @@ export async function GET(req: NextRequest) {
       conversion: {
         tasa: tasaConversion,
         por_etapa: porEtapaCount,
+        rates: conversionRates,
+        bottleneck: bottleneckStage,
       },
       alertas: {
-        sin_respuesta_48h: sinRespuesta ?? 0,
+        sin_respuesta_24h: sinRespuesta ?? 0,
         tareas_vencidas: tareasVencidas ?? 0,
         leads_inactivos: leadsInactivos ?? 0,
+        leads_estancados: leadsEstancados ?? 0,
+        leads_calientes: leadsCalientes ?? 0,
       },
       top_responsables: topResponsables,
       actividad_reciente: actividadReciente,
       ultimos_leads: ultimosLeadsRaw ?? [],
+      top_oportunidades: topOportunidadesRaw ?? [],
     },
   })
 }

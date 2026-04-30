@@ -276,11 +276,15 @@ export interface DashboardMetrics {
   conversion: {
     tasa: number
     por_etapa: Partial<Record<PipelineStage, number>>
+    rates: Record<string, number>
+    bottleneck: PipelineStage | null
   }
   alertas: {
-    sin_respuesta_48h: number
+    sin_respuesta_24h: number
     tareas_vencidas: number
     leads_inactivos: number
+    leads_estancados: number
+    leads_calientes: number
   }
   top_responsables: {
     id: string
@@ -309,6 +313,16 @@ export interface DashboardMetrics {
     estado_pipeline: PipelineStage
     fuente: string | null
     created_at: string
+    responsable_id: string | null
+  }[]
+  top_oportunidades: {
+    id: string
+    nombre: string
+    empresa: string | null
+    estado_pipeline: PipelineStage
+    valor_propuesta_usd: number | null
+    valor_propuesta_ars: number | null
+    valor_propuesta_moneda: 'USD' | 'ARS' | null
     responsable_id: string | null
   }[]
 }
