@@ -120,7 +120,7 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
       ref={setNodeRef}
       style={style}
       className={cn(
-        'bg-white rounded-lg border shadow-sm p-4 cursor-pointer select-none group min-h-[140px]',
+        'bg-white rounded-lg border shadow-sm p-4 cursor-pointer select-none group min-h-[140px] overflow-hidden',
         'hover:shadow-md transition-shadow',
         sinRespuesta && 'border-l-4 border-l-red-400',
         isDragging && 'shadow-xl rotate-1'
