@@ -19,6 +19,7 @@ export default function LeadsPage() {
 
   useLeadsRealtime()
 
+  
   const handleLeadClick = (lead: Lead) => {
     if (view === 'list') {
       router.push(`/leads/${lead.id}?from=pipeline`)
