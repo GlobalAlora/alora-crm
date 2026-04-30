@@ -257,8 +257,7 @@ function ResponsablePicker({ lead, users, onAssign }: ResponsablePickerProps) {
       >
         {lead.responsable ? (
           <UserAvatar
-            name={lead.responsable.full_name}
-            avatarUrl={lead.responsable.avatar_url}
+            user={lead.responsable}
             size="sm"
           />
         ) : (
