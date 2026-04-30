@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  X, Mail, Building2, Tag as TagIcon,
+  X, Mail, Building2, Tag as TagIcon, Globe,
   MessageSquare, CheckSquare, FileText, History, ExternalLink,
   Check, AlertCircle, MessageCircle, ChevronDown,
 } from 'lucide-react'
