@@ -2,15 +2,16 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, List, MessageCircle } from 'lucide-react'
+import { LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, List, MessageCircle, Smartphone } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import type { WhatsAppConversation } from '@/types'
 
 const settingsNav = [
-  { href: '/settings/forms', label: 'Formularios', icon: FileCode2 },
-  { href: '/settings/tags', label: 'Etiquetas', icon: Tag },
-  { href: '/settings/lists', label: 'Listas', icon: List },
+  { href: '/settings/forms',     label: 'Formularios', icon: FileCode2   },
+  { href: '/settings/tags',      label: 'Etiquetas',   icon: Tag         },
+  { href: '/settings/lists',     label: 'Listas',      icon: List        },
+  { href: '/settings/whatsapp',  label: 'WhatsApp',    icon: Smartphone  },
 ]
 
 export function Sidebar() {

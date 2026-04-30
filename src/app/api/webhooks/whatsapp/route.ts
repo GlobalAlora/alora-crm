@@ -11,7 +11,16 @@ export async function GET(req: NextRequest) {
   const token     = searchParams.get('hub.verify_token')
   const challenge = searchParams.get('hub.challenge')
 
-  const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN
+  // Prefer DB config; fall back to env var
+  const admin = createAdminClient()
+  const { data: cfg } = await admin
+    .from('channel_configs')
+    .select('verify_token')
+    .eq('channel_type', 'whatsapp')
+    .eq('label', 'Principal')
+    .single()
+
+  const verifyToken = cfg?.verify_token || process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN
 
   if (!verifyToken) {
     console.error('[WhatsApp] WHATSAPP_WEBHOOK_VERIFY_TOKEN is not set')
@@ -71,6 +80,13 @@ async function processPayload(payload: WhatsAppPayload) {
       console.error(`[WhatsApp] Failed to process message from ${phone}:`, err)
     }
   }
+
+  // Update last_message_at in channel config
+  await supabase
+    .from('channel_configs')
+    .update({ last_message_at: new Date().toISOString(), last_error: null })
+    .eq('channel_type', 'whatsapp')
+    .eq('label', 'Principal')
 }
 
 interface UpsertParams {

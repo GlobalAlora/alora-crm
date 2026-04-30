@@ -19,8 +19,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'phone y message son requeridos' }, { status: 400 })
   }
 
-  const accessToken  = process.env.WHATSAPP_ACCESS_TOKEN
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  // Resolve credentials: DB config first, env vars as fallback
+  const admin = createAdminClient()
+  const { data: cfg } = await admin
+    .from('channel_configs')
+    .select('access_token, phone_number_id')
+    .eq('channel_type', 'whatsapp')
+    .eq('label', 'Principal')
+    .single()
+
+  const accessToken   = cfg?.access_token   || process.env.WHATSAPP_ACCESS_TOKEN
+  const phoneNumberId = cfg?.phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID
 
   if (!accessToken || !phoneNumberId) {
     return NextResponse.json({ error: 'WhatsApp no configurado' }, { status: 500 })
@@ -43,8 +52,6 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 2. Save outbound activity ─────────────────────────────────────────────
-  const admin = createAdminClient()
-
   const preview = message.length > 200 ? message.slice(0, 200) + '…' : message
 
   await admin
