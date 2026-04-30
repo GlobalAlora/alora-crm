@@ -84,31 +84,23 @@ export default function DashboardPage() {
     <div className="space-y-6">
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">Dashboard</h1>
-          <p className="text-sm text-slate-500">Inteligencia comercial en tiempo real</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <DashboardFilters
-            fechaDesde={fechaDesde}
-            fechaHasta={fechaHasta}
-            responsableId={responsableId}
-            onFechaDesdeChange={setFechaDesde}
-            onFechaHastaChange={setFechaHasta}
-            onResponsableChange={setResponsableId}
-          />
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Dashboard</h1>
+            <p className="text-sm text-slate-500">Inteligencia comercial en tiempo real</p>
+          </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => openLeadForm()}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <Plus size={16} />
-              <span className="hidden sm:inline">Nuevo lead</span>
+              <span>Nuevo lead</span>
             </button>
             <button
               onClick={() => router.push('/leads/tareas')}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
               title="Crear tarea"
             >
               <ListTodo size={16} />
@@ -116,7 +108,7 @@ export default function DashboardPage() {
             </button>
             <button
               onClick={() => router.push('/whatsapp')}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
               title="WhatsApp"
             >
               <MessageSquare size={16} />
@@ -124,6 +116,14 @@ export default function DashboardPage() {
             </button>
           </div>
         </div>
+        <DashboardFilters
+          fechaDesde={fechaDesde}
+          fechaHasta={fechaHasta}
+          responsableId={responsableId}
+          onFechaDesdeChange={setFechaDesde}
+          onFechaHastaChange={setFechaHasta}
+          onResponsableChange={setResponsableId}
+        />
       </div>
 
       {/* Alertas */}
