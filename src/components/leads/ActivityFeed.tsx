@@ -72,7 +72,7 @@ function ActivityItem({ activity, onDelete, onEdit }: {
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-slate-700 whitespace-pre-wrap break-words">{activity.descripcion}</p>
+              <div className="prose prose-sm max-w-none text-slate-700" dangerouslySetInnerHTML={{ __html: activity.descripcion }} />
             )}
           </div>
           {!editing && isEditable && (
