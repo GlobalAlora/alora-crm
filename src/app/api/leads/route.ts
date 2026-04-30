@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Determine next kanban position in target stage
-  const targetStage = (body.estado_pipeline as PipelineStage) || 'lead_entrante'
+  const targetStage = (body.estado_pipeline as PipelineStage | undefined | null) ?? 'lead_entrante'
   const { data: maxPos } = await supabase
     .from('leads')
     .select('kanban_position')

@@ -77,11 +77,16 @@ export function PropuestasSection({ leadId, propuestas: initialPropuestas }: Pro
 
   const updateEstadoMutation = useMutation({
     mutationFn: async ({ id, estado }: { id: string; estado: string }) => {
-      await fetch(`/api/leads/${leadId}/propuestas/${id}`, {
+      await fetch(`/api/propuestas/${id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado }),
       })
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['propuestas', leadId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['propuestas', leadId] })
+      qc.invalidateQueries({ queryKey: ['lead', leadId] })
+      toast.success('Estado actualizado')
+    },
+    onError: () => toast.error('Error al actualizar estado'),
   })
 
   return (

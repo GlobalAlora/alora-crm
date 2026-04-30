@@ -246,7 +246,7 @@ function ResponsablePicker({ lead, users, onAssign }: ResponsablePickerProps) {
   }, [isOpen])
 
   return (
-    <div ref={pickerRef} className="relative z-50">
+    <div ref={pickerRef} className="relative z-1">
       <button
         onClick={(e) => {
           e.stopPropagation()
