@@ -257,16 +257,21 @@ export interface DashboardMetrics {
   leads: {
     total: number
     por_etapa: Partial<Record<PipelineStage, number>>
-    por_etapa_value: Partial<Record<PipelineStage, number>>
+    por_etapa_value_usd: Partial<Record<PipelineStage, number>>
+    por_etapa_value_ars: Partial<Record<PipelineStage, number>>
     por_fuente: Record<string, number>
+    por_pais: Record<string, number>
     nuevos_periodo: number
   }
   revenue: {
     ganado_usd: number
+    ganado_ars: number
     proyectado_usd: number
+    proyectado_ars: number
     ticket_promedio_usd: number
     forecast: { d7: number; d30: number; d90: number }
-    pipeline_value: Partial<Record<PipelineStage, number>>
+    pipeline_value_usd: Partial<Record<PipelineStage, number>>
+    pipeline_value_ars: Partial<Record<PipelineStage, number>>
   }
   conversion: {
     tasa: number
@@ -285,6 +290,8 @@ export interface DashboardMetrics {
     ganados: number
     actividades: number
     tasa_conversion: number
+    revenue_usd: number
+    revenue_ars: number
   }[]
   actividad_reciente: {
     id: string
