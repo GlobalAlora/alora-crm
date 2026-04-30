@@ -72,3 +72,21 @@ export function slugify(str: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '')
 }
+
+export function hoursSince(dateString: string): number {
+  try {
+    const now = new Date()
+    const date = new Date(dateString)
+    const diffMs = now.getTime() - date.getTime()
+    return Math.floor(diffMs / (1000 * 60 * 60))
+  } catch {
+    return 0
+  }
+}
+
+export function midpoint(a: number | null, b: number | null): number {
+  if (a === null && b === null) return 0
+  if (a === null) return b!
+  if (b === null) return a
+  return (a + b) / 2
+}
