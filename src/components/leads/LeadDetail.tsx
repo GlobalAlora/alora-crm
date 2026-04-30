@@ -477,9 +477,13 @@ function NoteEditor({ value, onSave }: { value: string; onSave: (v: string) => v
   return (
     <button
       onClick={() => { setDraft(value); setEditing(true) }}
-      className="w-full text-left text-sm text-slate-600 hover:text-blue-600 whitespace-pre-wrap break-words transition-colors"
+      className="w-full text-left text-sm text-slate-600 hover:text-blue-600 break-words transition-colors"
     >
-      {value || <span className="text-slate-300 italic text-xs">Hacer clic para agregar notas...</span>}
+      {value ? (
+        <div className="prose prose-sm max-w-none text-slate-600" dangerouslySetInnerHTML={{ __html: value }} />
+      ) : (
+        <span className="text-slate-300 italic text-xs">Hacer clic para agregar notas...</span>
+      )}
     </button>
   )
 }
