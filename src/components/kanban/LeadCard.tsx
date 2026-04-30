@@ -120,7 +120,7 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
       ref={setNodeRef}
       style={style}
       className={cn(
-        'bg-white rounded-lg border shadow-sm p-3 cursor-pointer select-none group',
+        'bg-white rounded-lg border shadow-sm p-4 cursor-pointer select-none group',
         'hover:shadow-md transition-shadow',
         sinRespuesta && 'border-l-4 border-l-red-400',
         isDragging && 'shadow-xl rotate-1'
@@ -130,7 +130,7 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           {lead.empresa && (
-            <p className="text-xs text-slate-500 truncate mb-0.5">{lead.empresa}</p>
+            <p className="text-xs text-slate-500 truncate mb-1">{lead.empresa}</p>
           )}
           <p className="text-sm font-semibold text-slate-900 truncate">
             {[lead.nombre, lead.apellido].filter(Boolean).join(' ')}
@@ -149,6 +149,18 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
         >
           <GripVertical size={14} />
         </div>
+      </div>
+
+      <div className="mt-3 space-y-1.5">
+        {lead.email && (
+          <p className="text-xs text-slate-600 truncate">{lead.email}</p>
+        )}
+        {lead.telefono && (
+          <p className="text-xs text-slate-600 truncate">{lead.telefono}</p>
+        )}
+        {lead.fuente && (
+          <p className="text-xs text-slate-400 truncate capitalize">{lead.fuente}</p>
+        )}
       </div>
 
       <div className="flex items-center justify-between mt-3 gap-2">
@@ -316,6 +328,6 @@ function ResponsablePicker({ lead, users, onAssign }: ResponsablePickerProps) {
 // Ghost card shown while dragging over an empty column
 export function LeadCardGhost() {
   return (
-    <div className="bg-slate-100 rounded-lg border border-dashed border-slate-300 p-3 h-20 opacity-50" />
+    <div className="bg-slate-100 rounded-lg border border-dashed border-slate-300 p-4 h-32 opacity-50" />
   )
 }

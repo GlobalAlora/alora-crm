@@ -30,7 +30,7 @@ export function Sidebar() {
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null, sub: undefined },
     {
       href: '/leads',
-      label: 'Leads',
+      label: 'Pipeline',
       icon: Users,
       badge: null,
       sub: [
