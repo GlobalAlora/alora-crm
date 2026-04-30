@@ -151,7 +151,7 @@ export const tasksApi = {
     return request(`${BASE}/tasks/${taskId}/complete`, { method: 'PATCH' })
   },
 
-  update(taskId: string, data: Partial<Pick<Task, 'titulo' | 'descripcion' | 'vencimiento'>>): Promise<Task> {
+  update(taskId: string, data: Partial<Pick<Task, 'titulo' | 'descripcion' | 'vencimiento' | 'completada'>>): Promise<Task> {
     return request(`${BASE}/tasks/${taskId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
