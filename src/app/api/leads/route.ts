@@ -2,165 +2,135 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import type { PipelineStage, LeadFuente } from '@/types'
 
-const MAX_LIMIT = 100
-
+// ── GET /api/leads ────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
-
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const sp = req.nextUrl.searchParams
+  const { searchParams } = new URL(req.url)
 
-  const view = sp.get('view') ?? 'list'
-  const limit = Math.min(Number(sp.get('limit') ?? 50), MAX_LIMIT)
-  const page = Math.max(Number(sp.get('page') ?? 1), 1)
-  const offset = (page - 1) * limit
+  // Filters
+  const estadosPipeline = searchParams.getAll('estado_pipeline') as PipelineStage[]
+  const responsableId   = searchParams.get('responsable_id')
+  const fuente          = searchParams.get('fuente')
+  const fechaDesde      = searchParams.get('fecha_desde')
+  const fechaHasta      = searchParams.get('fecha_hasta')
+  const buscar          = searchParams.get('buscar')?.trim()
+  const sortBy          = searchParams.get('sort_by') || 'created_at'
+  const sortOrder       = searchParams.get('sort_order') || 'desc'
+  const page            = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
+  const limit           = Math.min(200, parseInt(searchParams.get('limit') || '50', 10))
+  const offset          = (page - 1) * limit
 
   let query = supabase
     .from('leads')
     .select('*, responsable:users!responsable_id(id, full_name, avatar_url)', { count: 'exact' })
     .is('deleted_at', null)
 
-  // Filters
-  const estados = sp.getAll('estado_pipeline') as PipelineStage[]
-  if (estados.length > 0) query = query.in('estado_pipeline', estados)
-
-  const responsableId = sp.get('responsable_id')
-  if (responsableId) query = query.eq('responsable_id', responsableId)
-
-  const fuente = sp.get('fuente') as LeadFuente | null
-  if (fuente) query = query.eq('fuente', fuente)
-
-  const fechaDesde = sp.get('fecha_desde')
-  if (fechaDesde) query = query.gte('fecha_ingreso', fechaDesde)
-
-  const fechaHasta = sp.get('fecha_hasta')
-  if (fechaHasta) query = query.lte('fecha_ingreso', fechaHasta)
-
-  const buscar = sp.get('buscar')
+  // Apply filters
+  if (estadosPipeline.length > 0) {
+    query = query.in('estado_pipeline', estadosPipeline)
+  }
+  if (responsableId) {
+    query = query.eq('responsable_id', responsableId)
+  }
+  if (fuente) {
+    query = query.eq('fuente', fuente as LeadFuente)
+  }
+  if (fechaDesde) {
+    query = query.gte('created_at', fechaDesde)
+  }
+  if (fechaHasta) {
+    query = query.lte('created_at', fechaHasta)
+  }
   if (buscar) {
-    query = query.or(`nombre.ilike.%${buscar}%,email.ilike.%${buscar}%,empresa.ilike.%${buscar}%`)
+    query = query.or(
+      `nombre.ilike.%${buscar}%,apellido.ilike.%${buscar}%,email.ilike.%${buscar}%,empresa.ilike.%${buscar}%,telefono.ilike.%${buscar}%`
+    )
   }
 
-  // Order
-  const sortBy = sp.get('sort_by') as 'nombre' | 'empresa' | 'valor_propuesta_usd' | 'last_activity_at' | 'created_at' | null
-  const sortOrder = sp.get('sort_order') === 'asc' ? { ascending: true } : { ascending: false }
+  // Sorting
+  const allowedSort = ['nombre', 'empresa', 'valor_propuesta_usd', 'last_activity_at', 'created_at', 'kanban_position']
+  const safeSortBy = allowedSort.includes(sortBy) ? sortBy : 'created_at'
+  query = query.order(safeSortBy, { ascending: sortOrder === 'asc', nullsFirst: false })
 
-  if (view === 'kanban') {
-    query = query.order('estado_pipeline').order('kanban_position')
-  } else if (sortBy) {
-    query = query.order(sortBy, sortOrder)
-  } else {
-    query = query.order('last_activity_at', { ascending: false })
-  }
-
+  // Pagination
   query = query.range(offset, offset + limit - 1)
 
   const { data, error, count } = await query
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  // Enrich leads with propuestas totals
-  const leadsWithPropuestas = await Promise.all(
-    (data ?? []).map(async (lead: { id: string }) => {
-      const { data: propuestas } = await supabase
-        .from('propuestas')
-        .select('valor_usd, valor_ars, moneda')
-        .eq('lead_id', lead.id)
-
-      const totalUSD = (propuestas ?? []).reduce((sum, p) => sum + (p.valor_usd || 0), 0)
-      const totalARS = (propuestas ?? []).reduce((sum, p) => sum + (p.valor_ars || 0), 0)
-
-      return {
-        ...lead,
-        propuestas_total_usd: totalUSD,
-        propuestas_total_ars: totalARS,
-        propuestas_count: (propuestas ?? []).length,
-      }
-    })
-  )
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({
-    data: leadsWithPropuestas,
+    data: data ?? [],
     meta: {
       total: count ?? 0,
       page,
       limit,
-      total_pages: Math.ceil((count ?? 0) / limit),
+      pages: Math.ceil((count ?? 0) / limit),
     },
   })
 }
 
+// ── POST /api/leads ───────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const body = await req.json()
+  const body = await req.json() as Record<string, unknown>
 
-  if (!body.nombre?.trim()) {
+  if (!body.nombre || typeof body.nombre !== 'string' || !body.nombre.trim()) {
     return NextResponse.json({ error: 'El nombre es requerido' }, { status: 400 })
   }
 
-  if (body.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
-    return NextResponse.json({ error: 'Email inválido' }, { status: 400 })
+  if (body.email && typeof body.email === 'string') {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
+      return NextResponse.json({ error: 'Email inválido' }, { status: 400 })
+    }
   }
 
-  // Get max kanban_position for lead_entrante
+  // Determine next kanban position in target stage
+  const targetStage = (body.estado_pipeline as PipelineStage) || 'lead_entrante'
   const { data: maxPos } = await supabase
     .from('leads')
     .select('kanban_position')
-    .eq('estado_pipeline', 'lead_entrante')
+    .eq('estado_pipeline', targetStage)
     .is('deleted_at', null)
     .order('kanban_position', { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
 
-  const kanban_position = (maxPos?.kanban_position ?? 0) + 1
+  const payload = {
+    nombre:                 (body.nombre as string).trim(),
+    apellido:               body.apellido || null,
+    email:                  body.email || null,
+    email_secundario:       body.email_secundario || null,
+    telefono:               body.telefono || null,
+    empresa:                body.empresa || null,
+    pais:                   body.pais || null,
+    sitio_web:              body.sitio_web || null,
+    servicios_interesados:  Array.isArray(body.servicios_interesados) ? body.servicios_interesados : [],
+    servicio_interesado:    Array.isArray(body.servicios_interesados) ? (body.servicios_interesados[0] ?? null) : null,
+    fuente:                 body.fuente || null,
+    estado_pipeline:        targetStage,
+    valor_propuesta_usd:    body.valor_propuesta_usd ? Number(body.valor_propuesta_usd) : null,
+    valor_propuesta_ars:    body.valor_propuesta_ars ? Number(body.valor_propuesta_ars) : null,
+    valor_propuesta_moneda: body.valor_propuesta_moneda || 'USD',
+    notas:                  body.notas || null,
+    responsable_id:         body.responsable_id || null,
+    kanban_position:        (maxPos?.kanban_position ?? 0) + 1,
+    created_by:             user.id,
+  }
 
   const { data, error } = await supabase
     .from('leads')
-    .insert({
-      nombre: body.nombre.trim(),
-      apellido: body.apellido?.trim() ?? null,
-      email: body.email ?? null,
-      telefono: body.telefono ?? null,
-      empresa: body.empresa ?? null,
-      pais: body.pais ?? null,
-      servicios_interesados: body.servicios_interesados ?? [],
-      servicio_interesado: body.servicio_interesado ?? (body.servicios_interesados?.[0] ?? null),
-      presupuesto_estimado: body.presupuesto_estimado ?? null,
-      fuente: body.fuente ?? null,
-      valor_propuesta_usd: body.valor_propuesta_usd ?? null,
-      valor_propuesta_ars: body.valor_propuesta_ars ?? null,
-      valor_propuesta_moneda: body.valor_propuesta_moneda ?? 'USD',
-      tipo_cambio_usd_ars: body.tipo_cambio_usd_ars ?? null,
-      notas: body.notas ?? null,
-      responsable_id: body.responsable_id ?? user.id,
-      created_by: user.id,
-      estado_pipeline: 'lead_entrante',
-      kanban_position,
-    })
-    .select()
+    .insert(payload)
+    .select('*, responsable:users!responsable_id(id, full_name, avatar_url)')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  // Create initial activity
-  await supabase.from('activities').insert({
-    lead_id: data.id,
-    user_id: user.id,
-    tipo: 'cambio_estado',
-    descripcion: 'Lead creado',
-    metadata: { estado_nuevo: 'lead_entrante' },
-  })
 
   return NextResponse.json({ data }, { status: 201 })
 }

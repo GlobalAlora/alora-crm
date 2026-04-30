@@ -1,446 +1,485 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { X, ChevronDown, Pencil, Check } from 'lucide-react'
-import { useState, useEffect } from 'react'
-import toast from 'react-hot-toast'
-import type { Lead, PipelineStage, LeadFuente } from '@/types'
-import { PIPELINE_STAGES, PIPELINE_STAGE_MAP, PAISES, FUENTES } from '@/types'
+import { useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  X, Mail, Building2, Tag as TagIcon,
+  MessageSquare, CheckSquare, FileText, History, ExternalLink,
+  Check, AlertCircle, MessageCircle, ChevronDown,
+} from 'lucide-react'
 import { leadsApi } from '@/lib/api'
-import { formatUSD } from '@/lib/utils'
+import { cn, formatUSD, formatARS, timeAgo } from '@/lib/utils'
+import { PIPELINE_STAGES, FUENTES, PAISES, PIPELINE_STAGE_MAP } from '@/types'
+import type { Lead, PipelineStage } from '@/types'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { ActivityFeed } from './ActivityFeed'
 import { TaskList } from './TaskList'
-import { useLeadFormStore } from '@/hooks/useLeadFormStore'
-import { RichTextEditor } from '@/components/shared/RichTextEditor'
-import { InlineEdit } from '@/components/shared/InlineEdit'
 import { PropuestasSection } from './PropuestasSection'
-import { ServiciosEdit } from './ServiciosEdit'
-import { EmailsSection } from './EmailsSection'
-import { StageHistorySection } from './StageHistorySection'
-import { FormDataSection } from './FormDataSection'
 import { TagsSection } from './TagsSection'
-import { ListsSection } from './ListsSection'
+import { StageHistorySection } from './StageHistorySection'
+import { ServiciosEdit } from './ServiciosEdit'
+import { FormDataSection } from './FormDataSection'
+import toast from 'react-hot-toast'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface LeadDetailProps {
   lead: Lead
   onClose: () => void
-  onStageChange: (lead: Lead) => void
+  onStageChange?: (lead: Lead) => void
   fullPage?: boolean
 }
 
-export function LeadDetail({ lead, onClose, onStageChange, fullPage = false }: LeadDetailProps) {
-  const queryClient = useQueryClient()
-  const [showStageMenu, setShowStageMenu] = useState(false)
-  const [editingNotas, setEditingNotas] = useState(false)
-  const [notasContent, setNotasContent] = useState(lead.notas || '')
-  const { open: openForm } = useLeadFormStore()
+type Tab = 'actividad' | 'tareas' | 'propuestas' | 'tags' | 'historial' | 'formulario'
 
-  // Generic field update mutation
-  const fieldMutation = useMutation({
-    mutationFn: (data: Partial<Lead>) => leadsApi.update(lead.id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] })
-      queryClient.invalidateQueries({ queryKey: ['lead', lead.id] })
-    },
-    onError: () => toast.error('Error al actualizar'),
-  })
+const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
+  { id: 'actividad',   label: 'Actividad',   icon: MessageSquare },
+  { id: 'tareas',      label: 'Tareas',       icon: CheckSquare   },
+  { id: 'propuestas',  label: 'Propuestas',   icon: FileText      },
+  { id: 'tags',        label: 'Etiquetas',    icon: TagIcon       },
+  { id: 'historial',   label: 'Historial',    icon: History       },
+  { id: 'formulario',  label: 'Formulario',   icon: Globe         },
+]
 
-  const { data: freshLead } = useQuery({
-    queryKey: ['lead', lead.id],
-    queryFn: () => leadsApi.get(lead.id),
-    staleTime: 0,
-    initialData: lead,
-  })
+// ── Inline editable field ─────────────────────────────────────────────────────
 
-  const displayLead = freshLead ?? lead
+function EditableField({
+  label, value, onSave, type = 'text', placeholder = '—',
+}: {
+  label: string
+  value: string
+  onSave: (v: string) => void
+  type?: string
+  placeholder?: string
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+
+  const save = () => {
+    onSave(draft)
+    setEditing(false)
+  }
+
+  return (
+    <div className="group">
+      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">{label}</p>
+      {editing ? (
+        <div className="flex gap-1 items-center">
+          <input
+            type={type}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            autoFocus
+            className="flex-1 text-sm border border-blue-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') save()
+              if (e.key === 'Escape') { setDraft(value); setEditing(false) }
+            }}
+          />
+          <button onClick={save} className="p-1 text-green-600 hover:bg-green-50 rounded">
+            <Check size={13} />
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => { setDraft(value); setEditing(true) }}
+          className="w-full text-left text-sm text-slate-800 hover:text-blue-600 group-hover:underline decoration-dashed underline-offset-2 transition-colors truncate"
+        >
+          {value || <span className="text-slate-300">{placeholder}</span>}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ── Stage selector ────────────────────────────────────────────────────────────
+
+function StageSelector({ lead, onStageChange }: { lead: Lead; onStageChange?: (l: Lead) => void }) {
+  const qc = useQueryClient()
+  const [open, setOpen] = useState(false)
 
   const stageMutation = useMutation({
     mutationFn: (stage: PipelineStage) => leadsApi.moveStage(lead.id, stage),
     onSuccess: (updated) => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] })
-      queryClient.invalidateQueries({ queryKey: ['lead', lead.id] })
-      queryClient.invalidateQueries({ queryKey: ['activities', lead.id] })
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      onStageChange(updated)
-      setShowStageMenu(false)
-      toast.success('Etapa actualizada')
+      qc.invalidateQueries({ queryKey: ['leads'] })
+      qc.invalidateQueries({ queryKey: ['lead', lead.id] })
+      onStageChange?.(updated)
+      toast.success('Estado actualizado')
     },
-    onError: () => toast.error('Error al cambiar la etapa'),
+    onError: () => toast.error('Error al cambiar estado'),
   })
 
-  const notasMutation = useMutation({
-    mutationFn: (notas: string) => leadsApi.update(lead.id, { notas }),
-    onSuccess: () => {
-      setEditingNotas(false)
-      queryClient.invalidateQueries({ queryKey: ['leads'] })
-      queryClient.invalidateQueries({ queryKey: ['lead', lead.id] })
-      toast.success('Notas actualizadas')
-    },
-    onError: () => toast.error('Error al actualizar las notas'),
-  })
+  const stageCfg = PIPELINE_STAGE_MAP[lead.estado_pipeline]
 
-  const handleFieldUpdate = (field: keyof Lead, value: string | null) => {
-    fieldMutation.mutate({ [field]: value })
-  }
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onClose])
-
-  const stageConfig = PIPELINE_STAGE_MAP[displayLead.estado_pipeline]
-
-  // Display name
-  const fullName = [displayLead.nombre, displayLead.apellido].filter(Boolean).join(' ')
-
-  // Calculate total from accepted propuestas
-  const totalPropuestasAceptadas = displayLead.propuestas?.filter(p => p.estado === 'aceptada').reduce((sum, p) => sum + (p.valor_usd || 0), 0) || 0
-
-  const panelContent = (
-    <div className={fullPage ? 'flex w-full h-full' : 'flex w-full max-w-3xl shadow-2xl'}>
-      {/* Left panel */}
-      <div className="w-80 flex-shrink-0 bg-white border-r flex flex-col">
-        <div className="flex items-start justify-between p-4 border-b">
-          <div className="min-w-0 flex-1">
-            {displayLead.empresa && (
-              <p className="text-xs text-slate-500 truncate">{displayLead.empresa}</p>
-            )}
-            <h2 className="font-semibold text-slate-900 truncate">{fullName}</h2>
-            {/* Stage pill */}
-            <span
-              className="inline-block mt-1 text-xs font-medium px-2 py-0.5 rounded-full"
-              style={{ color: stageConfig.color, backgroundColor: stageConfig.bgColor }}
-            >
-              {stageConfig.label}
-            </span>
-          </div>
-          <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-            <button
-              onClick={() => openForm(displayLead)}
-              title="Editar lead"
-              className="p-1 rounded-md text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition-colors"
-            >
-              <Pencil size={14} />
-            </button>
-            <button
-              onClick={onClose}
-              className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          {/* Stage change */}
-          <div className="p-4 border-b space-y-2">
-            <div className="relative">
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors bg-white"
+      >
+        <StatusBadge stage={lead.estado_pipeline} />
+        <ChevronDown size={13} className="text-slate-400" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-slate-200 rounded-xl shadow-lg py-1 w-52 max-h-64 overflow-y-auto">
+            {PIPELINE_STAGES.map((s) => (
               <button
-                onClick={() => setShowStageMenu(!showStageMenu)}
-                className="w-full flex items-center justify-between text-sm border rounded-md px-3 py-2 hover:bg-slate-50 transition-colors"
+                key={s.value}
+                onClick={() => {
+                  stageMutation.mutate(s.value)
+                  setOpen(false)
+                }}
+                className={cn(
+                  'w-full text-left px-4 py-2 text-sm transition-colors hover:bg-slate-50',
+                  lead.estado_pipeline === s.value && 'font-semibold'
+                )}
               >
-                <StatusBadge stage={displayLead.estado_pipeline} />
-                <ChevronDown size={14} className="text-slate-400" />
+                <span
+                  className="inline-block w-2 h-2 rounded-full mr-2"
+                  style={{ background: s.color }}
+                />
+                {s.label}
               </button>
-              {showStageMenu && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-10 max-h-64 overflow-y-auto">
-                  {PIPELINE_STAGES.map((s) => (
-                    <button
-                      key={s.value}
-                      onClick={() => stageMutation.mutate(s.value)}
-                      disabled={s.value === displayLead.estado_pipeline || stageMutation.isPending}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-40 transition-colors"
-                    >
-                      <StatusBadge stage={s.value} />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            ))}
           </div>
-
-          {/* Lead data - All fields editable */}
-          <div className="p-4 space-y-4 border-b">
-            {/* Contacto */}
-            <Section label="Contacto">
-              <InlineEdit
-                label="Nombre"
-                value={displayLead.nombre}
-                onSave={(v) => handleFieldUpdate('nombre', v)}
-                isLoading={fieldMutation.isPending}
-              />
-              <InlineEdit
-                label="Apellido"
-                value={displayLead.apellido}
-                onSave={(v) => handleFieldUpdate('apellido', v || null)}
-                isLoading={fieldMutation.isPending}
-              />
-              <EmailsSection
-                lead={displayLead}
-                isLoading={fieldMutation.isPending}
-                onSave={(data) => fieldMutation.mutate(data)}
-              />
-              <InlineEdit
-                label="Teléfono"
-                value={displayLead.telefono}
-                onSave={(v) => handleFieldUpdate('telefono', v || null)}
-                type="tel"
-                isLoading={fieldMutation.isPending}
-              />
-              <InlineEdit
-                label="País"
-                value={displayLead.pais}
-                onSave={(v) => handleFieldUpdate('pais', v || null)}
-                type="select"
-                options={PAISES.map(p => ({ value: p, label: p }))}
-                isLoading={fieldMutation.isPending}
-              />
-            </Section>
-
-            {/* Empresa */}
-            <Section label="Empresa">
-              <InlineEdit
-                label="Empresa"
-                value={displayLead.empresa}
-                onSave={(v) => handleFieldUpdate('empresa', v || null)}
-                isLoading={fieldMutation.isPending}
-              />
-            </Section>
-
-            {/* Negocio */}
-            <Section label="Negocio">
-              <InlineEdit
-                label="Fuente"
-                value={displayLead.fuente}
-                onSave={(v) => handleFieldUpdate('fuente', v as LeadFuente)}
-                type="select"
-                options={FUENTES.map(f => ({ value: f.value, label: f.label }))}
-                isLoading={fieldMutation.isPending}
-              />
-              <div className="pt-1">
-                <span className="text-xs text-slate-400 block mb-1">Servicios de interés</span>
-                <ServiciosEdit
-                  servicios={displayLead.servicios_interesados || []}
-                  onChange={(servicios) => fieldMutation.mutate({ servicios_interesados: servicios })}
-                  isLoading={fieldMutation.isPending}
-                />
-              </div>
-            </Section>
-
-            {/* Tags & Listas */}
-            <Section label="Etiquetas y Listas">
-              <TagsSection leadId={displayLead.id} />
-              <ListsSection leadId={displayLead.id} />
-            </Section>
-
-            {/* Propuestas */}
-            <Section label="Propuestas y Valor">
-              <PropuestasSection lead={displayLead} />
-              {totalPropuestasAceptadas > 0 && (
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                  <span className="text-sm font-medium text-slate-600">Total propuestas aceptadas:</span>
-                  <span className="text-sm font-semibold text-emerald-600">{formatUSD(totalPropuestasAceptadas)}</span>
-                </div>
-              )}
-            </Section>
-
-            {/* Reunión */}
-            <Section label="Reunión">
-              <div className="space-y-2">
-                <InlineEdit
-                  label="Fecha de reunión"
-                  value={displayLead.fecha_reunion?.split('T')[0] || ''}
-                  onSave={(v) => handleFieldUpdate('fecha_reunion', v || null)}
-                  type="date"
-                  isLoading={fieldMutation.isPending}
-                />
-                <InlineEdit
-                  label="Hora de reunión"
-                  value={displayLead.reunion_hora || ''}
-                  onSave={(v) => handleFieldUpdate('reunion_hora', v || null)}
-                  type="time"
-                  isLoading={fieldMutation.isPending}
-                />
-                <InlineEdit
-                  label="Link de reunión (Zoom/Meet)"
-                  value={displayLead.reunion_link}
-                  onSave={(v) => handleFieldUpdate('reunion_link', v || null)}
-                  type="text"
-                  placeholder="https://..."
-                  isLoading={fieldMutation.isPending}
-                  renderDisplay={(val) => val ? (
-                    <a href={String(val)} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 underline" onClick={(e) => e.stopPropagation()}>
-                      Abrir link de reunión
-                    </a>
-                  ) : (
-                    <span className="text-sm text-slate-400 italic">Sin link</span>
-                  )}
-                />
-              </div>
-            </Section>
-
-            {/* Fechas */}
-            <Section label="Fechas del pipeline">
-              <InlineEdit
-                label="Fecha de ingreso"
-                value={displayLead.fecha_ingreso?.split('T')[0] || ''}
-                onSave={(v) => handleFieldUpdate('fecha_ingreso', v)}
-                type="date"
-                isLoading={fieldMutation.isPending}
-              />
-              <InlineEdit
-                label="Fecha de contacto"
-                value={displayLead.fecha_contacto?.split('T')[0] || ''}
-                onSave={(v) => handleFieldUpdate('fecha_contacto', v || null)}
-                type="date"
-                isLoading={fieldMutation.isPending}
-              />
-              <InlineEdit
-                label="Fecha de propuesta"
-                value={displayLead.fecha_propuesta?.split('T')[0] || ''}
-                onSave={(v) => handleFieldUpdate('fecha_propuesta', v || null)}
-                type="date"
-                isLoading={fieldMutation.isPending}
-              />
-              <InlineEdit
-                label="Fecha de follow-up"
-                value={displayLead.fecha_followup?.split('T')[0] || ''}
-                onSave={(v) => handleFieldUpdate('fecha_followup', v || null)}
-                type="date"
-                isLoading={fieldMutation.isPending}
-              />
-              <InlineEdit
-                label="Fecha de cierre"
-                value={displayLead.fecha_cierre?.split('T')[0] || ''}
-                onSave={(v) => handleFieldUpdate('fecha_cierre', v || null)}
-                type="date"
-                isLoading={fieldMutation.isPending}
-              />
-            </Section>
-
-            {/* Responsable */}
-            {displayLead.responsable && (
-              <Section label="Responsable">
-                <div className="flex items-center gap-2">
-                  <UserAvatar
-                    name={displayLead.responsable.full_name}
-                    avatarUrl={displayLead.responsable.avatar_url}
-                    size="sm"
-                  />
-                  <span className="text-sm text-slate-700">{displayLead.responsable.full_name}</span>
-                </div>
-              </Section>
-            )}
-
-            {/* Notas */}
-            <Section label="Notas">
-              {editingNotas ? (
-                <div className="space-y-2">
-                  <RichTextEditor
-                    content={notasContent}
-                    onChange={setNotasContent}
-                    editable={true}
-                    minimal={true}
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => notasMutation.mutate(notasContent)}
-                      disabled={notasMutation.isPending}
-                      className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      <Check size={12} />
-                      Guardar
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingNotas(false)
-                        setNotasContent(displayLead.notas || '')
-                      }}
-                      className="flex items-center gap-1 text-xs text-slate-600 px-2 py-1 rounded hover:bg-slate-100"
-                    >
-                      <X size={12} />
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {displayLead.notas ? (
-                    <div
-                      className="text-sm text-slate-600 prose prose-sm max-w-none"
-                      dangerouslySetInnerHTML={{ __html: displayLead.notas }}
-                    />
-                  ) : (
-                    <p className="text-sm text-slate-400 italic">Sin notas</p>
-                  )}
-                  <button
-                    onClick={() => {
-                      setEditingNotas(true)
-                      setNotasContent(displayLead.notas || '')
-                    }}
-                    className="flex items-center gap-1 text-xs text-slate-400 hover:text-blue-600 mt-1"
-                  >
-                    <Pencil size={12} />
-                    {displayLead.notas ? 'Editar notas' : 'Agregar notas'}
-                  </button>
-                </div>
-              )}
-            </Section>
-
-            {/* Datos del formulario de origen */}
-            <FormDataSection lead={displayLead} />
-
-            {/* Stage History */}
-            <StageHistorySection lead={displayLead} />
-          </div>
-
-          {/* Tasks */}
-          <TaskList leadId={lead.id} />
-        </div>
-      </div>
-
-      {/* Right panel — Activity */}
-      <div className="flex-1 bg-white flex flex-col min-w-0">
-        <div className="px-4 py-3 border-b">
-          <h3 className="text-sm font-semibold text-slate-700">Actividad</h3>
-        </div>
-        <div className="flex-1 overflow-hidden">
-          <ActivityFeed leadId={lead.id} />
-        </div>
-      </div>
+        </>
+      )}
     </div>
   )
+}
 
-  if (fullPage) return panelContent
+// ── Main component ────────────────────────────────────────────────────────────
+
+export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetailProps) {
+  const qc = useQueryClient()
+  const [tab, setTab] = useState<Tab>('actividad')
+  const [servicios, setServicios] = useState<string[]>(lead.servicios_interesados ?? [])
+
+  const patchMutation = useMutation({
+    mutationFn: (data: Partial<Lead>) => leadsApi.update(lead.id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['leads'] })
+      qc.invalidateQueries({ queryKey: ['lead', lead.id] })
+      toast.success('Guardado')
+    },
+    onError: () => toast.error('Error al guardar'),
+  })
+
+  const patch = (data: Partial<Lead>) => patchMutation.mutate(data)
+
+  const deleteMutation = useMutation({
+    mutationFn: () => leadsApi.remove(lead.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['leads'] })
+      onClose()
+      toast.success('Lead eliminado')
+    },
+    onError: () => toast.error('Error al eliminar'),
+  })
+
+  const handleServiciosChange = (s: string[]) => {
+    setServicios(s)
+    patch({ servicios_interesados: s, servicio_interesado: s[0] ?? null })
+  }
+
+  const valor = lead.valor_propuesta_usd
+    ? formatUSD(lead.valor_propuesta_usd)
+    : lead.valor_propuesta_ars
+      ? formatARS(lead.valor_propuesta_ars)
+      : null
+
+  const whatsappUrl = lead.telefono
+    ? `https://wa.me/${lead.telefono.replace(/\D/g, '')}`
+    : null
+
+  // ── Panel layout ──────────────────────────────────────────────────────────
+  const wrapper = fullPage
+    ? 'flex flex-col md:flex-row h-full overflow-hidden'
+    : 'fixed inset-y-0 right-0 z-40 flex flex-col md:flex-row w-full md:w-[900px] shadow-2xl bg-white border-l border-slate-200'
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/20 z-40 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-3xl">
-        {panelContent}
+      {/* Backdrop (only for slide-over) */}
+      {!fullPage && (
+        <div className="fixed inset-0 bg-black/30 z-30" onClick={onClose} />
+      )}
+
+      <div className={wrapper}>
+
+        {/* ── Left panel: lead info ────────────────────────────────────────── */}
+        <div className="w-full md:w-72 flex-shrink-0 border-b md:border-b-0 md:border-r border-slate-200 bg-slate-50 overflow-y-auto">
+          <div className="p-5 space-y-5">
+
+            {/* Header */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-base font-bold text-slate-900 leading-tight">
+                  {lead.nombre}{lead.apellido ? ` ${lead.apellido}` : ''}
+                </h2>
+                {lead.empresa && (
+                  <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                    <Building2 size={11} /> {lead.empresa}
+                  </p>
+                )}
+              </div>
+              {!fullPage && (
+                <button
+                  onClick={onClose}
+                  className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors flex-shrink-0"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+
+            {/* Stage selector */}
+            <StageSelector lead={lead} onStageChange={onStageChange} />
+
+            {/* Quick actions */}
+            <div className="flex gap-2">
+              {lead.email && (
+                <a
+                  href={`mailto:${lead.email}`}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-white hover:border-slate-300 transition-colors"
+                >
+                  <Mail size={13} /> Email
+                </a>
+              )}
+              {whatsappUrl && (
+                <a
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-white hover:border-slate-300 transition-colors"
+                >
+                  <MessageCircle size={13} className="text-green-500" /> WhatsApp
+                </a>
+              )}
+            </div>
+
+            {/* Warnings */}
+            {lead.dias_sin_respuesta != null && lead.dias_sin_respuesta > 3 && (
+              <div className="flex items-center gap-2 text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                <AlertCircle size={13} />
+                Sin respuesta hace {lead.dias_sin_respuesta} días
+              </div>
+            )}
+
+            {/* Contact fields */}
+            <div className="space-y-4">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Contacto</p>
+
+              <EditableField
+                label="Email"
+                value={lead.email ?? ''}
+                onSave={(v) => patch({ email: v || null })}
+                type="email"
+                placeholder="Sin email"
+              />
+              {lead.email_secundario && (
+                <EditableField
+                  label="Email secundario"
+                  value={lead.email_secundario ?? ''}
+                  onSave={(v) => patch({ email_secundario: v || null })}
+                  type="email"
+                />
+              )}
+              <EditableField
+                label="Teléfono"
+                value={lead.telefono ?? ''}
+                onSave={(v) => patch({ telefono: v || null })}
+                placeholder="Sin teléfono"
+              />
+              <EditableField
+                label="Empresa"
+                value={lead.empresa ?? ''}
+                onSave={(v) => patch({ empresa: v || null })}
+                placeholder="Sin empresa"
+              />
+              <EditableField
+                label="Sitio web"
+                value={lead.sitio_web ?? ''}
+                onSave={(v) => patch({ sitio_web: v || null })}
+                type="url"
+                placeholder="Sin sitio web"
+              />
+              {lead.sitio_web && (
+                <a
+                  href={lead.sitio_web}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                >
+                  <ExternalLink size={11} /> Abrir sitio
+                </a>
+              )}
+
+              {/* Country */}
+              <div>
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">País</p>
+                <select
+                  value={lead.pais ?? ''}
+                  onChange={(e) => patch({ pais: e.target.value || null })}
+                  className="text-sm text-slate-800 bg-transparent focus:outline-none cursor-pointer hover:text-blue-600 transition-colors w-full"
+                >
+                  <option value="">— Sin país —</option>
+                  {PAISES.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Business */}
+            <div className="space-y-4">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Negocio</p>
+
+              {/* Source */}
+              <div>
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Fuente</p>
+                <select
+                  value={lead.fuente ?? ''}
+                  onChange={(e) => patch({ fuente: (e.target.value as Lead['fuente']) || null })}
+                  className="text-sm text-slate-800 bg-transparent focus:outline-none cursor-pointer hover:text-blue-600 transition-colors w-full"
+                >
+                  <option value="">— Sin fuente —</option>
+                  {FUENTES.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+                </select>
+              </div>
+
+              {valor && (
+                <div>
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Valor propuesta</p>
+                  <p className="text-sm font-semibold text-slate-900">{valor}</p>
+                </div>
+              )}
+
+              {/* Responsable */}
+              {lead.responsable && (
+                <div>
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Responsable</p>
+                  <UserAvatar user={lead.responsable} size="sm" showName />
+                </div>
+              )}
+            </div>
+
+            {/* Servicios */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Servicios de interés</p>
+              <ServiciosEdit value={servicios} onChange={handleServiciosChange} />
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Notas</p>
+              <NoteEditor
+                value={lead.notas ?? ''}
+                onSave={(v) => patch({ notas: v || null })}
+              />
+            </div>
+
+            {/* Meta */}
+            <div className="space-y-1 pt-2 border-t border-slate-200">
+              <p className="text-[10px] text-slate-400">Ingresó {timeAgo(lead.fecha_ingreso)}</p>
+              {lead.last_activity_at && (
+                <p className="text-[10px] text-slate-400">Últ. actividad {timeAgo(lead.last_activity_at)}</p>
+              )}
+            </div>
+
+            {/* Delete */}
+            <button
+              onClick={() => {
+                if (confirm('¿Eliminar este lead? Esta acción no se puede deshacer.')) {
+                  deleteMutation.mutate()
+                }
+              }}
+              className="w-full text-xs text-red-400 hover:text-red-600 py-2 border border-dashed border-red-200 rounded-lg hover:border-red-300 transition-colors"
+            >
+              Eliminar lead
+            </button>
+          </div>
+        </div>
+
+        {/* ── Right panel: tabs ────────────────────────────────────────────── */}
+        <div className="flex-1 flex flex-col overflow-hidden bg-white">
+          {/* Tab bar */}
+          <div className="flex items-center gap-0 border-b border-slate-200 px-4 overflow-x-auto flex-shrink-0">
+            {TABS.filter((t) => t.id !== 'formulario' || !!lead.form_data).map((t) => {
+              const Icon = t.icon
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={cn(
+                    'flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
+                    tab === t.id
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-slate-500 hover:text-slate-700'
+                  )}
+                >
+                  <Icon size={14} />
+                  {t.label}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Tab content */}
+          <div className="flex-1 overflow-y-auto p-5">
+            {tab === 'actividad'  && <ActivityFeed leadId={lead.id} />}
+            {tab === 'tareas'     && <TaskList leadId={lead.id} />}
+            {tab === 'propuestas' && <PropuestasSection leadId={lead.id} propuestas={lead.propuestas} />}
+            {tab === 'tags'       && <TagsSection leadId={lead.id} />}
+            {tab === 'historial'  && <StageHistorySection history={lead.stage_history} />}
+            {tab === 'formulario' && <FormDataSection formData={lead.form_data} />}
+          </div>
+        </div>
       </div>
     </>
   )
 }
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">{label}</p>
-      <div className="space-y-1">{children}</div>
-    </div>
-  )
-}
+// ── Note inline editor ────────────────────────────────────────────────────────
 
-function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
-  if (!value && value !== 0) return null
+function NoteEditor({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+
+  if (editing) {
+    return (
+      <div className="space-y-2">
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={4}
+          autoFocus
+          className="w-full text-sm border border-blue-300 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={() => { setDraft(value); setEditing(false) }}
+            className="text-xs px-2 py-1 text-slate-500 hover:text-slate-700"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => { onSave(draft); setEditing(false) }}
+            className="text-xs px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            Guardar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex justify-between gap-2">
-      <span className="text-xs text-slate-400 flex-shrink-0">{label}</span>
-      <span className="text-xs text-slate-700 text-right truncate">{String(value)}</span>
-    </div>
+    <button
+      onClick={() => { setDraft(value); setEditing(true) }}
+      className="w-full text-left text-sm text-slate-600 hover:text-blue-600 whitespace-pre-wrap break-words transition-colors"
+    >
+      {value || <span className="text-slate-300 italic text-xs">Hacer clic para agregar notas...</span>}
+    </button>
   )
 }

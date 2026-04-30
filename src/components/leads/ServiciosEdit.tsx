@@ -1,96 +1,48 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Plus } from 'lucide-react'
 import { SERVICIOS } from '@/types'
+import { cn } from '@/lib/utils'
+import { Check } from 'lucide-react'
 
 interface ServiciosEditProps {
-  servicios: string[]
+  value: string[]
   onChange: (servicios: string[]) => void
-  isLoading?: boolean
+  disabled?: boolean
 }
 
-export function ServiciosEdit({ servicios, onChange, isLoading }: ServiciosEditProps) {
-  const [showAdd, setShowAdd] = useState(false)
-  const [selected, setSelected] = useState('')
-
-  const availableServicios = SERVICIOS.filter(s => !servicios.includes(s))
-
-  const handleAdd = () => {
-    if (selected) {
-      onChange([...servicios, selected])
-      setSelected('')
-      setShowAdd(false)
-    }
-  }
-
-  const handleRemove = (servicio: string) => {
-    onChange(servicios.filter(s => s !== servicio))
+export function ServiciosEdit({ value, onChange, disabled }: ServiciosEditProps) {
+  const toggle = (s: string) => {
+    if (disabled) return
+    onChange(
+      value.includes(s)
+        ? value.filter((x) => x !== s)
+        : [...value, s]
+    )
   }
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-1">
-        {servicios.map((servicio) => (
-          <span
-            key={servicio}
-            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-medium"
-          >
-            {servicio}
-            <button
-              onClick={() => handleRemove(servicio)}
-              disabled={isLoading}
-              className="hover:text-blue-900 disabled:opacity-50"
-            >
-              <X size={12} />
-            </button>
-          </span>
-        ))}
-        {!showAdd && availableServicios.length > 0 && (
+    <div className="flex flex-wrap gap-2">
+      {SERVICIOS.map((s) => {
+        const active = value.includes(s)
+        return (
           <button
-            onClick={() => setShowAdd(true)}
-            disabled={isLoading}
-            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200"
+            key={s}
+            type="button"
+            onClick={() => toggle(s)}
+            disabled={disabled}
+            className={cn(
+              'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all',
+              active
+                ? 'bg-blue-600 border-blue-600 text-white'
+                : 'bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:text-blue-600',
+              disabled && 'cursor-not-allowed opacity-60'
+            )}
           >
-            <Plus size={12} />
-            Agregar
+            {active && <Check size={10} />}
+            {s}
           </button>
-        )}
-      </div>
-
-      {showAdd && (
-        <div className="flex items-center gap-2">
-          <select
-            value={selected}
-            onChange={(e) => setSelected(e.target.value)}
-            className="text-sm border rounded px-2 py-1"
-            disabled={isLoading}
-          >
-            <option value="">Seleccionar servicio...</option>
-            {availableServicios.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={handleAdd}
-            disabled={!selected || isLoading}
-            className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
-          >
-            Agregar
-          </button>
-          <button
-            onClick={() => {
-              setShowAdd(false)
-              setSelected('')
-            }}
-            className="text-xs text-slate-600 px-2 py-1 rounded hover:bg-slate-100"
-          >
-            Cancelar
-          </button>
-        </div>
-      )}
+        )
+      })}
     </div>
   )
 }

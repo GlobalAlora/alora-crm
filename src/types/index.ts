@@ -78,6 +78,7 @@ export interface Lead {
   telefono: string | null
   empresa: string | null
   pais: string | null
+  sitio_web: string | null
   servicios_interesados: string[]
   servicio_interesado: string | null        // kept for embed backward-compat
   presupuesto_estimado: number | null       // hidden from UI, kept in DB

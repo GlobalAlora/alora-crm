@@ -19,6 +19,7 @@ interface FormState {
   email_secundario: string
   telefono: string
   empresa: string
+  sitio_web: string
   pais: string
   servicios_interesados: string[]
   fuente: LeadFuente | ''
@@ -30,8 +31,8 @@ interface FormState {
 }
 
 const emptyForm: FormState = {
-  nombre: '', apellido: '', email: '', email_secundario: '', telefono: '', empresa: '', pais: '',
-  servicios_interesados: [], fuente: '', estado_pipeline: '',
+  nombre: '', apellido: '', email: '', email_secundario: '', telefono: '', empresa: '', sitio_web: '',
+  pais: '', servicios_interesados: [], fuente: '', estado_pipeline: '',
   valor_propuesta: '', valor_propuesta_moneda: 'USD',
   notas: '', responsable_id: '',
 }
@@ -51,6 +52,7 @@ export function LeadForm() {
         email_secundario: editingLead.email_secundario ?? '',
         telefono: editingLead.telefono ?? '',
         empresa: editingLead.empresa ?? '',
+        sitio_web: editingLead.sitio_web ?? '',
         pais: editingLead.pais ?? '',
         servicios_interesados: editingLead.servicios_interesados ?? [],
         fuente: editingLead.fuente ?? '',
@@ -84,6 +86,7 @@ export function LeadForm() {
         email_secundario: form.email_secundario || undefined,
         telefono: form.telefono || undefined,
         empresa: form.empresa || undefined,
+        sitio_web: form.sitio_web || undefined,
         pais: form.pais || undefined,
         servicios_interesados: form.servicios_interesados,
         servicio_interesado: form.servicios_interesados[0] || undefined,
@@ -181,6 +184,10 @@ export function LeadForm() {
                 <label className="space-y-1">
                   <span className="text-xs font-medium text-slate-600">Empresa</span>
                   <input value={form.empresa} onChange={set('empresa')} placeholder="Empresa SA" className={INPUT} />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-xs font-medium text-slate-600">Sitio web</span>
+                  <input type="url" value={form.sitio_web} onChange={set('sitio_web')} placeholder="https://empresa.com" className={INPUT} />
                 </label>
                 <label className="space-y-1">
                   <span className="text-xs font-medium text-slate-600">País</span>

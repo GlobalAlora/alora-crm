@@ -21,7 +21,7 @@ export default function LeadsPage() {
 
   const handleLeadClick = (lead: Lead) => {
     if (view === 'list') {
-      router.push(`/leads/${lead.id}`)
+      router.push(`/leads/${lead.id}?from=pipeline`)
     } else {
       setSelectedLead(lead)
     }

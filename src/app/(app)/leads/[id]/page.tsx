@@ -1,14 +1,21 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { leadsApi } from '@/lib/api'
 import { LeadDetail } from '@/components/leads/LeadDetail'
+import { Suspense } from 'react'
 
-export default function LeadPage() {
+function LeadPageInner() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // "from" param lets us know where to go back: 'contactos' | 'pipeline' (default)
+  const from = searchParams.get('from')
+  const backHref = from === 'contactos' ? '/contactos' : '/leads'
+  const backLabel = from === 'contactos' ? 'Leads' : 'Pipeline'
 
   const { data: lead, isLoading, isError } = useQuery({
     queryKey: ['lead', id],
@@ -28,8 +35,8 @@ export default function LeadPage() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <p className="text-sm text-slate-500">Lead no encontrado</p>
-        <button onClick={() => router.push('/leads')} className="text-sm text-blue-600 hover:underline">
-          Volver a leads
+        <button onClick={() => router.push(backHref)} className="text-sm text-blue-600 hover:underline">
+          Volver
         </button>
       </div>
     )
@@ -39,25 +46,32 @@ export default function LeadPage() {
     <div className="-m-6 h-[calc(100vh-56px)] flex flex-col">
       <div className="flex items-center gap-3 px-6 py-3 border-b bg-white flex-shrink-0">
         <button
-          onClick={() => router.push('/leads')}
+          onClick={() => router.push(backHref)}
           className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors"
         >
           <ArrowLeft size={14} />
-          Leads
+          {backLabel}
         </button>
         <span className="text-slate-300">/</span>
         <span className="text-sm text-slate-700 font-medium">{lead.nombre}</span>
       </div>
 
-      {/* Reuse LeadDetail in full-page mode (no overlay) */}
       <div className="flex flex-1 overflow-hidden">
         <LeadDetail
           lead={lead}
-          onClose={() => router.push('/leads')}
+          onClose={() => router.push(backHref)}
           onStageChange={() => {}}
           fullPage
         />
       </div>
     </div>
+  )
+}
+
+export default function LeadPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-64 text-sm text-slate-400">Cargando...</div>}>
+      <LeadPageInner />
+    </Suspense>
   )
 }

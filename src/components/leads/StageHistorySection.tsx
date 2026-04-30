@@ -1,73 +1,42 @@
 'use client'
 
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Clock } from 'lucide-react'
-import type { Lead } from '@/types'
+import { ArrowRight } from 'lucide-react'
+import { formatDate } from '@/lib/utils'
 import { PIPELINE_STAGE_MAP } from '@/types'
-import { InlineEdit } from '@/components/shared/InlineEdit'
+import type { StageHistory } from '@/types'
 
 interface StageHistorySectionProps {
-  lead: Lead
+  history?: StageHistory[]
 }
 
-export function StageHistorySection({ lead }: StageHistorySectionProps) {
-  const queryClient = useQueryClient()
-  const history = lead.stage_history || []
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, fecha_ingreso }: { id: string; fecha_ingreso: string }) => {
-      return fetch(`/api/stage-history/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fecha_ingreso }),
-      }).then(res => res.json())
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lead', lead.id] })
-    },
-  })
-
+export function StageHistorySection({ history = [] }: StageHistorySectionProps) {
   if (history.length === 0) {
-    return (
-      <div className="p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Clock size={14} className="text-slate-400" />
-          <h3 className="text-sm font-semibold text-slate-700">Historial de etapas</h3>
-        </div>
-        <p className="text-xs text-slate-400 italic">Sin historial de cambios de etapa</p>
-      </div>
-    )
+    return <p className="text-sm text-slate-400 text-center py-6">Sin historial de estados.</p>
   }
 
   return (
-    <div className="p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <Clock size={14} className="text-slate-400" />
-        <h3 className="text-sm font-semibold text-slate-700">Historial de etapas</h3>
-      </div>
-      <div className="space-y-2">
-        {history.map((entry) => {
-          const config = PIPELINE_STAGE_MAP[entry.etapa]
-          return (
-            <div key={entry.id} className="flex items-center gap-3 p-2 rounded-lg bg-slate-50">
-              <div
-                className="w-2 h-2 rounded-full flex-shrink-0"
-                style={{ backgroundColor: config.color }}
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-slate-700">{config.label}</p>
-                <InlineEdit
-                  value={entry.fecha_ingreso?.split('T')[0] || ''}
-                  onSave={(v) => updateMutation.mutate({ id: entry.id, fecha_ingreso: v })}
-                  type="date"
-                  isLoading={updateMutation.isPending}
-                  placeholder="Sin fecha"
-                />
+    <div className="space-y-2">
+      {history.map((h, i) => {
+        const stageLabel = PIPELINE_STAGE_MAP[h.etapa]?.label ?? h.etapa
+        const next = history[i - 1]
+        return (
+          <div key={h.id} className="flex items-center gap-3 py-2 border-b border-slate-100 last:border-0">
+            <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium text-slate-800">{stageLabel}</span>
+                {next && (
+                  <>
+                    <ArrowRight size={12} className="text-slate-300" />
+                    <span className="text-sm text-slate-500">{PIPELINE_STAGE_MAP[next.etapa]?.label ?? next.etapa}</span>
+                  </>
+                )}
               </div>
             </div>
-          )
-        })}
-      </div>
+            <span className="text-xs text-slate-400 flex-shrink-0">{formatDate(h.fecha_ingreso)}</span>
+          </div>
+        )
+      })}
     </div>
   )
 }
