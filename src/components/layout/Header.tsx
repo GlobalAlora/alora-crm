@@ -4,6 +4,7 @@ import { Plus, LogOut } from 'lucide-react'
 import { useLeadFormStore } from '@/hooks/useLeadFormStore'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { GlobalLeadSearch } from '@/components/shared/GlobalLeadSearch'
 
 export function Header() {
   const open = useLeadFormStore((s) => s.open)
@@ -18,7 +19,7 @@ export function Header() {
 
   return (
     <header className="h-14 flex items-center justify-between px-6 border-b bg-white flex-shrink-0">
-      <div />
+      <GlobalLeadSearch />
       <div className="flex items-center gap-3">
         <button
           onClick={() => open()}
