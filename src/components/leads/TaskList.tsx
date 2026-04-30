@@ -46,6 +46,16 @@ export function TaskList({ leadId }: TaskListProps) {
     onError: () => toast.error('Error al completar la tarea'),
   })
 
+  const uncompleteMutation = useMutation({
+    mutationFn: (taskId: string) => tasksApi.update(taskId, { completada: false }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', leadId] })
+      queryClient.invalidateQueries({ queryKey: ['activities', leadId] })
+      toast.success('Tarea marcada como pendiente')
+    },
+    onError: () => toast.error('Error al desmarcar tarea'),
+  })
+
   const deleteMutation = useMutation({
     mutationFn: (taskId: string) => tasksApi.remove(taskId),
     onSuccess: () => {
@@ -125,13 +135,13 @@ export function TaskList({ leadId }: TaskListProps) {
           <TaskItem
             key={task.id}
             task={task}
-            onComplete={() => {}}
+            onComplete={() => uncompleteMutation.mutate(task.id)}
             onDelete={() => {
               if (confirm('¿Eliminar esta tarea?')) {
                 deleteMutation.mutate(task.id)
               }
             }}
-            isCompleting={false}
+            isCompleting={uncompleteMutation.isPending}
             isDeleting={deleteMutation.isPending}
           />
         ))}
@@ -167,11 +177,12 @@ function TaskItem({ task, onComplete, onDelete, isCompleting, isDeleting }: Task
     <div className={cn('flex items-start gap-2 p-2 rounded-lg group', task.completada ? 'opacity-50' : 'hover:bg-slate-50')}>
       <button
         onClick={onComplete}
-        disabled={task.completada || isCompleting}
+        disabled={isCompleting}
+        title={task.completada ? 'Marcar como pendiente' : 'Marcar como completada'}
         className={cn(
           'w-4 h-4 rounded border flex-shrink-0 mt-0.5 transition-colors',
           task.completada
-            ? 'bg-emerald-500 border-emerald-500'
+            ? 'bg-emerald-500 border-emerald-500 hover:bg-emerald-600'
             : 'border-slate-300 hover:border-blue-400'
         )}
       >

@@ -46,6 +46,15 @@ export default function TareasPage() {
     onError: () => toast.error('Error al completar'),
   })
 
+  const uncompleteMutation = useMutation({
+    mutationFn: (id: string) => tasksApi.update(id, { completada: false }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks-global'] })
+      toast.success('Tarea marcada como pendiente')
+    },
+    onError: () => toast.error('Error al desmarcar'),
+  })
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => tasksApi.remove(id),
     onSuccess: () => {
@@ -165,6 +174,7 @@ export default function TareasPage() {
                 rescheduleTitle={rescheduleTitle}
                 rescheduleDescription={rescheduleDescription}
                 onComplete={() => completeMutation.mutate(task.id)}
+                onUncomplete={() => uncompleteMutation.mutate(task.id)}
                 onDelete={() => deleteMutation.mutate(task.id)}
                 onRescheduleOpen={() => {
                   setRescheduleId(task.id)
@@ -184,6 +194,7 @@ export default function TareasPage() {
                 onRescheduleDescriptionChange={setRescheduleDescription}
                 onLeadClick={() => task.lead && router.push(`/leads?lead=${task.lead.id}`)}
                 isCompleting={completeMutation.isPending}
+                isUncompleting={uncompleteMutation.isPending}
                 isDeleting={deleteMutation.isPending}
               />
             ))}
@@ -201,6 +212,7 @@ interface TaskRowProps {
   rescheduleTitle: string
   rescheduleDescription: string
   onComplete: () => void
+  onUncomplete: () => void
   onDelete: () => void
   onRescheduleOpen: () => void
   onRescheduleCancel: () => void
@@ -210,14 +222,15 @@ interface TaskRowProps {
   onRescheduleDescriptionChange: (v: string) => void
   onLeadClick: () => void
   isCompleting: boolean
+  isUncompleting: boolean
   isDeleting: boolean
 }
 
 function TaskRow({
   task, rescheduleId, rescheduleDate, rescheduleTitle, rescheduleDescription,
-  onComplete, onDelete, onRescheduleOpen, onRescheduleCancel, onRescheduleSave,
+  onComplete, onUncomplete, onDelete, onRescheduleOpen, onRescheduleCancel, onRescheduleSave,
   onRescheduleDateChange, onRescheduleTitleChange, onRescheduleDescriptionChange,
-  onLeadClick, isCompleting, isDeleting,
+  onLeadClick, isCompleting, isUncompleting, isDeleting,
 }: TaskRowProps) {
   const isRescheduling = rescheduleId === task.id
 
@@ -243,12 +256,13 @@ function TaskRow({
       <div className="flex items-start gap-3">
         {/* Checkbox */}
         <button
-          onClick={onComplete}
-          disabled={task.completada || isCompleting}
+          onClick={task.completada ? onUncomplete : onComplete}
+          disabled={isCompleting || isUncompleting}
+          title={task.completada ? 'Marcar como pendiente' : 'Marcar como completada'}
           className={cn(
             'w-5 h-5 rounded border-2 flex-shrink-0 mt-0.5 transition-colors flex items-center justify-center',
             task.completada
-              ? 'bg-emerald-500 border-emerald-500'
+              ? 'bg-emerald-500 border-emerald-500 hover:bg-emerald-600'
               : 'border-slate-300 hover:border-blue-400'
           )}
         >
