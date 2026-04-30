@@ -174,7 +174,6 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
               )}
               title={`${propuestasSummary.count} propuesta${propuestasSummary.count > 1 ? 's' : ''}`}
             >
-              <DollarSign size={10} />
               {propuestasSummary.totalUSD > 0
                 ? `USD ${propuestasSummary.totalUSD.toLocaleString('en-US')}`
                 : propuestasSummary.totalARS > 0

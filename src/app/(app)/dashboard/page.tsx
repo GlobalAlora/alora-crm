@@ -10,7 +10,7 @@ import {
   FileText, Phone, Mail, Calendar, CheckSquare, Globe,
 } from 'lucide-react'
 import { dashboardApi } from '@/lib/api'
-import { formatUSD } from '@/lib/utils'
+import { formatUSD, formatARS } from '@/lib/utils'
 import { PIPELINE_STAGE_MAP, PIPELINE_STAGES } from '@/types'
 import type { PipelineStage } from '@/types'
 import { DashboardFilters } from '@/components/dashboard/DashboardFilters'
@@ -155,7 +155,7 @@ export default function DashboardPage() {
           <KpiCard
             icon={DollarSign}
             label="Revenue ganado"
-            value={formatUSD(d?.revenue.ganado_usd ?? 0)}
+            value={`${formatUSD(d?.revenue.ganado_usd ?? 0)} / ${formatARS(d?.revenue.ganado_ars ?? 0)}`}
             sub={`Ticket prom. ${formatUSD(d?.revenue.ticket_promedio_usd ?? 0)}`}
             color="emerald"
             onClick={() => router.push('/leads?estado=cliente_ganado')}
@@ -200,14 +200,15 @@ export default function DashboardPage() {
 
           {/* Pipeline value por etapa */}
           <div>
-            <p className="text-xs text-slate-500 mb-3">Pipeline value por etapa</p>
+            <p className="text-xs text-slate-500 mb-3">Pipeline value por etapa (USD / ARS)</p>
             <div className="space-y-2">
               {PIPELINE_STAGES.filter(s => s.zone !== 'cierre' || s.value === 'cliente_ganado').map(({ value }) => {
-                const val = d?.revenue.pipeline_value[value] ?? 0
-                const maxVal = Math.max(...PIPELINE_STAGES.map(s => d?.revenue.pipeline_value[s.value] ?? 0), 1)
-                const pct = Math.round((val / maxVal) * 100)
+                const valUsd = d?.revenue.pipeline_value_usd?.[value] ?? 0
+                const valArs = d?.revenue.pipeline_value_ars?.[value] ?? 0
+                const maxVal = Math.max(...PIPELINE_STAGES.map(s => (d?.revenue.pipeline_value_usd?.[s.value] ?? 0) + (d?.revenue.pipeline_value_ars?.[s.value] ?? 0)), 1)
+                const pct = Math.round(((valUsd + valArs) / maxVal) * 100)
                 const config = PIPELINE_STAGE_MAP[value]
-                if (!isLoading && val === 0) return null
+                if (!isLoading && valUsd === 0 && valArs === 0) return null
                 return (
                   <div
                     key={value}
@@ -221,8 +222,8 @@ export default function DashboardPage() {
                         style={{ width: isLoading ? '0%' : `${pct}%`, backgroundColor: config.color }}
                       />
                     </div>
-                    <span className="text-xs font-medium text-slate-700 w-20 text-right">
-                      {isLoading ? '—' : formatUSD(val)}
+                    <span className="text-xs font-medium text-slate-700 w-28 text-right">
+                      {isLoading ? '—' : `${formatUSD(valUsd)} / ${formatARS(valArs)}`}
                     </span>
                   </div>
                 )
@@ -311,6 +312,12 @@ export default function DashboardPage() {
                     <div>
                       <p className="text-xs text-slate-400">Ganados</p>
                       <p className="text-sm font-semibold text-emerald-600">{u.ganados}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Revenue</p>
+                      <p className="text-xs font-semibold text-slate-900">
+                        {u.revenue_usd > 0 ? formatUSD(u.revenue_usd) : ''} {u.revenue_ars > 0 ? formatARS(u.revenue_ars) : ''}
+                      </p>
                     </div>
                     <div>
                       <p className="text-xs text-slate-400">Actividad</p>
@@ -409,6 +416,29 @@ export default function DashboardPage() {
               .map(([fuente, count]) => (
                 <div key={fuente} className="flex items-center gap-2 bg-slate-50 rounded-lg px-4 py-2.5">
                   <span className="text-sm text-slate-600 capitalize">{fuente}</span>
+                  <span className="text-sm font-semibold text-slate-900">{count}</span>
+                  <span className="text-xs text-slate-400">
+                    ({d.leads.total > 0 ? Math.round((count / d.leads.total) * 100) : 0}%)
+                  </span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Leads por país */}
+      {!isLoading && d && Object.keys(d.leads.por_pais).length > 0 && (
+        <div className="bg-white rounded-xl border p-5">
+          <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-4">
+            <Globe size={15} className="text-slate-400" />
+            Leads por país
+          </h2>
+          <div className="flex flex-wrap gap-3">
+            {Object.entries(d.leads.por_pais)
+              .sort(([, a], [, b]) => b - a)
+              .map(([pais, count]) => (
+                <div key={pais} className="flex items-center gap-2 bg-slate-50 rounded-lg px-4 py-2.5">
+                  <span className="text-sm text-slate-600">{pais}</span>
                   <span className="text-sm font-semibold text-slate-900">{count}</span>
                   <span className="text-xs text-slate-400">
                     ({d.leads.total > 0 ? Math.round((count / d.leads.total) * 100) : 0}%)

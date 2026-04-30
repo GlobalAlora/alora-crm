@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     { data: ultimosLeadsRaw },
   ] = await Promise.all([
     applyFilters(
-      supabase.from('leads').select('estado_pipeline, fuente, fecha_ingreso, valor_propuesta_usd, created_at')
+      supabase.from('leads').select('estado_pipeline, fuente, fecha_ingreso, valor_propuesta_usd, valor_propuesta_ars, valor_propuesta_moneda, pais, responsable_id, created_at')
     ),
     applyFilters(
       supabase
@@ -75,14 +75,35 @@ export async function GET(req: NextRequest) {
 
   const leads = allLeads ?? []
 
-  // Aggregate por etapa (count + pipeline value)
+  // Aggregate por etapa (count + pipeline value USD/ARS)
   const porEtapaCount: Partial<Record<PipelineStage, number>> = {}
-  const porEtapaValue: Partial<Record<PipelineStage, number>> = {}
+  const porEtapaValueUSD: Partial<Record<PipelineStage, number>> = {}
+  const porEtapaValueARS: Partial<Record<PipelineStage, number>> = {}
+
+  // Aggregate por país
+  const porPais: Record<string, number> = {}
+
+  // Aggregate por responsable (revenue)
+  const revenuePorResponsable: Record<string, { usd: number; ars: number }> = {}
 
   for (const lead of leads) {
     const stage = lead.estado_pipeline as PipelineStage
     porEtapaCount[stage] = (porEtapaCount[stage] ?? 0) + 1
-    porEtapaValue[stage] = (porEtapaValue[stage] ?? 0) + (lead.valor_propuesta_usd ?? 0)
+    porEtapaValueUSD[stage] = (porEtapaValueUSD[stage] ?? 0) + (lead.valor_propuesta_usd ?? 0)
+    porEtapaValueARS[stage] = (porEtapaValueARS[stage] ?? 0) + (lead.valor_propuesta_ars ?? 0)
+
+    // Por país
+    const pais = lead.pais ?? 'Sin país'
+    porPais[pais] = (porPais[pais] ?? 0) + 1
+
+    // Revenue por responsable
+    if (lead.responsable_id) {
+      if (!revenuePorResponsable[lead.responsable_id]) {
+        revenuePorResponsable[lead.responsable_id] = { usd: 0, ars: 0 }
+      }
+      revenuePorResponsable[lead.responsable_id].usd += lead.valor_propuesta_usd ?? 0
+      revenuePorResponsable[lead.responsable_id].ars += lead.valor_propuesta_ars ?? 0
+    }
   }
 
   // Aggregate por fuente
@@ -92,26 +113,36 @@ export async function GET(req: NextRequest) {
     porFuente[f] = (porFuente[f] ?? 0) + 1
   }
 
-  // Revenue + forecast
+  // Revenue + forecast (USD y ARS)
   let ganadoUsd = 0
-  let weightedTotal = 0
+  let ganadoArs = 0
+  let weightedTotalUsd = 0
+  let weightedTotalArs = 0
   const ganadosConValor: number[] = []
   const forecastAccum = { d7: 0, d30: 0, d90: 0 }
 
   for (const lead of leads) {
-    const val = lead.valor_propuesta_usd ?? 0
+    const valUsd = lead.valor_propuesta_usd ?? 0
+    const valArs = lead.valor_propuesta_ars ?? 0
     const prob = REVENUE_PROBABILITY[lead.estado_pipeline as PipelineStage] ?? 0
-    const weighted = val * prob
-    weightedTotal += weighted
+    const weightedUsd = valUsd * prob
+    const weightedArs = valArs * prob
+    weightedTotalUsd += weightedUsd
+    weightedTotalArs += weightedArs
 
-    if (lead.estado_pipeline === 'cliente_ganado' && val > 0) {
-      ganadoUsd += val
-      ganadosConValor.push(val)
+    if (lead.estado_pipeline === 'cliente_ganado') {
+      if (valUsd > 0) {
+        ganadoUsd += valUsd
+        ganadosConValor.push(valUsd)
+      }
+      if (valArs > 0) {
+        ganadoArs += valArs
+      }
     }
 
-    if (prob >= FORECAST_MIN_PROB.d7) forecastAccum.d7 += weighted
-    if (prob >= FORECAST_MIN_PROB.d30) forecastAccum.d30 += weighted
-    if (prob >= FORECAST_MIN_PROB.d90) forecastAccum.d90 += weighted
+    if (prob >= FORECAST_MIN_PROB.d7) forecastAccum.d7 += weightedUsd
+    if (prob >= FORECAST_MIN_PROB.d30) forecastAccum.d30 += weightedUsd
+    if (prob >= FORECAST_MIN_PROB.d90) forecastAccum.d90 += weightedUsd
   }
 
   const ticketPromedio = ganadosConValor.length > 0
@@ -158,6 +189,7 @@ export async function GET(req: NextRequest) {
       ])
 
       const totalUser = (activos ?? 0) + (ganados ?? 0)
+      const revenue = revenuePorResponsable[u.id] ?? { usd: 0, ars: 0 }
       return {
         id: u.id,
         full_name: u.full_name,
@@ -166,6 +198,8 @@ export async function GET(req: NextRequest) {
         ganados: ganados ?? 0,
         actividades: actividades ?? 0,
         tasa_conversion: totalUser > 0 ? Math.round(((ganados ?? 0) / totalUser) * 100) : 0,
+        revenue_usd: revenue.usd,
+        revenue_ars: revenue.ars,
       }
     })
   )
@@ -201,20 +235,25 @@ export async function GET(req: NextRequest) {
       leads: {
         total: leads.length,
         por_etapa: porEtapaCount,
-        por_etapa_value: porEtapaValue,
+        por_etapa_value_usd: porEtapaValueUSD,
+        por_etapa_value_ars: porEtapaValueARS,
         por_fuente: porFuente,
+        por_pais: porPais,
         nuevos_periodo: nuevosPeriodo,
       },
       revenue: {
         ganado_usd: Math.round(ganadoUsd),
-        proyectado_usd: Math.round(weightedTotal),
+        ganado_ars: Math.round(ganadoArs),
+        proyectado_usd: Math.round(weightedTotalUsd),
+        proyectado_ars: Math.round(weightedTotalArs),
         ticket_promedio_usd: Math.round(ticketPromedio),
         forecast: {
           d7: Math.round(forecastAccum.d7),
           d30: Math.round(forecastAccum.d30),
           d90: Math.round(forecastAccum.d90),
         },
-        pipeline_value: porEtapaValue,
+        pipeline_value_usd: porEtapaValueUSD,
+        pipeline_value_ars: porEtapaValueARS,
       },
       conversion: {
         tasa: tasaConversion,
