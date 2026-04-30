@@ -8,6 +8,7 @@ import { useLeadFormStore } from '@/hooks/useLeadFormStore'
 import { leadsApi, usersApi } from '@/lib/api'
 import { SERVICIOS, PAISES, FUENTES, PIPELINE_STAGES } from '@/types'
 import type { LeadFuente, PipelineStage } from '@/types'
+import { RichTextEditor } from '@/components/shared/RichTextEditor'
 
 const INPUT =
   'w-full border border-slate-200 rounded-md px-3 py-1.5 text-sm text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow'
@@ -295,14 +296,14 @@ export function LeadForm() {
             </section>
 
             {/* Notas */}
-            <label className="block space-y-1">
+            <div className="space-y-1">
               <span className="text-xs font-medium text-slate-600">Notas</span>
-              <textarea
-                value={form.notas} onChange={set('notas')}
-                rows={3} placeholder="Contexto adicional..."
-                className={`${INPUT} resize-none`}
+              <RichTextEditor
+                content={form.notas}
+                onChange={(html) => setForm(f => ({ ...f, notas: html }))}
+                minimal={true}
               />
-            </label>
+            </div>
 
             {/* Actions */}
             <div className="flex justify-end gap-3 pt-1">

@@ -58,6 +58,7 @@ export function PropuestasSection({ leadId, propuestas: initialPropuestas }: Pro
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['propuestas', leadId] })
       qc.invalidateQueries({ queryKey: ['lead', leadId] })
+      qc.invalidateQueries({ queryKey: ['leads'] })
       setAdding(false)
       setForm({ descripcion: '', valor: '', moneda: 'USD', tipo_pago: 'unica_vez', link: '' })
       toast.success('Propuesta creada')
@@ -71,6 +72,7 @@ export function PropuestasSection({ leadId, propuestas: initialPropuestas }: Pro
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['propuestas', leadId] })
+      qc.invalidateQueries({ queryKey: ['leads'] })
       toast.success('Propuesta eliminada')
     },
   })
@@ -84,6 +86,7 @@ export function PropuestasSection({ leadId, propuestas: initialPropuestas }: Pro
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['propuestas', leadId] })
       qc.invalidateQueries({ queryKey: ['lead', leadId] })
+      qc.invalidateQueries({ queryKey: ['leads'] })
       toast.success('Estado actualizado')
     },
     onError: () => toast.error('Error al actualizar estado'),
