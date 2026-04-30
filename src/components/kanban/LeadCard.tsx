@@ -210,10 +210,13 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
             users={users}
             onAssign={(userId) => updateResponsableMutation.mutate(userId)}
           />
-          <span className="text-xs text-slate-400 whitespace-nowrap">
-            {timeAgo(lead.last_activity_at)}
-          </span>
         </div>
+      </div>
+
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+        <span className="text-xs text-slate-400">
+          {timeAgo(lead.last_activity_at)}
+        </span>
       </div>
     </div>
   )
