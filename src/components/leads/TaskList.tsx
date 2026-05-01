@@ -28,12 +28,16 @@ export function TaskList({ leadId }: TaskListProps) {
 
   const createMutation = useMutation({
     mutationFn: () => {
-      // Convert datetime-local to ISO with timezone
+      // Convert datetime-local to ISO with timezone (preserve local time)
       let vencimiento: string | undefined
       if (vencimiento) {
+        // datetime-local is in local timezone, preserve it
         const d = new Date(vencimiento)
         if (!isNaN(d.getTime())) {
-          vencimiento = d.toISOString()
+          // Use the local time as-is, convert to ISO preserving the timezone offset
+          const offset = d.getTimezoneOffset() * 60000 // offset in milliseconds
+          const localISOTime = new Date(d.getTime() - offset).toISOString()
+          vencimiento = localISOTime
         }
       }
       return tasksApi.create(leadId, { titulo, vencimiento })
@@ -230,12 +234,16 @@ function TaskItem({ task, onComplete, onDelete, onUpdate, isCompleting, isDeleti
 
   const saveEdit = () => {
     if (!draftTitulo.trim()) return
-    // Convert datetime-local to ISO with timezone
+    // Convert datetime-local to ISO with timezone (preserve local time)
     let vencimiento: string | undefined
     if (draftVenc) {
+      // datetime-local is in local timezone, preserve it
       const d = new Date(draftVenc)
       if (!isNaN(d.getTime())) {
-        vencimiento = d.toISOString()
+        // Use the local time as-is, convert to ISO preserving the timezone offset
+        const offset = d.getTimezoneOffset() * 60000 // offset in milliseconds
+        const localISOTime = new Date(d.getTime() - offset).toISOString()
+        vencimiento = localISOTime
       }
     }
     onUpdate({
