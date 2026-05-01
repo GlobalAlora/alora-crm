@@ -10,6 +10,7 @@ import { activitiesApi } from '@/lib/api'
 import { timeAgo } from '@/lib/utils'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { RichTextEditor } from '@/components/shared/RichTextEditor'
+
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import type { Activity } from '@/types'
@@ -35,16 +36,23 @@ function ActivityItem({ activity, onDelete, onEdit }: {
   const config = TIPO_CONFIG[activity.tipo] ?? TIPO_CONFIG.nota
   const Icon = config.icon
   const [editing, setEditing] = useState(false)
-  const [text, setText] = useState(activity.descripcion)
+  const [draft, setDraft] = useState(activity.descripcion)
+  const [editorKey, setEditorKey] = useState(0)
+
+  const isEditable = ['nota', 'llamada', 'email', 'reunion'].includes(activity.tipo)
 
   const handleSave = () => {
-    if (text.trim()) {
-      onEdit(activity.id, text.trim())
+    if (draft) {
+      onEdit(activity.id, draft)
       setEditing(false)
     }
   }
 
-  const isEditable = ['nota', 'llamada', 'email', 'reunion'].includes(activity.tipo)
+  const handleCancel = () => {
+    setDraft(activity.descripcion)
+    setEditorKey((k) => k + 1)
+    setEditing(false)
+  }
 
   return (
     <div className="flex gap-3 group">
@@ -55,20 +63,27 @@ function ActivityItem({ activity, onDelete, onEdit }: {
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             {editing ? (
-              <div className="flex gap-2 items-start">
-                <textarea
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  className="flex-1 text-sm border border-blue-300 rounded-md p-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows={2}
-                  autoFocus
+              <div className="space-y-2">
+                <RichTextEditor
+                  key={editorKey}
+                  content={activity.descripcion}
+                  onChange={setDraft}
+                  placeholder="Editá el contenido..."
+                  minimal
                 />
-                <div className="flex gap-1 flex-shrink-0">
-                  <button onClick={handleSave} className="p-1 rounded text-green-600 hover:bg-green-50">
-                    <Check size={14} />
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={handleSave}
+                    disabled={!draft}
+                    className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2.5 py-1 rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    <Check size={11} /> Guardar
                   </button>
-                  <button onClick={() => { setEditing(false); setText(activity.descripcion) }} className="p-1 rounded text-slate-400 hover:bg-slate-100">
-                    <X size={14} />
+                  <button
+                    onClick={handleCancel}
+                    className="flex items-center gap-1 text-xs text-slate-500 px-2.5 py-1 rounded hover:bg-slate-100 transition-colors"
+                  >
+                    <X size={11} /> Cancelar
                   </button>
                 </div>
               </div>

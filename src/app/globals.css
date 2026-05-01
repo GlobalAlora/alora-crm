@@ -80,12 +80,14 @@ body {
   max-width: 280px;
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 140px);
+  height: calc(100vh - 140px);
+  overflow: hidden;
 }
 
 .kanban-cards {
   overflow-y: auto;
   flex: 1;
+  min-height: 0; /* critical: allows flex child to scroll */
   padding: 0.5rem;
 }
 

@@ -163,9 +163,11 @@ export function PropuestasSection({ leadId, propuestas: initialPropuestas }: Pro
         {propuestas.map((p) => {
           const estadoCfg = ESTADO_CONFIG[p.estado]
           const EstadoIcon = estadoCfg.icon
+          const valorNum = p.moneda === 'USD' ? p.valor_usd : p.valor_ars
           const valor = p.moneda === 'USD'
-            ? (p.valor_usd ? formatUSD(p.valor_usd) : '—')
-            : (p.valor_ars ? formatARS(p.valor_ars) : '—')
+            ? (p.valor_usd ? `USD ${p.valor_usd.toLocaleString('en-US')}` : '—')
+            : (p.valor_ars ? `ARS ${p.valor_ars.toLocaleString('es-AR')}` : '—')
+          void valorNum
           return (
             <div key={p.id} className="border border-slate-200 rounded-xl p-4 bg-white space-y-3 group">
               <div className="flex items-start justify-between gap-2">
@@ -182,6 +184,10 @@ export function PropuestasSection({ leadId, propuestas: initialPropuestas }: Pro
               </div>
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-sm font-semibold text-slate-900 tabular-nums">{valor}</span>
+                <span className={cn(
+                  'text-[10px] font-bold px-1.5 py-0.5 rounded',
+                  p.moneda === 'USD' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                )}>{p.moneda}</span>
                 <span className="text-xs text-slate-400">{p.tipo_pago === 'mensual' ? '/ mes' : 'única vez'}</span>
                 {p.link && (
                   <a href={p.link} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:underline ml-auto">

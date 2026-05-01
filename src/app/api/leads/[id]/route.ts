@@ -68,6 +68,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Email secundario inválido' }, { status: 400 })
   }
 
+  // When changing currency, always clear the other currency value to avoid stale totals
+  if (body.valor_propuesta_moneda === 'ARS' && !('valor_propuesta_usd' in body)) {
+    body.valor_propuesta_usd = null
+  }
+  if (body.valor_propuesta_moneda === 'USD' && !('valor_propuesta_ars' in body)) {
+    body.valor_propuesta_ars = null
+  }
+
   const { data, error } = await supabase
     .from('leads')
     .update({ ...body, updated_at: new Date().toISOString() })

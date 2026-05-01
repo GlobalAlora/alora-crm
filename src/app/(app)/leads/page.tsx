@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { LayoutGrid, List } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { KanbanBoard } from '@/components/kanban/KanbanBoard'
-import { LeadDetail } from '@/components/leads/LeadDetail'
 import { LeadTable } from '@/components/leads/LeadTable'
 import { useLeadsRealtime } from '@/hooks/useLeadsRealtime'
 import type { Lead } from '@/types'
@@ -15,17 +14,12 @@ type View = 'kanban' | 'list'
 export default function LeadsPage() {
   const router = useRouter()
   const [view, setView] = useState<View>('kanban')
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
 
   useLeadsRealtime()
 
-  
+  // Always navigate to the full-page lead view so URL changes and it's shareable
   const handleLeadClick = (lead: Lead) => {
-    if (view === 'list') {
-      router.push(`/leads/${lead.id}?from=pipeline`)
-    } else {
-      setSelectedLead(lead)
-    }
+    router.push(`/leads/${lead.id}?from=pipeline`)
   }
 
   return (
@@ -69,15 +63,6 @@ export default function LeadsPage() {
           <LeadTable onLeadClick={handleLeadClick} />
         )}
       </div>
-
-      {/* Lead detail slide-over (solo para kanban) */}
-      {selectedLead && view === 'kanban' && (
-        <LeadDetail
-          lead={selectedLead}
-          onClose={() => setSelectedLead(null)}
-          onStageChange={(updatedLead) => setSelectedLead(updatedLead)}
-        />
-      )}
     </div>
   )
 }

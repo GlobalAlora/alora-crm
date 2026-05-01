@@ -94,9 +94,9 @@ export function LeadForm() {
         fuente: (form.fuente || undefined) as LeadFuente | undefined,
         estado_pipeline: form.estado_pipeline || undefined,
         valor_propuesta_usd: form.valor_propuesta_moneda === 'USD' && form.valor_propuesta
-          ? Number(form.valor_propuesta) : undefined,
+          ? Number(form.valor_propuesta) : null,
         valor_propuesta_ars: form.valor_propuesta_moneda === 'ARS' && form.valor_propuesta
-          ? Number(form.valor_propuesta) : undefined,
+          ? Number(form.valor_propuesta) : null,
         valor_propuesta_moneda: form.valor_propuesta_moneda,
         notas: form.notas || undefined,
         responsable_id: form.responsable_id || undefined,

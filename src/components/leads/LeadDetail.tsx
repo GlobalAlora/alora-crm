@@ -186,10 +186,12 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
     patch({ servicios_interesados: s, servicio_interesado: s[0] ?? null })
   }
 
-  const valor = lead.valor_propuesta_usd
-    ? formatUSD(lead.valor_propuesta_usd)
-    : lead.valor_propuesta_ars
-      ? formatARS(lead.valor_propuesta_ars)
+  // Use the stored moneda field as source of truth
+  const moneda = lead.valor_propuesta_moneda ?? 'USD'
+  const valor = moneda === 'ARS' && lead.valor_propuesta_ars
+    ? `ARS ${lead.valor_propuesta_ars.toLocaleString('es-AR')}`
+    : moneda === 'USD' && lead.valor_propuesta_usd
+      ? `USD ${lead.valor_propuesta_usd.toLocaleString('en-US')}`
       : null
 
   const whatsappUrl = lead.telefono
@@ -236,8 +238,15 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
               )}
             </div>
 
-            {/* Stage selector */}
-            <StageSelector lead={lead} onStageChange={onStageChange} />
+            {/* Stage selector + valor */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <StageSelector lead={lead} onStageChange={onStageChange} />
+              {valor && (
+                <span className="text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-1">
+                  {valor}
+                </span>
+              )}
+            </div>
 
             {/* Quick actions */}
             <div className="flex gap-2">
@@ -348,13 +357,6 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                   {FUENTES.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
                 </select>
               </div>
-
-              {valor && (
-                <div>
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Valor propuesta</p>
-                  <p className="text-sm font-semibold text-slate-900">{valor}</p>
-                </div>
-              )}
 
               {/* Responsable */}
               {lead.responsable && (
