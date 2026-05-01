@@ -25,7 +25,17 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from('leads')
-    .select('*, responsable:users!responsable_id(id, full_name, avatar_url)', { count: 'exact' })
+    .select(`
+      *,
+      responsable:users!responsable_id(id, full_name, avatar_url),
+      propuestas(
+        id,
+        valor_usd,
+        valor_ars,
+        moneda,
+        estado
+      )
+    `, { count: 'exact' })
     .is('deleted_at', null)
 
   // Apply filters
@@ -62,8 +72,26 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // Calculate proposal totals for each lead
+  const dataWithTotals = (data ?? []).map((lead: any) => {
+    const propuestas = lead.propuestas || []
+    const propuestas_total_usd = propuestas.reduce((sum: number, p: any) => sum + (p.valor_usd || 0), 0)
+    const propuestas_total_ars = propuestas.reduce((sum: number, p: any) => sum + (p.valor_ars || 0), 0)
+    const propuestas_count = propuestas.length
+
+    // Remove propuestas from response to avoid circular structure
+    const { propuestas: _, ...leadWithoutPropuestas } = lead
+
+    return {
+      ...leadWithoutPropuestas,
+      propuestas_total_usd,
+      propuestas_total_ars,
+      propuestas_count,
+    }
+  })
+
   return NextResponse.json({
-    data: data ?? [],
+    data: dataWithTotals,
     meta: {
       total: count ?? 0,
       page,
