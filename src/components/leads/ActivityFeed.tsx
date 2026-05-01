@@ -9,6 +9,7 @@ import {
 import { activitiesApi } from '@/lib/api'
 import { timeAgo } from '@/lib/utils'
 import { UserAvatar } from '@/components/shared/UserAvatar'
+import { RichTextEditor } from '@/components/shared/RichTextEditor'
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import type { Activity } from '@/types'
@@ -111,6 +112,7 @@ export function ActivityFeed({ leadId }: ActivityFeedProps) {
   const qc = useQueryClient()
   const [tipo, setTipo] = useState<typeof ACTIVITY_TYPES[number]>('nota')
   const [text, setText] = useState('')
+  const [editorKey, setEditorKey] = useState(0)
 
   const { data, isLoading } = useQuery({
     queryKey: ['activities', leadId],
@@ -125,6 +127,7 @@ export function ActivityFeed({ leadId }: ActivityFeedProps) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['activities', leadId] })
       setText('')
+      setEditorKey((k) => k + 1)
       toast.success('Actividad registrada')
     },
     onError: () => toast.error('Error al guardar'),
@@ -150,7 +153,7 @@ export function ActivityFeed({ leadId }: ActivityFeedProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!text.trim()) return
+    if (!text) return
     addMutation.mutate()
   }
 
@@ -180,20 +183,17 @@ export function ActivityFeed({ leadId }: ActivityFeedProps) {
             )
           })}
         </div>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
+        <RichTextEditor
+          key={editorKey}
+          content=""
+          onChange={setText}
           placeholder={`Agregar ${TIPO_CONFIG[tipo].label.toLowerCase()}...`}
-          rows={2}
-          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit(e)
-          }}
+          minimal
         />
         <div className="flex justify-end">
           <button
             type="submit"
-            disabled={!text.trim() || addMutation.isPending}
+            disabled={!text || addMutation.isPending}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
             {addMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}

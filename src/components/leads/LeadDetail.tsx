@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  X, Mail, Building2, Tag as TagIcon, Globe,
+  X, Mail, Building2, Tag as TagIcon, Globe, Calendar,
   MessageSquare, CheckSquare, FileText, History, ExternalLink,
   Check, AlertCircle, MessageCircle, ChevronDown,
 } from 'lucide-react'
@@ -20,6 +20,7 @@ import { TagsSection } from './TagsSection'
 import { StageHistorySection } from './StageHistorySection'
 import { ServiciosEdit } from './ServiciosEdit'
 import { FormDataSection } from './FormDataSection'
+import { RichTextEditor } from '@/components/shared/RichTextEditor'
 import toast from 'react-hot-toast'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -370,10 +371,77 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
               <ServiciosEdit value={servicios} onChange={handleServiciosChange} />
             </div>
 
+            {/* Dates / Milestones */}
+            <div className="space-y-3">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1">
+                <Calendar size={10} /> Fechas del proceso
+              </p>
+              <EditableField
+                label="Fecha de ingreso"
+                value={lead.fecha_ingreso ? lead.fecha_ingreso.slice(0, 10) : ''}
+                onSave={(v) => patch({ fecha_ingreso: v || lead.fecha_ingreso })}
+                type="date"
+              />
+              <EditableField
+                label="Primer contacto"
+                value={lead.fecha_contacto ?? ''}
+                onSave={(v) => patch({ fecha_contacto: v || null })}
+                type="date"
+                placeholder="Sin fecha"
+              />
+              <EditableField
+                label="Fecha reunión"
+                value={lead.fecha_reunion ?? ''}
+                onSave={(v) => patch({ fecha_reunion: v || null })}
+                type="date"
+                placeholder="Sin fecha"
+              />
+              {(lead.fecha_reunion || lead.reunion_hora) && (
+                <EditableField
+                  label="Hora reunión"
+                  value={lead.reunion_hora ?? ''}
+                  onSave={(v) => patch({ reunion_hora: v || null })}
+                  type="time"
+                  placeholder="Sin hora"
+                />
+              )}
+              {(lead.fecha_reunion || lead.reunion_link) && (
+                <EditableField
+                  label="Link reunión"
+                  value={lead.reunion_link ?? ''}
+                  onSave={(v) => patch({ reunion_link: v || null })}
+                  type="url"
+                  placeholder="https://..."
+                />
+              )}
+              <EditableField
+                label="Propuesta enviada"
+                value={lead.fecha_propuesta ?? ''}
+                onSave={(v) => patch({ fecha_propuesta: v || null })}
+                type="date"
+                placeholder="Sin fecha"
+              />
+              <EditableField
+                label="Follow up"
+                value={lead.fecha_followup ?? ''}
+                onSave={(v) => patch({ fecha_followup: v || null })}
+                type="date"
+                placeholder="Sin fecha"
+              />
+              <EditableField
+                label="Cierre (ganado/perdido)"
+                value={lead.fecha_cierre ?? ''}
+                onSave={(v) => patch({ fecha_cierre: v || null })}
+                type="date"
+                placeholder="Sin fecha"
+              />
+            </div>
+
             {/* Notes */}
             <div className="space-y-2">
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Notas</p>
-              <NoteEditor
+              <NotesRichEditor
+                key={lead.id}
                 value={lead.notas ?? ''}
                 onSave={(v) => patch({ notas: v || null })}
               />
@@ -440,50 +508,30 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
   )
 }
 
-// ── Note inline editor ────────────────────────────────────────────────────────
+// ── Notes rich editor ─────────────────────────────────────────────────────────
 
-function NoteEditor({ value, onSave }: { value: string; onSave: (v: string) => void }) {
-  const [editing, setEditing] = useState(false)
+function NotesRichEditor({ value, onSave }: { value: string; onSave: (v: string) => void }) {
   const [draft, setDraft] = useState(value)
-
-  if (editing) {
-    return (
-      <div className="space-y-2">
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          rows={4}
-          autoFocus
-          className="w-full text-sm border border-blue-300 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <div className="flex gap-2 justify-end">
-          <button
-            onClick={() => { setDraft(value); setEditing(false) }}
-            className="text-xs px-2 py-1 text-slate-500 hover:text-slate-700"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={() => { onSave(draft); setEditing(false) }}
-            className="text-xs px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            Guardar
-          </button>
-        </div>
-      </div>
-    )
-  }
+  const hasChanges = draft !== value
 
   return (
-    <button
-      onClick={() => { setDraft(value); setEditing(true) }}
-      className="w-full text-left text-sm text-slate-600 hover:text-blue-600 break-words transition-colors"
-    >
-      {value ? (
-        <div className="prose prose-sm max-w-none text-slate-600" dangerouslySetInnerHTML={{ __html: value }} />
-      ) : (
-        <span className="text-slate-300 italic text-xs">Hacer clic para agregar notas...</span>
+    <div className="space-y-2">
+      <RichTextEditor
+        content={value}
+        onChange={setDraft}
+        placeholder="Agregar notas sobre este lead..."
+        minimal
+      />
+      {hasChanges && (
+        <div className="flex justify-end">
+          <button
+            onClick={() => onSave(draft)}
+            className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            Guardar notas
+          </button>
+        </div>
       )}
-    </button>
+    </div>
   )
 }
