@@ -240,6 +240,34 @@ create policy "activities_insert" on public.activities
   for insert to authenticated
   with check (public.current_user_role() in ('admin', 'sales'));
 
+create policy "activities_update" on public.activities
+  for update to authenticated
+  using (
+    exists (
+      select 1 from public.leads l
+      where l.id = lead_id
+        and l.deleted_at is null
+        and (
+          public.current_user_role() = 'admin'
+          or l.responsable_id = auth.uid()
+        )
+    )
+  );
+
+create policy "activities_delete" on public.activities
+  for delete to authenticated
+  using (
+    exists (
+      select 1 from public.leads l
+      where l.id = lead_id
+        and l.deleted_at is null
+        and (
+          public.current_user_role() = 'admin'
+          or l.responsable_id = auth.uid()
+        )
+    )
+  );
+
 -- Tasks: misma lógica
 create policy "tasks_select" on public.tasks
   for select to authenticated

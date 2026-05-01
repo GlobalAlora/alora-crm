@@ -213,7 +213,7 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
       <div className={wrapper}>
 
         {/* ── Left panel: lead info ────────────────────────────────────────── */}
-        <div className="w-full md:w-72 flex-shrink-0 border-b md:border-b-0 md:border-r border-slate-200 bg-slate-50 overflow-y-auto">
+        <div className="w-full md:w-80 lg:w-96 2xl:w-[400px] flex-shrink-0 border-b md:border-b-0 md:border-r border-slate-200 bg-slate-50 overflow-y-auto">
           <div className="p-5 space-y-5">
 
             {/* Header */}
@@ -373,81 +373,85 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
               <ServiciosEdit value={servicios} onChange={handleServiciosChange} />
             </div>
 
-            {/* Dates / Milestones */}
-            <div className="space-y-3">
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1">
-                <Calendar size={10} /> Fechas del proceso
-              </p>
-              <EditableField
-                label="Fecha de ingreso"
-                value={lead.fecha_ingreso ? lead.fecha_ingreso.slice(0, 10) : ''}
-                onSave={(v) => patch({ fecha_ingreso: v || lead.fecha_ingreso })}
-                type="date"
-              />
-              <EditableField
-                label="Primer contacto"
-                value={lead.fecha_contacto ?? ''}
-                onSave={(v) => patch({ fecha_contacto: v || null })}
-                type="date"
-                placeholder="Sin fecha"
-              />
-              <EditableField
-                label="Fecha reunión"
-                value={lead.fecha_reunion ?? ''}
-                onSave={(v) => patch({ fecha_reunion: v || null })}
-                type="date"
-                placeholder="Sin fecha"
-              />
-              {(lead.fecha_reunion || lead.reunion_hora) && (
+            {/* Dates / Milestones — hidden when fullPage (shown in right panel) */}
+            {!fullPage && (
+              <div className="space-y-3">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1">
+                  <Calendar size={10} /> Fechas del proceso
+                </p>
                 <EditableField
-                  label="Hora reunión"
-                  value={lead.reunion_hora ?? ''}
-                  onSave={(v) => patch({ reunion_hora: v || null })}
-                  type="time"
-                  placeholder="Sin hora"
+                  label="Fecha de ingreso"
+                  value={lead.fecha_ingreso ? lead.fecha_ingreso.slice(0, 10) : ''}
+                  onSave={(v) => patch({ fecha_ingreso: v || lead.fecha_ingreso })}
+                  type="date"
                 />
-              )}
-              {(lead.fecha_reunion || lead.reunion_link) && (
                 <EditableField
-                  label="Link reunión"
-                  value={lead.reunion_link ?? ''}
-                  onSave={(v) => patch({ reunion_link: v || null })}
-                  type="url"
-                  placeholder="https://..."
+                  label="Primer contacto"
+                  value={lead.fecha_contacto ? lead.fecha_contacto.slice(0, 10) : ''}
+                  onSave={(v) => patch({ fecha_contacto: v || null })}
+                  type="date"
+                  placeholder="Sin fecha"
                 />
-              )}
-              <EditableField
-                label="Propuesta enviada"
-                value={lead.fecha_propuesta ?? ''}
-                onSave={(v) => patch({ fecha_propuesta: v || null })}
-                type="date"
-                placeholder="Sin fecha"
-              />
-              <EditableField
-                label="Follow up"
-                value={lead.fecha_followup ?? ''}
-                onSave={(v) => patch({ fecha_followup: v || null })}
-                type="date"
-                placeholder="Sin fecha"
-              />
-              <EditableField
-                label="Cierre (ganado/perdido)"
-                value={lead.fecha_cierre ?? ''}
-                onSave={(v) => patch({ fecha_cierre: v || null })}
-                type="date"
-                placeholder="Sin fecha"
-              />
-            </div>
+                <EditableField
+                  label="Fecha reunión"
+                  value={lead.fecha_reunion ? lead.fecha_reunion.slice(0, 10) : ''}
+                  onSave={(v) => patch({ fecha_reunion: v || null })}
+                  type="date"
+                  placeholder="Sin fecha"
+                />
+                {(lead.fecha_reunion || lead.reunion_hora) && (
+                  <EditableField
+                    label="Hora reunión"
+                    value={lead.reunion_hora ?? ''}
+                    onSave={(v) => patch({ reunion_hora: v || null })}
+                    type="time"
+                    placeholder="Sin hora"
+                  />
+                )}
+                {(lead.fecha_reunion || lead.reunion_link) && (
+                  <EditableField
+                    label="Link reunión"
+                    value={lead.reunion_link ?? ''}
+                    onSave={(v) => patch({ reunion_link: v || null })}
+                    type="url"
+                    placeholder="https://..."
+                  />
+                )}
+                <EditableField
+                  label="Propuesta enviada"
+                  value={lead.fecha_propuesta ? lead.fecha_propuesta.slice(0, 10) : ''}
+                  onSave={(v) => patch({ fecha_propuesta: v || null })}
+                  type="date"
+                  placeholder="Sin fecha"
+                />
+                <EditableField
+                  label="Follow up"
+                  value={lead.fecha_followup ? lead.fecha_followup.slice(0, 10) : ''}
+                  onSave={(v) => patch({ fecha_followup: v || null })}
+                  type="date"
+                  placeholder="Sin fecha"
+                />
+                <EditableField
+                  label="Cierre (ganado/perdido)"
+                  value={lead.fecha_cierre ? lead.fecha_cierre.slice(0, 10) : ''}
+                  onSave={(v) => patch({ fecha_cierre: v || null })}
+                  type="date"
+                  placeholder="Sin fecha"
+                />
+              </div>
+            )}
 
-            {/* Notes */}
-            <div className="space-y-2">
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Notas</p>
-              <NotesRichEditor
-                key={lead.id}
-                value={lead.notas ?? ''}
-                onSave={(v) => patch({ notas: v || null })}
-              />
-            </div>
+            {/* Notes — only show in left panel when NOT fullPage */}
+            {!fullPage && (
+              <div className="space-y-2">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Notas</p>
+                <NotesRichEditor
+                  key={lead.id}
+                  value={lead.notas ?? ''}
+                  onSave={(v) => patch({ notas: v || null })}
+                />
+              </div>
+            )}
 
             {/* Meta */}
             <div className="space-y-1 pt-2 border-t border-slate-200">
@@ -471,7 +475,7 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
           </div>
         </div>
 
-        {/* ── Right panel: tabs ────────────────────────────────────────────── */}
+        {/* ── Center panel: tabs ───────────────────────────────────────────── */}
         <div className="flex-1 flex flex-col overflow-hidden bg-white">
           {/* Tab bar */}
           <div className="flex items-center gap-0 border-b border-slate-200 px-4 overflow-x-auto flex-shrink-0">
@@ -505,6 +509,89 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
             {tab === 'formulario' && <FormDataSection formData={lead.form_data} />}
           </div>
         </div>
+
+        {/* ── Right panel: dates + notes (xl screens, fullPage only) ───────── */}
+        {fullPage && (
+          <div className="hidden xl:flex xl:flex-col w-[320px] 2xl:w-[360px] flex-shrink-0 border-l border-slate-200 bg-slate-50 overflow-y-auto">
+            <div className="p-5 space-y-5">
+              {/* Dates / Milestones */}
+              <div className="space-y-3">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1">
+                  <Calendar size={10} /> Fechas del proceso
+                </p>
+                <EditableField
+                  label="Fecha de ingreso"
+                  value={lead.fecha_ingreso ? lead.fecha_ingreso.slice(0, 10) : ''}
+                  onSave={(v) => patch({ fecha_ingreso: v || lead.fecha_ingreso })}
+                  type="date"
+                />
+                <EditableField
+                  label="Primer contacto"
+                  value={lead.fecha_contacto ? lead.fecha_contacto.slice(0, 10) : ''}
+                  onSave={(v) => patch({ fecha_contacto: v || null })}
+                  type="date"
+                  placeholder="Sin fecha"
+                />
+                <EditableField
+                  label="Fecha reunión"
+                  value={lead.fecha_reunion ? lead.fecha_reunion.slice(0, 10) : ''}
+                  onSave={(v) => patch({ fecha_reunion: v || null })}
+                  type="date"
+                  placeholder="Sin fecha"
+                />
+                {(lead.fecha_reunion || lead.reunion_hora) && (
+                  <EditableField
+                    label="Hora reunión"
+                    value={lead.reunion_hora ?? ''}
+                    onSave={(v) => patch({ reunion_hora: v || null })}
+                    type="time"
+                    placeholder="Sin hora"
+                  />
+                )}
+                {(lead.fecha_reunion || lead.reunion_link) && (
+                  <EditableField
+                    label="Link reunión"
+                    value={lead.reunion_link ?? ''}
+                    onSave={(v) => patch({ reunion_link: v || null })}
+                    type="url"
+                    placeholder="https://..."
+                  />
+                )}
+                <EditableField
+                  label="Propuesta enviada"
+                  value={lead.fecha_propuesta ? lead.fecha_propuesta.slice(0, 10) : ''}
+                  onSave={(v) => patch({ fecha_propuesta: v || null })}
+                  type="date"
+                  placeholder="Sin fecha"
+                />
+                <EditableField
+                  label="Follow up"
+                  value={lead.fecha_followup ? lead.fecha_followup.slice(0, 10) : ''}
+                  onSave={(v) => patch({ fecha_followup: v || null })}
+                  type="date"
+                  placeholder="Sin fecha"
+                />
+                <EditableField
+                  label="Cierre (ganado/perdido)"
+                  value={lead.fecha_cierre ? lead.fecha_cierre.slice(0, 10) : ''}
+                  onSave={(v) => patch({ fecha_cierre: v || null })}
+                  type="date"
+                  placeholder="Sin fecha"
+                />
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Notas</p>
+                <NotesRichEditor
+                  key={`right-${lead.id}`}
+                  value={lead.notas ?? ''}
+                  onSave={(v) => patch({ notas: v || null })}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   )
