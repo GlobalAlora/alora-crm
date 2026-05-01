@@ -600,27 +600,60 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
 // ── Notes rich editor ─────────────────────────────────────────────────────────
 
 function NotesRichEditor({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
   const hasChanges = draft !== value
 
-  return (
-    <div className="space-y-2">
-      <RichTextEditor
-        content={value}
-        onChange={setDraft}
-        placeholder="Agregar notas sobre este lead..."
-        minimal
-      />
-      {hasChanges && (
-        <div className="flex justify-end">
+  const handleSave = () => {
+    onSave(draft)
+    setEditing(false)
+  }
+
+  const handleCancel = () => {
+    setDraft(value)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className="space-y-2">
+        <RichTextEditor
+          content={value}
+          onChange={setDraft}
+          placeholder="Agregar notas sobre este lead..."
+          minimal
+        />
+        <div className="flex gap-2 justify-end">
           <button
-            onClick={() => onSave(draft)}
-            className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            onClick={handleCancel}
+            className="text-xs px-3 py-1.5 text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!hasChanges}
+            className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
             Guardar notas
           </button>
         </div>
-      )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      <div
+        onClick={() => setEditing(true)}
+        className="prose prose-sm max-w-none text-slate-600 hover:text-slate-800 cursor-pointer p-2 rounded-lg hover:bg-slate-100 transition-colors min-h-[40px]"
+      >
+        {value ? (
+          <div dangerouslySetInnerHTML={{ __html: value }} />
+        ) : (
+          <span className="text-slate-300 italic text-xs">Clic para agregar notas...</span>
+        )}
+      </div>
     </div>
   )
 }
