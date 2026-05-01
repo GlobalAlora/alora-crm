@@ -27,7 +27,17 @@ export function TaskList({ leadId }: TaskListProps) {
   })
 
   const createMutation = useMutation({
-    mutationFn: () => tasksApi.create(leadId, { titulo, vencimiento: vencimiento || undefined }),
+    mutationFn: () => {
+      // Convert datetime-local to ISO with timezone
+      let vencimiento: string | undefined
+      if (vencimiento) {
+        const d = new Date(vencimiento)
+        if (!isNaN(d.getTime())) {
+          vencimiento = d.toISOString()
+        }
+      }
+      return tasksApi.create(leadId, { titulo, vencimiento })
+    },
     onSuccess: () => {
       setTitulo('')
       setVencimiento('')
@@ -220,9 +230,17 @@ function TaskItem({ task, onComplete, onDelete, onUpdate, isCompleting, isDeleti
 
   const saveEdit = () => {
     if (!draftTitulo.trim()) return
+    // Convert datetime-local to ISO with timezone
+    let vencimiento: string | undefined
+    if (draftVenc) {
+      const d = new Date(draftVenc)
+      if (!isNaN(d.getTime())) {
+        vencimiento = d.toISOString()
+      }
+    }
     onUpdate({
       titulo: draftTitulo.trim(),
-      vencimiento: draftVenc || undefined,
+      vencimiento,
     })
     setEditing(false)
   }
