@@ -123,8 +123,8 @@ export function TaskList({ leadId }: TaskListProps) {
     onError: () => toast.error('Error al eliminar la tarea'),
   })
 
-  const pending = tasks.filter((t) => !t.completada)
-  const done = tasks.filter((t) => t.completada)
+  const pending = tasks.filter((t: Task) => !t.completada)
+  const done = tasks.filter((t: Task) => t.completada)
 
   return (
     <div className="p-4">
