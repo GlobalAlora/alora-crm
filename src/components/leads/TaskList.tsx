@@ -3,7 +3,7 @@
 import { format, isPast, isToday, isTomorrow } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useState } from 'react'
-import { Clock, Trash2, Plus, X, AlertCircle, Pencil } from 'lucide-react'
+import { Clock, Trash2, Plus, X, AlertCircle, Pencil, Check } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
 import type { Task } from '@/types'
