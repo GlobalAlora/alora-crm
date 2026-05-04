@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     .from('leads')
     .select('id, nombre, apellido, empresa, estado_pipeline')
     .is('deleted_at', null)
-    .or(`nombre.ilike.%${query}%,apellido.ilike.%${query}%,empresa.ilike.%${query}%`)
+    .or(`nombre.ilike.%${query}%,apellido.ilike.%${query}%,empresa.ilike.%${query}%,email.ilike.%${query}%`)
     .order('last_activity_at', { ascending: false })
     .limit(limit)
 
