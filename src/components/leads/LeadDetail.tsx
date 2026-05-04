@@ -512,8 +512,8 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
 
         {/* ── Right panel: dates + notes (xl screens, fullPage only) ───────── */}
         {fullPage && (
-          <div className="hidden xl:flex xl:flex-col w-[320px] 2xl:w-[360px] flex-shrink-0 border-l border-slate-200 bg-slate-50 overflow-y-auto">
-            <div className="p-5 space-y-5">
+          <div className="hidden xl:flex xl:flex-col w-[320px] 2xl:w-[360px] flex-shrink-0 border-l border-slate-200 bg-slate-50 overflow-y-auto overflow-x-hidden">
+            <div className="p-5 space-y-5 overflow-x-hidden">
               {/* Dates / Milestones */}
               <div className="space-y-3">
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1">
@@ -616,7 +616,7 @@ function NotesRichEditor({ value, onSave }: { value: string; onSave: (v: string)
 
   if (editing) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-2 overflow-x-hidden">
         <RichTextEditor
           content={value}
           onChange={setDraft}
@@ -643,17 +643,12 @@ function NotesRichEditor({ value, onSave }: { value: string; onSave: (v: string)
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 overflow-x-hidden">
       <div
         onClick={() => setEditing(true)}
-        className="prose prose-sm max-w-none text-slate-600 hover:text-slate-800 cursor-pointer p-2 rounded-lg hover:bg-slate-100 transition-colors min-h-[40px]"
-      >
-        {value ? (
-          <div dangerouslySetInnerHTML={{ __html: value }} />
-        ) : (
-          <span className="text-slate-300 italic text-xs">Clic para agregar notas...</span>
-        )}
-      </div>
+        className="prose prose-sm max-w-none text-slate-600 hover:text-slate-800 cursor-pointer p-2 rounded-lg hover:bg-slate-100 transition-colors min-h-[40px] overflow-x-hidden break-words"
+        dangerouslySetInnerHTML={{ __html: value || '<p class="text-slate-400">Clic para agregar notas...</p>' }}
+      />
     </div>
   )
 }
