@@ -33,7 +33,12 @@ export function KanbanColumn({ stage, leads, onLeadClick, isOver }: KanbanColumn
   }
 
   return (
-    <div className={cn('kanban-column rounded-xl border bg-slate-50', isOver && 'ring-2 ring-blue-400')}>
+    <div className={cn(
+      'kanban-column rounded-xl border bg-slate-50',
+      'md:min-w-80 min-w-[85vw] md:max-w-80 max-w-[85vw]',
+      'md:h-full h-[60vh]',
+      isOver && 'ring-2 ring-blue-400'
+    )}>
       {/* Column header */}
       <div className="px-3 py-3 border-b bg-white rounded-t-xl flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-2">

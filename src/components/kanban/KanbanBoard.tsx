@@ -226,7 +226,7 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
     >
       <div
         ref={scrollRef}
-        className="kanban-board"
+        className="kanban-board md:space-x-6 space-x-4"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
