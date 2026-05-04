@@ -189,7 +189,8 @@ export function TaskList({ leadId }: TaskListProps) {
 
 function formatDueDate(date: string): { label: string; urgent: boolean } {
   const d = new Date(date)
-  const hasTime = /T\d{2}:\d{2}/.test(date) && !date.endsWith('T00:00:00') && !date.endsWith('T00:00:00.000Z')
+  // Check if the time is not midnight (00:00) to determine if it has a specific time
+  const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0
   const timeStr = hasTime ? ` ${format(d, 'HH:mm')}` : ''
 
   if (isPast(d) && !isToday(d)) {
