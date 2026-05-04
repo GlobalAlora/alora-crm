@@ -33,6 +33,23 @@ export function timeAgo(dateString: string): string {
   }
 }
 
+export function timeAgoWithFullDate(dateString: string): string {
+  try {
+    const date = new Date(dateString)
+    const relativeTime = formatDistanceToNow(date, { addSuffix: true, locale: es })
+    
+    // Formato completo: "Martes, 04/05/2026 a las 14:30"
+    const dayName = date.toLocaleDateString('es-AR', { weekday: 'long' })
+    const dateStr = date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    const timeStr = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
+    const fullDate = `${dayName.charAt(0).toUpperCase() + dayName.slice(1)}, ${dateStr} a las ${timeStr}`
+    
+    return `${relativeTime} · ${fullDate}`
+  } catch {
+    return ''
+  }
+}
+
 export function formatDate(dateString: string): string {
   try {
     return formatArgentinaDate(dateString)

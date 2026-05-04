@@ -7,7 +7,7 @@ import {
   Globe, MessageCircle, Plus, Loader2, Trash2, Pencil, Check, X
 } from 'lucide-react'
 import { activitiesApi } from '@/lib/api'
-import { timeAgo } from '@/lib/utils'
+import { timeAgoWithFullDate } from '@/lib/utils'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { RichTextEditor } from '@/components/shared/RichTextEditor'
 
@@ -112,7 +112,7 @@ function ActivityItem({ activity, onDelete, onEdit }: {
           {activity.user && (
             <UserAvatar user={activity.user} size="xs" showName />
           )}
-          <span className="text-xs text-slate-400">{timeAgo(activity.created_at)}</span>
+          <span className="text-xs text-slate-400">{timeAgoWithFullDate(activity.created_at)}</span>
         </div>
       </div>
     </div>
