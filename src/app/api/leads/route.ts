@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
     valor_propuesta_usd:    body.valor_propuesta_usd ? Number(body.valor_propuesta_usd) : null,
     valor_propuesta_ars:    body.valor_propuesta_ars ? Number(body.valor_propuesta_ars) : null,
     valor_propuesta_moneda: body.valor_propuesta_moneda || 'USD',
-    notas:                  body.notas || null,
+    notas:                  null, // No guardar notas en el lead, se crearán como actividad
     responsable_id:         body.responsable_id || null,
     kanban_position:        (maxPos?.kanban_position ?? 0) + 1,
     created_by:             user.id,
@@ -159,6 +159,23 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Si hay notas, crear una actividad de tipo "nota"
+  if (body.notas && typeof body.notas === 'string' && body.notas.trim()) {
+    const { error: activityError } = await supabase
+      .from('activities')
+      .insert({
+        lead_id: data.id,
+        tipo: 'nota',
+        descripcion: body.notas.trim(),
+        created_by: user.id,
+      })
+
+    if (activityError) {
+      console.error('Error al crear actividad de nota:', activityError)
+      // No devolver error, el lead ya fue creado
+    }
+  }
 
   return NextResponse.json({ data }, { status: 201 })
 }
