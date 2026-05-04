@@ -18,6 +18,9 @@ import { DashboardFilters } from '@/components/dashboard/DashboardFilters'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { cn } from '@/lib/utils'
 import { useLeadFormStore } from '@/hooks/useLeadFormStore'
+import { LeadsBySourceChart } from '@/components/dashboard/charts/LeadsBySourceChart'
+import { LeadsByCountryChart } from '@/components/dashboard/charts/LeadsByCountryChart'
+import { TopOpportunitiesChart } from '@/components/dashboard/charts/TopOpportunitiesChart'
 
 function getDefaultFechaDesde(): string {
   const date = new Date()
@@ -533,87 +536,22 @@ export default function DashboardPage() {
       </div>
 
       {/* Leads por fuente */}
-      {!isLoading && d && Object.keys(d.leads.por_fuente).length > 0 && (
-        <div className="bg-white rounded-xl border p-6">
-          <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-4">
-            <Clock size={15} className="text-slate-400" />
-            Leads por fuente
-          </h2>
-          <div className="flex flex-wrap gap-3">
-            {Object.entries(d.leads.por_fuente)
-              .sort(([, a], [, b]) => b - a)
-              .map(([fuente, count]) => (
-                <div key={fuente} className="flex items-center gap-2 bg-slate-50 rounded-lg px-4 py-2.5">
-                  <span className="text-sm text-slate-600 capitalize">{fuente}</span>
-                  <span className="text-sm font-semibold text-slate-900">{count}</span>
-                  <span className="text-xs text-slate-400">
-                    ({d.leads.total > 0 ? Math.round((count / d.leads.total) * 100) : 0}%)
-                  </span>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
+      <LeadsBySourceChart 
+        data={d?.leads.por_fuente || {}} 
+        isLoading={isLoading} 
+      />
 
       {/* Leads por país */}
-      {!isLoading && d && Object.keys(d.leads.por_pais).length > 0 && (
-        <div className="bg-white rounded-xl border p-6">
-          <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-4">
-            <Globe size={15} className="text-slate-400" />
-            Leads por país
-          </h2>
-          <div className="flex flex-wrap gap-3">
-            {Object.entries(d.leads.por_pais)
-              .sort(([, a], [, b]) => b - a)
-              .map(([pais, count]) => (
-                <div key={pais} className="flex items-center gap-2 bg-slate-50 rounded-lg px-4 py-2.5">
-                  <span className="text-sm text-slate-600">{pais}</span>
-                  <span className="text-sm font-semibold text-slate-900">{count}</span>
-                  <span className="text-xs text-slate-400">
-                    ({d.leads.total > 0 ? Math.round((count / d.leads.total) * 100) : 0}%)
-                  </span>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
+      <LeadsByCountryChart 
+        data={d?.leads.por_pais || {}} 
+        isLoading={isLoading} 
+      />
 
       {/* Top oportunidades */}
-      {!isLoading && d && d.top_oportunidades.length > 0 && (
-        <div className="bg-white rounded-xl border p-6">
-          <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-4">
-            <Target size={15} className="text-slate-400" />
-            Top 5 oportunidades
-          </h2>
-          <div className="space-y-2">
-            {d.top_oportunidades.map((lead) => {
-              const stageConfig = PIPELINE_STAGE_MAP[lead.estado_pipeline]
-              const valor = lead.valor_propuesta_moneda === 'ARS' && lead.valor_propuesta_ars
-                ? `ARS ${lead.valor_propuesta_ars.toLocaleString('es-AR')}`
-                : lead.valor_propuesta_usd
-                  ? `USD ${lead.valor_propuesta_usd.toLocaleString('en-US')}`
-                  : 'Sin valor'
-              return (
-                <div
-                  key={lead.id}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors"
-                  onClick={() => router.push(`/leads/${lead.id}`)}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate">
-                      {lead.empresa || lead.nombre}
-                    </p>
-                    <p className="text-xs text-slate-500">{stageConfig.label}</p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-semibold text-emerald-600">{valor}</p>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
+      <TopOpportunitiesChart 
+        data={d?.top_oportunidades || []} 
+        isLoading={isLoading} 
+      />
     </div>
   )
 }
