@@ -45,6 +45,22 @@ export async function POST() {
       })
     }
 
+    // Test WhatsApp Business Account permissions
+    const businessTestUrl = `https://graph.facebook.com/v18.0/${phoneNumberId}/owned_whatsapp_business_accounts?fields=name`
+    const businessRes = await fetch(businessTestUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(5_000),
+    })
+
+    if (!businessRes.ok) {
+      const businessError = await businessRes.json() as Record<string, unknown>
+      return NextResponse.json({ 
+        success: false, 
+        error: `Sin permisos de WhatsApp Business: ${(businessError?.error as Record<string, unknown>)?.message ?? 'Business permissions error'}`,
+        debug: { step: 'business_permissions', error: businessError?.error }
+      })
+    }
+
     // Try with v18.0 first (more stable for test numbers)
     let apiUrl = `https://graph.facebook.com/v18.0/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating,name_status`
     
