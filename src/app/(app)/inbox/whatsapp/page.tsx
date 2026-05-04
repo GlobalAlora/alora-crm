@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { MessageCircle } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
@@ -8,7 +8,7 @@ import { ConversationList } from '@/components/whatsapp/ConversationList'
 import { ChatView } from '@/components/whatsapp/ChatView'
 import type { WhatsAppConversation } from '@/types'
 
-export default function WhatsAppInboxPage() {
+function WhatsAppInboxContent() {
   const searchParams = useSearchParams()
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null)
 
@@ -50,6 +50,18 @@ export default function WhatsAppInboxPage() {
         <EmptyState />
       )}
     </div>
+  )
+}
+
+export default function WhatsAppInboxPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-full items-center justify-center bg-slate-50">
+        <div className="text-slate-400">Cargando...</div>
+      </div>
+    }>
+      <WhatsAppInboxContent />
+    </Suspense>
   )
 }
 

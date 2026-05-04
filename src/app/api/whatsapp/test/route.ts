@@ -48,7 +48,7 @@ export async function POST() {
     // Skip business permissions test for now - go directly to phone number test
 
     // Try with v18.0 first (more stable for test numbers)
-    let apiUrl = `https://graph.facebook.com/v18.0/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating,name_status`
+    const apiUrl = `https://graph.facebook.com/v18.0/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating,name_status`
     
     const res = await fetch(apiUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
