@@ -29,6 +29,22 @@ export async function POST() {
 
   // Call Meta Graph API to verify the phone number
   try {
+    // First, let's test the token permissions
+    const tokenTestUrl = `https://graph.facebook.com/v18.0/me?fields=id,name`
+    const tokenRes = await fetch(tokenTestUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(5_000),
+    })
+
+    if (!tokenRes.ok) {
+      const tokenError = await tokenRes.json() as Record<string, unknown>
+      return NextResponse.json({ 
+        success: false, 
+        error: `Token inválido o sin permisos: ${(tokenError?.error as Record<string, unknown>)?.message ?? 'Token error'}`,
+        debug: { step: 'token_validation', error: tokenError?.error }
+      })
+    }
+
     // Try with v18.0 first (more stable for test numbers)
     let apiUrl = `https://graph.facebook.com/v18.0/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating,name_status`
     
