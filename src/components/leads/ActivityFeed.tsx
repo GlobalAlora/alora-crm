@@ -88,7 +88,7 @@ function ActivityItem({ activity, onDelete, onEdit }: {
                 </div>
               </div>
             ) : (
-              <div className="prose prose-sm max-w-none text-slate-700" dangerouslySetInnerHTML={{ __html: activity.descripcion }} />
+              <div className="prose prose-sm max-w-none text-slate-700 overflow-x-hidden break-words" dangerouslySetInnerHTML={{ __html: activity.descripcion }} />
             )}
           </div>
           {!editing && isEditable && (
@@ -173,7 +173,7 @@ export function ActivityFeed({ leadId }: ActivityFeedProps) {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 overflow-x-hidden">
       {/* Add activity form */}
       <form onSubmit={handleSubmit} className="bg-slate-50 rounded-xl p-4 space-y-3">
         <div className="flex gap-2 flex-wrap">
