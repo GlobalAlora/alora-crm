@@ -68,6 +68,20 @@ export async function POST(req: NextRequest, { params }: Params) {
     assignee = lead?.responsable_id ?? user.id
   }
 
+  // Handle vencimiento safely - convert datetime-local to Date
+  let processedVencimiento: string | null = null
+  if (vencimiento) {
+    try {
+      const date = new Date(vencimiento)
+      if (!isNaN(date.getTime())) {
+        processedVencimiento = toArgentinaISOString(date)
+      }
+    } catch (error) {
+      console.error('Error processing vencimiento:', error)
+      // Continue with null vencimiento if date parsing fails
+    }
+  }
+
   const { data, error } = await supabase
     .from('tasks')
     .insert({
@@ -76,7 +90,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       asignado_a: assignee,
       titulo: titulo.trim(),
       descripcion: descripcion ?? null,
-      vencimiento: vencimiento ? toArgentinaISOString(new Date(vencimiento)) : null,
+      vencimiento: processedVencimiento,
     })
     .select()
     .single()
