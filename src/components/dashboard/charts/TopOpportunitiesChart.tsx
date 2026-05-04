@@ -8,9 +8,10 @@ import type { PipelineStage } from '@/types'
 interface Opportunity {
   id: string
   nombre: string
-  apellido: string | null
-  propuestas_total_usd: number
-  propuestas_total_ars: number
+  empresa: string | null
+  valor_propuesta_usd: number | null
+  valor_propuesta_ars: number | null
+  valor_propuesta_moneda: "USD" | "ARS" | null
   estado_pipeline: PipelineStage
 }
 
@@ -60,10 +61,10 @@ export function TopOpportunitiesChart({ data, isLoading }: TopOpportunitiesChart
   }
 
   const chartData = data.slice(0, 5).map((lead) => ({
-    name: `${lead.nombre}${lead.apellido ? ' ' + lead.apellido : ''}`,
-    valor_usd: lead.propuestas_total_usd,
-    valor_ars: lead.propuestas_total_ars,
-    total: lead.propuestas_total_usd + (lead.propuestas_total_ars / 100), // Convert ARS to USD approximation
+    name: lead.empresa || lead.nombre,
+    valor_usd: lead.valor_propuesta_usd || 0,
+    valor_ars: lead.valor_propuesta_ars || 0,
+    total: (lead.valor_propuesta_usd || 0) + ((lead.valor_propuesta_ars || 0) / 100), // Convert ARS to USD approximation
   }))
 
   return (
