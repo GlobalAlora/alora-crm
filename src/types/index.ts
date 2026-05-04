@@ -365,7 +365,7 @@ export const PAISES = [
 ]
 
 export const SERVICIOS = [
-  'Diseño web', 'Mantenimiento web', 'SEO', 'Google Ads', 'Meta Ads',
+  'Diseño web', 'Mantenimiento web', 'WebApp', 'App Mobile', 'SEO', 'Google Ads', 'Meta Ads',
   'Redes sociales', 'Branding', 'Email marketing', 'Chatbot', 'IA automatización', 'Ecommerce', 'Otro',
 ]
 
