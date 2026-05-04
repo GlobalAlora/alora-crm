@@ -8,6 +8,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Lead, Task, Propuesta, User } from '@/types'
 import { cn, timeAgo, hoursSince } from '@/lib/utils'
 import { UserAvatar } from '@/components/shared/UserAvatar'
+import { format, parseISO } from 'date-fns'
+import { es } from 'date-fns/locale'
+
+// Helper function to format important dates
+function formatImportantDate(dateString: string | null): string | null {
+  if (!dateString) return null
+  try {
+    const date = parseISO(dateString)
+    return format(date, "d MMM", { locale: es })
+  } catch {
+    return null
+  }
+}
 
 interface LeadCardProps {
   lead: Lead
@@ -161,6 +174,25 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
         {lead.fuente && (
           <p className="text-xs text-slate-400 truncate capitalize">{lead.fuente}</p>
         )}
+        
+        {/* Fechas importantes */}
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {formatImportantDate(lead.fecha_ingreso) && (
+            <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded" title="Fecha de ingreso">
+              Ingreso: {formatImportantDate(lead.fecha_ingreso)}
+            </span>
+          )}
+          {formatImportantDate(lead.fecha_reunion) && (
+            <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded" title="Fecha de reunión">
+              Reunión: {formatImportantDate(lead.fecha_reunion)}
+            </span>
+          )}
+          {formatImportantDate(lead.fecha_propuesta) && (
+            <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded" title="Fecha de propuesta">
+              Propuesta: {formatImportantDate(lead.fecha_propuesta)}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center justify-between mt-3 gap-2">
