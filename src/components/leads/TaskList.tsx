@@ -31,22 +31,11 @@ export function TaskList({ leadId }: TaskListProps) {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      // Convert datetime-local to ISO with timezone (preserve local time)
-      let processedVencimiento: string | undefined
-      if (vencimiento) {
-        // datetime-local is in local timezone, preserve it
-        const d = new Date(vencimiento)
-        if (!isNaN(d.getTime())) {
-          // Use the local time as-is, convert to ISO preserving the timezone offset
-          const offset = d.getTimezoneOffset() * 60000 // offset in milliseconds
-          const localISOTime = new Date(d.getTime() - offset).toISOString()
-          processedVencimiento = localISOTime
-        }
-      }
+      // Send datetime-local directly, backend will handle timezone conversion
       const response = await fetch(`/api/leads/${leadId}/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ titulo, vencimiento: processedVencimiento })
+        body: JSON.stringify({ titulo, vencimiento })
       })
       if (!response.ok) throw new Error('Failed to create task')
       return response.json()
