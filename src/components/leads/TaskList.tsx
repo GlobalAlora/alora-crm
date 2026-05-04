@@ -24,7 +24,8 @@ export function TaskList({ leadId }: TaskListProps) {
     queryFn: async () => {
       const response = await fetch(`/api/leads/${leadId}/tasks`)
       if (!response.ok) throw new Error('Failed to fetch tasks')
-      return response.json()
+      const result = await response.json()
+      return result.data || []
     },
     staleTime: 0,
   })
@@ -38,7 +39,8 @@ export function TaskList({ leadId }: TaskListProps) {
         body: JSON.stringify({ titulo, vencimiento })
       })
       if (!response.ok) throw new Error('Failed to create task')
-      return response.json()
+      const result = await response.json()
+      return result.data
     },
     onSuccess: () => {
       setTitulo('')
