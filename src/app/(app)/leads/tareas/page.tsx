@@ -192,7 +192,7 @@ export default function TareasPage() {
                 onRescheduleDateChange={setRescheduleDate}
                 onRescheduleTitleChange={setRescheduleTitle}
                 onRescheduleDescriptionChange={setRescheduleDescription}
-                onLeadClick={() => task.lead && router.push(`/leads?lead=${task.lead.id}`)}
+                onLeadClick={() => task.lead && router.push(`/leads/${task.lead.id}`)}
                 isCompleting={completeMutation.isPending}
                 isUncompleting={uncompleteMutation.isPending}
                 isDeleting={deleteMutation.isPending}
