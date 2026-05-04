@@ -81,12 +81,10 @@ body {
   }
 }
 
-/* Desktop: no scroll, wrap columns */
+/* Desktop: no scroll, columns en fila */
 @media (min-width: 768px) {
   .kanban-board {
     overflow: visible;
-    flex-wrap: wrap;
-    align-items: flex-start;
     gap: 1.5rem;
   }
 }
