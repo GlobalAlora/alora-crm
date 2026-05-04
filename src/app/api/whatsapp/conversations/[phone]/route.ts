@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizePhone } from '@/lib/whatsapp'
 
 type Params = { params: Promise<{ phone: string }> }
@@ -9,10 +10,13 @@ type Params = { params: Promise<{ phone: string }> }
 export async function GET(_req: NextRequest, { params }: Params) {
   const { phone } = await params
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+  const admin = createAdminClient()
   const normalized = normalizePhone(phone)
 
-  const { data, error } = await supabase
+  const { data, error } = await admin
     .from('activities')
     .select('*')
     .eq('tipo', 'whatsapp')
@@ -29,7 +33,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { phone } = await params
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+  const admin = createAdminClient()
   const normalized = normalizePhone(phone)
   const body = await req.json() as Record<string, unknown>
 
@@ -41,7 +48,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
   }
 
-  const { error } = await supabase
+  const { error } = await admin
     .from('whatsapp_conversations')
     .update(updates)
     .eq('phone_number', normalized)
