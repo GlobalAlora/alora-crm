@@ -29,28 +29,76 @@ export async function POST() {
 
   // Call Meta Graph API to verify the phone number
   try {
-    const res = await fetch(
-      `https://graph.facebook.com/v19.0/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating`,
-      {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        signal: AbortSignal.timeout(8_000),
-      }
-    )
+    // Try with v18.0 first (more stable for test numbers)
+    let apiUrl = `https://graph.facebook.com/v18.0/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating,name_status`
+    
+    const res = await fetch(apiUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(10_000),
+    })
 
     const json = await res.json() as Record<string, unknown>
 
     if (!res.ok) {
-      const errMsg = (json?.error as Record<string, unknown>)?.message as string
+      const error = json?.error as Record<string, unknown>
+      const errMsg = error?.message as string
         ?? `HTTP ${res.status}`
+      
+      // Add more debugging info
+      const debugInfo = {
+        phone_number_id: phoneNumberId,
+        api_version: 'v18.0',
+        error_code: error?.code,
+        error_type: error?.type,
+        full_error: error
+      }
+
+      // Try with v19.0 as fallback
+      if (res.status === 404) {
+        try {
+          const v19Res = await fetch(
+            `https://graph.facebook.com/v19.0/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating`,
+            {
+              headers: { Authorization: `Bearer ${accessToken}` },
+              signal: AbortSignal.timeout(8_000),
+            }
+          )
+          
+          if (v19Res.ok) {
+            const v19Json = await v19Res.json() as Record<string, unknown>
+            await admin
+              .from('channel_configs')
+              .update({ last_error: null, last_error_at: null })
+              .eq('channel_type', 'whatsapp')
+              .eq('label', 'Principal')
+
+            return NextResponse.json({
+              success: true,
+              phone_number:   v19Json.display_phone_number,
+              verified_name:  v19Json.verified_name,
+              quality_rating: v19Json.quality_rating,
+            })
+          }
+        } catch (fallbackError) {
+          // Continue with original error
+        }
+      }
 
       // Persist error to DB
       await admin
         .from('channel_configs')
-        .update({ last_error: errMsg, last_error_at: new Date().toISOString() })
+        .update({ 
+          last_error: `${errMsg} (Debug: ${JSON.stringify(debugInfo)})`, 
+          last_error_at: new Date().toISOString() 
+        })
         .eq('channel_type', 'whatsapp')
         .eq('label', 'Principal')
 
-      return NextResponse.json({ success: false, error: errMsg })
+      return NextResponse.json({ 
+        success: false, 
+        error: errMsg,
+        debug: debugInfo
+      })
     }
 
     // Clear last_error on success
