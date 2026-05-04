@@ -236,11 +236,16 @@ function TaskRow({
 
   const due = task.vencimiento ? (() => {
     const d = parseISO(task.vencimiento)
-    if (task.completada) return { label: format(d, "d MMM yyyy, HH:mm", { locale: es }), urgent: false }
-    if (isPast(d) && !isToday(d)) return { label: `Vencida · ${format(d, "d MMM", { locale: es })}`, urgent: true }
-    if (isToday(d)) return { label: `Hoy ${format(d, "HH:mm")}`, urgent: true }
-    if (isTomorrow(d)) return { label: `Mañana ${format(d, "HH:mm")}`, urgent: false }
-    return { label: format(d, "d MMM, HH:mm", { locale: es }), urgent: false }
+    const dayName = format(d, "EEEE", { locale: es })
+    const dateStr = format(d, "dd/MM/yyyy", { locale: es })
+    const timeStr = format(d, "HH:mm", { locale: es })
+    const fullDateTime = `${dayName.charAt(0).toUpperCase() + dayName.slice(1)}, ${dateStr} a las ${timeStr}`
+    
+    if (task.completada) return { label: fullDateTime, urgent: false }
+    if (isPast(d) && !isToday(d)) return { label: `Vencida · ${fullDateTime}`, urgent: true }
+    if (isToday(d)) return { label: `Hoy ${timeStr} · ${fullDateTime}`, urgent: true }
+    if (isTomorrow(d)) return { label: `Mañana ${timeStr} · ${fullDateTime}`, urgent: false }
+    return { label: fullDateTime, urgent: false }
   })() : null
 
   const leadName = task.lead
