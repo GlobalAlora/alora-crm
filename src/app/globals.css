@@ -81,11 +81,29 @@ body {
   }
 }
 
-/* Desktop: no scroll, columns en fila */
+/* Desktop: scroll horizontal si no caben todas las columnas */
 @media (min-width: 768px) {
   .kanban-board {
-    overflow: visible;
+    overflow-x: auto;
+    overflow-y: hidden;
     gap: 1.5rem;
+  }
+  
+  .kanban-board::-webkit-scrollbar {
+    height: 8px;
+  }
+  
+  .kanban-board::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .kanban-board::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+  }
+  
+  .kanban-board::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground);
   }
 }
 
