@@ -179,7 +179,7 @@ export function TaskList({ leadId }: TaskListProps) {
       {isLoading && <div className="h-8 bg-slate-100 rounded animate-pulse" />}
 
       <div className="space-y-1.5">
-        {pending.map((task) => (
+        {pending.map((task: Task) => (
           <TaskItem
             key={task.id}
             task={task}
@@ -196,7 +196,7 @@ export function TaskList({ leadId }: TaskListProps) {
             <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide pt-2 pb-1">
               Completadas ({done.length})
             </p>
-            {done.slice(0, 5).map((task) => (
+            {done.slice(0, 5).map((task: Task) => (
               <TaskItem
                 key={task.id}
                 task={task}
