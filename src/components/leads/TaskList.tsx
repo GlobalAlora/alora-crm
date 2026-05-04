@@ -3,12 +3,10 @@
 import { format, isPast, isToday, isTomorrow } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useState } from 'react'
-import { CheckCircle2, Circle, Clock, Calendar, Trash2, Edit2, Check, Plus, X, AlertCircle, Pencil } from 'lucide-react'
+import { Clock, Trash2, Plus, X, AlertCircle, Pencil } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'react-hot-toast'
 import type { Task } from '@/types'
-import { leadsApi } from '@/lib/api'
-import { formatArgentinaDateTime } from '@/lib/timezone'
 import { cn } from '@/lib/utils'
 
 interface TaskListProps {
@@ -23,12 +21,16 @@ export function TaskList({ leadId }: TaskListProps) {
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ['tasks', leadId],
-    queryFn: () => tasksApi.list(leadId),
+    queryFn: async () => {
+      const response = await fetch(`/api/leads/${leadId}/tasks`)
+      if (!response.ok) throw new Error('Failed to fetch tasks')
+      return response.json()
+    },
     staleTime: 0,
   })
 
   const createMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       // Convert datetime-local to ISO with timezone (preserve local time)
       let vencimiento: string | undefined
       if (vencimiento) {
@@ -41,7 +43,13 @@ export function TaskList({ leadId }: TaskListProps) {
           vencimiento = localISOTime
         }
       }
-      return tasksApi.create(leadId, { titulo, vencimiento })
+      const response = await fetch(`/api/leads/${leadId}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ titulo, vencimiento })
+      })
+      if (!response.ok) throw new Error('Failed to create task')
+      return response.json()
     },
     onSuccess: () => {
       setTitulo('')
@@ -50,12 +58,19 @@ export function TaskList({ leadId }: TaskListProps) {
       queryClient.invalidateQueries({ queryKey: ['tasks', leadId] })
       toast.success('Tarea creada')
     },
-    onError: () => toast.error('Error al crear la tarea'),
+    onError: (error: Error) => toast.error(error.message),
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Pick<Task, 'titulo' | 'vencimiento'>> }) =>
-      tasksApi.update(id, data),
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Pick<Task, 'titulo' | 'vencimiento'>> }) => {
+      const response = await fetch(`/api/leads/${leadId}/tasks/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+      if (!response.ok) throw new Error('Failed to update task')
+      return response.json()
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks', leadId] })
       toast.success('Tarea actualizada')
@@ -64,26 +79,43 @@ export function TaskList({ leadId }: TaskListProps) {
   })
 
   const completeMutation = useMutation({
-    mutationFn: (taskId: string) => tasksApi.complete(taskId),
+    mutationFn: async (taskId: string) => {
+      const response = await fetch(`/api/leads/${leadId}/tasks/${taskId}/complete`, {
+        method: 'PATCH'
+      })
+      if (!response.ok) throw new Error('Failed to complete task')
+      return response.json()
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks', leadId] })
-      queryClient.invalidateQueries({ queryKey: ['activities', leadId] })
+      toast.success('Tarea completada')
     },
     onError: () => toast.error('Error al completar la tarea'),
   })
 
   const uncompleteMutation = useMutation({
-    mutationFn: (taskId: string) => tasksApi.update(taskId, { completada: false }),
+    mutationFn: async (taskId: string) => {
+      const response = await fetch(`/api/leads/${leadId}/tasks/${taskId}/uncomplete`, {
+        method: 'PATCH'
+      })
+      if (!response.ok) throw new Error('Failed to uncomplete task')
+      return response.json()
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks', leadId] })
-      queryClient.invalidateQueries({ queryKey: ['activities', leadId] })
-      toast.success('Tarea marcada como pendiente')
+      toast.success('Tarea reabierta')
     },
-    onError: () => toast.error('Error al desmarcar tarea'),
+    onError: () => toast.error('Error al reabrir la tarea'),
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (taskId: string) => tasksApi.remove(taskId),
+    mutationFn: async (taskId: string) => {
+      const response = await fetch(`/api/leads/${leadId}/tasks/${taskId}`, {
+        method: 'DELETE'
+      })
+      if (!response.ok) throw new Error('Failed to delete task')
+      return response.json()
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks', leadId] })
       toast.success('Tarea eliminada')
