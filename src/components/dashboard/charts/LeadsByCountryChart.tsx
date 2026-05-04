@@ -64,27 +64,24 @@ export function LeadsByCountryChart({ data, isLoading }: LeadsByCountryChartProp
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={chartData}
-            layout="horizontal"
-            margin={{ top: 5, right: 30, left: 60, bottom: 5 }}
+            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
             <XAxis 
-              type="number" 
-              tick={{ fontSize: 11 }}
+              dataKey="country"
+              tick={{ fontSize: 11, angle: -45, textAnchor: 'end' }}
+              height={80}
               stroke="#64748b"
             />
             <YAxis 
-              type="category" 
-              dataKey="country"
               tick={{ fontSize: 11 }}
-              width={55}
               stroke="#64748b"
             />
             <Tooltip content={<CustomTooltip />} />
             <Bar 
               dataKey="leads" 
               fill="#3b82f6"
-              radius={[0, 4, 4, 0]}
+              radius={[4, 4, 0, 0]}
             />
           </BarChart>
         </ResponsiveContainer>
