@@ -146,7 +146,14 @@ export function TaskList({ leadId }: TaskListProps) {
               type="datetime-local"
               value={vencimiento}
               onChange={(e) => setVencimiento(e.target.value)}
+              step="60"
+              min=""
               className="w-full text-sm border rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-600"
+              style={{ 
+                colorScheme: 'light',
+                fontSize: '14px',
+                padding: '6px 8px'
+              }}
             />
           </label>
           <div className="flex gap-2">
