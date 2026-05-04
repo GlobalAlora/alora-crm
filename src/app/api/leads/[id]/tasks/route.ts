@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { toArgentinaISOString } from '@/lib/timezone'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       asignado_a: assignee,
       titulo: titulo.trim(),
       descripcion: descripcion ?? null,
-      vencimiento: vencimiento ?? null,
+      vencimiento: vencimiento ? toArgentinaISOString(new Date(vencimiento)) : null,
     })
     .select()
     .single()

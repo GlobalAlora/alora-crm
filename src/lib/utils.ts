@@ -23,6 +23,8 @@ export function formatARS(amount: number): string {
   }).format(amount)
 }
 
+import { formatArgentinaDate, formatArgentinaDateTime } from './timezone'
+
 export function timeAgo(dateString: string): string {
   try {
     return formatDistanceToNow(new Date(dateString), { addSuffix: true, locale: es })
@@ -33,11 +35,7 @@ export function timeAgo(dateString: string): string {
 
 export function formatDate(dateString: string): string {
   try {
-    return new Date(dateString).toLocaleDateString('es-AR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    })
+    return formatArgentinaDate(dateString)
   } catch {
     return ''
   }
@@ -45,13 +43,7 @@ export function formatDate(dateString: string): string {
 
 export function formatDateTime(dateString: string): string {
   try {
-    return new Date(dateString).toLocaleString('es-AR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    return formatArgentinaDateTime(dateString)
   } catch {
     return ''
   }

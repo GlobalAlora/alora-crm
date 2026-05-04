@@ -1,13 +1,14 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
-import { Plus, AlertCircle, Trash2, Pencil, Check, X, Clock } from 'lucide-react'
 import { format, isPast, isToday, isTomorrow } from 'date-fns'
 import { es } from 'date-fns/locale'
-import toast from 'react-hot-toast'
+import { useState } from 'react'
+import { CheckCircle2, Circle, Clock, Calendar, Trash2, Edit2, Check, Plus, X, AlertCircle, Pencil } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'react-hot-toast'
 import type { Task } from '@/types'
-import { tasksApi } from '@/lib/api'
+import { leadsApi } from '@/lib/api'
+import { formatArgentinaDateTime } from '@/lib/timezone'
 import { cn } from '@/lib/utils'
 
 interface TaskListProps {
@@ -188,17 +189,20 @@ export function TaskList({ leadId }: TaskListProps) {
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function formatDueDate(date: string): { label: string; urgent: boolean } {
+  // Convertir fecha a timezone de Argentina para comparación
   const d = new Date(date)
+  const argentinaDate = new Date(d.toLocaleString("en-US", { timeZone: 'America/Argentina/Buenos_Aires' }))
+  
   // Check if the time is not midnight (00:00) to determine if it has a specific time
   const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0
   const timeStr = hasTime ? ` ${format(d, 'HH:mm')}` : ''
 
-  if (isPast(d) && !isToday(d)) {
-    return { label: `Vencida · ${format(d, "d MMM yyyy", { locale: es })}${timeStr}`, urgent: true }
+  if (isPast(argentinaDate) && !isToday(argentinaDate)) {
+    return { label: `Vencida · ${format(argentinaDate, "d MMM yyyy", { locale: es })}${timeStr}`, urgent: true }
   }
-  if (isToday(d)) return { label: `Hoy${timeStr}`, urgent: true }
-  if (isTomorrow(d)) return { label: `Mañana${timeStr}`, urgent: false }
-  return { label: `${format(d, "d 'de' MMMM yyyy", { locale: es })}${timeStr}`, urgent: false }
+  if (isToday(argentinaDate)) return { label: `Hoy${timeStr}`, urgent: true }
+  if (isTomorrow(argentinaDate)) return { label: `Mañana${timeStr}`, urgent: false }
+  return { label: `${format(argentinaDate, "d 'de' MMMM yyyy", { locale: es })}${timeStr}`, urgent: false }
 }
 
 // Convert ISO date to datetime-local input value (YYYY-MM-DDTHH:mm)

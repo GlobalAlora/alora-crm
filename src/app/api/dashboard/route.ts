@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getArgentinaDate, toArgentinaISOString } from '@/lib/timezone'
 import { REVENUE_PROBABILITY } from '@/types'
 import type { PipelineStage } from '@/types'
 
@@ -15,8 +17,9 @@ export async function GET(req: NextRequest) {
 
   const sp = req.nextUrl.searchParams
   const responsableId = sp.get('responsable_id')
-  const fechaDesde = sp.get('fecha_desde') ?? new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-  const fechaHasta = sp.get('fecha_hasta') ?? new Date().toISOString()
+  const now = getArgentinaDate()
+  const fechaDesde = sp.get('fecha_desde') ?? new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const fechaHasta = sp.get('fecha_hasta') ?? toArgentinaISOString(now)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function applyFilters(query: any) {
@@ -25,10 +28,10 @@ export async function GET(req: NextRequest) {
     return q
   }
 
-  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-  const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  const twentyFourHoursAgo = toArgentinaISOString(new Date(now.getTime() - 24 * 60 * 60 * 1000))
+  const threeDaysAgo = toArgentinaISOString(new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000))
+  const sevenDaysAgo = toArgentinaISOString(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000))
+  const oneHourAgo = toArgentinaISOString(new Date(now.getTime() - 60 * 60 * 1000))
 
   // Run all independent queries in parallel
   const [
