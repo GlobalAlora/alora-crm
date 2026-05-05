@@ -18,9 +18,17 @@ export function KanbanColumn({ stage, leads, onLeadClick, isOver }: KanbanColumn
   const config = PIPELINE_STAGE_MAP[stage]
   const { setNodeRef } = useDroppable({ id: stage })
 
-  // Calculate totals (use propuestas totals if available, fallback to legacy fields)
-  const totalUSD = leads.reduce((sum, lead) => sum + (lead.propuestas_total_usd || lead.valor_propuesta_usd || 0), 0)
-  const totalARS = leads.reduce((sum, lead) => sum + (lead.propuestas_total_ars || lead.valor_propuesta_ars || 0), 0)
+  // Use propuestas system when the lead has propuestas; fall back to legacy fields only when there are none.
+  // Avoid || because propuestas_total_usd/ars can legitimately be 0 (e.g. ARS-only deal has total_usd=0),
+  // and 0 || legacyValue would incorrectly pick up a stale legacy number.
+  const totalUSD = leads.reduce((sum, lead) => {
+    const usesNewSystem = (lead.propuestas_count ?? 0) > 0
+    return sum + (usesNewSystem ? (lead.propuestas_total_usd ?? 0) : (lead.valor_propuesta_usd ?? 0))
+  }, 0)
+  const totalARS = leads.reduce((sum, lead) => {
+    const usesNewSystem = (lead.propuestas_count ?? 0) > 0
+    return sum + (usesNewSystem ? (lead.propuestas_total_ars ?? 0) : (lead.valor_propuesta_ars ?? 0))
+  }, 0)
 
   const formatUSD = (val: number) => {
     if (val === 0) return '$0'
