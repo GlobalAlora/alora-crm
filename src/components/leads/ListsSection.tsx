@@ -21,26 +21,14 @@ export function ListsSection({ leadId, readOnly = false }: ListsSectionProps) {
     queryFn: () => fetch('/api/lists').then((r) => r.json()),
   })
 
-  // Lists this lead belongs to (derive from all lists by checking if lead is in each)
-  const { data: leadListsData } = useQuery<{ data: { list_id: string; list: LeadList }[] }>({
+  // Lists this lead belongs to
+  const { data: leadListsData } = useQuery<{ data: LeadList[] }>({
     queryKey: ['lead-lists', leadId],
-    queryFn: async () => {
-      const res = await fetch('/api/lists')
-      const { data: lists }: { data: LeadList[] } = await res.json()
-      // For each list, check if lead is in it via the list-leads endpoint
-      // Simpler: query a dedicated endpoint
-      const memberRes = await fetch(`/api/leads/${leadId}/lists`)
-      if (memberRes.ok) {
-        const json = await memberRes.json()
-        return json
-      }
-      return { data: [] }
-    },
+    queryFn: () => fetch(`/api/leads/${leadId}/lists`).then((r) => r.json()),
   })
 
   const allLists = allListsData?.data ?? []
-  const leadListMemberships = leadListsData?.data ?? []
-  const leadLists: LeadList[] = leadListMemberships.map((m) => m.list)
+  const leadLists: LeadList[] = leadListsData?.data ?? []
   const leadListIds = new Set(leadLists.map((l) => l.id))
   const availableLists = allLists.filter((l) => !leadListIds.has(l.id))
 

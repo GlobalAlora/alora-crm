@@ -14,6 +14,17 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function interpolate(
+  template: string,
+  lead: { nombre: string; apellido: string | null; email: string | null; empresa?: string | null }
+): string {
+  const nombre = [lead.nombre, lead.apellido].filter(Boolean).join(' ')
+  return template
+    .replace(/\{\{nombre\}\}/gi, nombre)
+    .replace(/\{\{email\}\}/gi, lead.email ?? '')
+    .replace(/\{\{empresa\}\}/gi, lead.empresa ?? '')
+}
+
 export async function POST(_req: NextRequest, { params }: Params) {
   const { id } = await params
   const supabase = await createClient()
@@ -21,7 +32,6 @@ export async function POST(_req: NextRequest, { params }: Params) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  // Load campaign
   const { data: campaign, error: campaignError } = await supabase
     .from('campaigns')
     .select('*')
@@ -40,7 +50,6 @@ export async function POST(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'RESEND_API_KEY no configurado' }, { status: 500 })
   }
 
-  // Resolve recipients
   const adminSupabase = createAdminClient()
   const filters: SegmentFilters = campaign.filters ?? {}
   const leads = await getLeadsByFilters(adminSupabase, filters)
@@ -51,13 +60,11 @@ export async function POST(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'No hay destinatarios con email en el segmento' }, { status: 400 })
   }
 
-  // Mark campaign as sending
   await supabase
     .from('campaigns')
     .update({ status: 'sending', updated_at: new Date().toISOString() })
     .eq('id', id)
 
-  // Insert pending recipients (deduplicated)
   const recipientRows = leadsWithEmail.map((l) => ({
     campaign_id: id,
     lead_id: l.id,
@@ -69,10 +76,8 @@ export async function POST(_req: NextRequest, { params }: Params) {
     .from('campaign_recipients')
     .upsert(recipientRows, { onConflict: 'campaign_id,lead_id', ignoreDuplicates: true })
 
-  // Send in background — respond immediately to avoid Vercel timeout
-  sendEmails(id, campaign, leadsWithEmail).catch(() => {
-    // Error handling done inside sendEmails
-  })
+  // Fire-and-forget — respond immediately to avoid Vercel timeout
+  sendEmails(id, campaign, leadsWithEmail, user.id).catch(() => {})
 
   return NextResponse.json({
     success: true,
@@ -83,34 +88,54 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
 async function sendEmails(
   campaignId: string,
-  campaign: { subject: string; body: string; from_name: string; from_email: string },
-  leads: { id: string; nombre: string; apellido: string | null; email: string | null }[]
+  campaign: { subject: string; body: string; from_name: string; from_email: string; name: string },
+  leads: { id: string; nombre: string; apellido: string | null; email: string | null; empresa?: string | null }[],
+  userId: string
 ) {
   const resend = new Resend(process.env.RESEND_API_KEY)
   const adminSupabase = createAdminClient()
 
   let totalSent = 0
   let totalFailed = 0
+  const now = new Date().toISOString()
 
-  // Send in batches
   for (let i = 0; i < leads.length; i += BATCH_SIZE) {
     const batch = leads.slice(i, i + BATCH_SIZE)
 
     await Promise.all(
       batch.map(async (lead) => {
+        // Substitute template variables per recipient
+        const html = interpolate(campaign.body, lead)
+        const subject = interpolate(campaign.subject, lead)
+
         try {
           await resend.emails.send({
             from: `${campaign.from_name} <${campaign.from_email}>`,
             to: [lead.email!],
-            subject: campaign.subject,
-            html: campaign.body,
+            subject,
+            html,
           })
 
           await adminSupabase
             .from('campaign_recipients')
-            .update({ status: 'sent', sent_at: new Date().toISOString(), error: null })
+            .update({ status: 'sent', sent_at: now, error: null })
             .eq('campaign_id', campaignId)
             .eq('lead_id', lead.id)
+
+          // Log activity on lead
+          await adminSupabase.from('activities').insert({
+            lead_id: lead.id,
+            user_id: userId,
+            tipo: 'email',
+            descripcion: `Email enviado: ${campaign.subject}`,
+            metadata: {
+              direction: 'outbound',
+              campaign_id: campaignId,
+              campaign_name: campaign.name,
+              subject: campaign.subject,
+              to: lead.email,
+            },
+          })
 
           totalSent++
         } catch (err) {
@@ -127,21 +152,19 @@ async function sendEmails(
       })
     )
 
-    // Delay between batches (rate limiting)
     if (i + BATCH_SIZE < leads.length) {
       await sleep(BATCH_DELAY_MS)
     }
   }
 
-  // Mark campaign as sent
   await adminSupabase
     .from('campaigns')
     .update({
       status: totalFailed === leads.length ? 'failed' : 'sent',
       total_sent: totalSent,
       total_failed: totalFailed,
-      sent_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      sent_at: now,
+      updated_at: now,
     })
     .eq('id', campaignId)
 }

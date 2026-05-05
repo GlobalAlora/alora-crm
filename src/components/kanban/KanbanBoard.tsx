@@ -52,6 +52,14 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
     const el = scrollRef.current
     if (!el) return
     const handler = (e: WheelEvent) => {
+      // Check if scrolling inside a column (kanban-cards)
+      const target = e.target as HTMLElement
+      const isInsideColumn = target.closest('.kanban-cards')
+      
+      // Allow natural vertical scroll inside columns
+      if (isInsideColumn) return
+      
+      // Convert vertical to horizontal for the main board
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return // natural trackpad horizontal
       if (e.deltaY === 0) return
       e.preventDefault()
