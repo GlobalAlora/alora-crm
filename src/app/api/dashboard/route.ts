@@ -129,8 +129,11 @@ export async function GET(req: NextRequest) {
   for (const lead of leads) {
     const stage = lead.estado_pipeline as PipelineStage
     porEtapaCount[stage] = (porEtapaCount[stage] ?? 0) + 1
-    porEtapaValueUSD[stage] = (porEtapaValueUSD[stage] ?? 0) + (lead.valor_propuesta_usd ?? 0)
-    porEtapaValueARS[stage] = (porEtapaValueARS[stage] ?? 0) + (lead.valor_propuesta_ars ?? 0)
+    if (lead.valor_propuesta_moneda === 'ARS') {
+      porEtapaValueARS[stage] = (porEtapaValueARS[stage] ?? 0) + (lead.valor_propuesta_ars ?? 0)
+    } else {
+      porEtapaValueUSD[stage] = (porEtapaValueUSD[stage] ?? 0) + (lead.valor_propuesta_usd ?? 0)
+    }
 
     // Por país
     const pais = lead.pais ?? 'Sin país'
@@ -141,8 +144,11 @@ export async function GET(req: NextRequest) {
       if (!revenuePorResponsable[lead.responsable_id]) {
         revenuePorResponsable[lead.responsable_id] = { usd: 0, ars: 0 }
       }
-      revenuePorResponsable[lead.responsable_id].usd += lead.valor_propuesta_usd ?? 0
-      revenuePorResponsable[lead.responsable_id].ars += lead.valor_propuesta_ars ?? 0
+      if (lead.valor_propuesta_moneda === 'ARS') {
+        revenuePorResponsable[lead.responsable_id].ars += lead.valor_propuesta_ars ?? 0
+      } else {
+        revenuePorResponsable[lead.responsable_id].usd += lead.valor_propuesta_usd ?? 0
+      }
     }
   }
 
@@ -190,8 +196,8 @@ export async function GET(req: NextRequest) {
   const forecastAccum = { d7: 0, d30: 0, d90: 0 }
 
   for (const lead of leads) {
-    const valUsd = lead.valor_propuesta_usd ?? 0
-    const valArs = lead.valor_propuesta_ars ?? 0
+    const valUsd = lead.valor_propuesta_moneda === 'ARS' ? 0 : (lead.valor_propuesta_usd ?? 0)
+    const valArs = lead.valor_propuesta_moneda === 'ARS' ? (lead.valor_propuesta_ars ?? 0) : 0
     const prob = REVENUE_PROBABILITY[lead.estado_pipeline as PipelineStage] ?? 0
     const weightedUsd = valUsd * prob
     const weightedArs = valArs * prob
@@ -310,9 +316,9 @@ export async function GET(req: NextRequest) {
   const topOportunidades = ((topOportunidadesRaw as unknown as RawLeadWithPropuestas[]) ?? [])
     .map((lead) => {
       const propuestas = lead.propuestas ?? []
-      const totalUSD = propuestas.reduce((sum, p) => sum + (p.valor_usd ?? 0), 0)
-      const totalARS = propuestas.reduce((sum, p) => sum + (p.valor_ars ?? 0), 0)
-      const hasUSD = propuestas.some((p) => p.moneda === 'USD' && (p.valor_usd ?? 0) > 0)
+      const totalUSD = propuestas.reduce((sum, p) => sum + (p.moneda === 'USD' ? (p.valor_usd ?? 0) : 0), 0)
+      const totalARS = propuestas.reduce((sum, p) => sum + (p.moneda === 'ARS' ? (p.valor_ars ?? 0) : 0), 0)
+      const hasUSD = totalUSD > 0
 
       return {
         id: lead.id,
