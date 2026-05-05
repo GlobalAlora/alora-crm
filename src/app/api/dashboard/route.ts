@@ -374,7 +374,7 @@ export async function GET(req: NextRequest) {
         leads_calientes: Array.isArray(leadsCalientesLeads) ? leadsCalientesLeads.length : 0,
         leads_calientes_leads: Array.isArray(leadsCalientesLeads) ? leadsCalientesLeads.map((l: { id: string; nombre: string; apellido: string | null }) => ({ id: l.id, nombre: [l.nombre, l.apellido].filter(Boolean).join(' ') })) : [],
       },
-      top_responsables: topResponsibles,
+      top_responsables: topResponsables,
       actividad_reciente: actividadReciente,
       ultimos_leads: ultimosLeadsRaw ?? [],
       top_oportunidades: topOportunidades,
