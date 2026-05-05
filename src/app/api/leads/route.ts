@@ -75,8 +75,8 @@ export async function GET(req: NextRequest) {
   // Calculate proposal totals for each lead
   const dataWithTotals = (data ?? []).map((lead: any) => {
     const propuestas = lead.propuestas || []
-    const propuestas_total_usd = propuestas.reduce((sum: number, p: any) => sum + (p.valor_usd || 0), 0)
-    const propuestas_total_ars = propuestas.reduce((sum: number, p: any) => sum + (p.valor_ars || 0), 0)
+    const propuestas_total_usd = propuestas.reduce((sum: number, p: any) => sum + (p.moneda === 'USD' ? (p.valor_usd || 0) : 0), 0)
+    const propuestas_total_ars = propuestas.reduce((sum: number, p: any) => sum + (p.moneda === 'ARS' ? (p.valor_ars || 0) : 0), 0)
     const propuestas_count = propuestas.length
 
     // Remove propuestas from response to avoid circular structure

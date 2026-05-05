@@ -31,13 +31,13 @@ export function KanbanColumn({ stage, leads, onLeadClick, isOver }: KanbanColumn
   }, 0)
 
   const formatUSD = (val: number) => {
-    if (val === 0) return '$0'
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(val)
+    if (val === 0) return 'USD 0'
+    return `USD ${new Intl.NumberFormat('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val)}`
   }
 
   const formatARS = (val: number) => {
     if (val === 0) return 'ARS 0'
-    return `ARS ${val.toLocaleString('es-AR')}`
+    return `ARS ${new Intl.NumberFormat('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val)}`
   }
 
   return (

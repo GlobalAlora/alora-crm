@@ -56,8 +56,9 @@ function usePropuestasSummary(leadId: string) {
   })
   const propuestas = data?.data ?? []
   const count = propuestas.length
-  const totalUSD = propuestas.reduce((sum, p) => sum + (p.valor_usd || 0), 0)
-  const totalARS = propuestas.reduce((sum, p) => sum + (p.valor_ars || 0), 0)
+  // Only count the value for the propuesta's declared moneda to avoid cross-currency double-counting
+  const totalUSD = propuestas.reduce((sum, p) => sum + (p.moneda === 'USD' ? (p.valor_usd || 0) : 0), 0)
+  const totalARS = propuestas.reduce((sum, p) => sum + (p.moneda === 'ARS' ? (p.valor_ars || 0) : 0), 0)
   return { count, totalUSD, totalARS }
 }
 
@@ -123,7 +124,7 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
     if (lead.valor_propuesta_moneda === 'ARS' && lead.valor_propuesta_ars != null)
       return `ARS ${lead.valor_propuesta_ars.toLocaleString('es-AR')}`
     if (lead.valor_propuesta_usd != null) {
-      return `USD ${lead.valor_propuesta_usd.toLocaleString('en-US')}`
+      return `USD ${lead.valor_propuesta_usd.toLocaleString('es-AR')}`
     }
     return null
   })()
@@ -207,7 +208,7 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
               title={`${propuestasSummary.count} propuesta${propuestasSummary.count > 1 ? 's' : ''}`}
             >
               {propuestasSummary.totalUSD > 0
-                ? `USD ${propuestasSummary.totalUSD.toLocaleString('en-US')}`
+                ? `USD ${propuestasSummary.totalUSD.toLocaleString('es-AR')}`
                 : propuestasSummary.totalARS > 0
                   ? `ARS ${propuestasSummary.totalARS.toLocaleString('es-AR')}`
                   : propuestasSummary.count}
