@@ -380,7 +380,7 @@ export async function GET(req: NextRequest) {
       top_oportunidades: topOportunidades,
     },
   })
-} catch (error) {
+  } catch (error) {
   console.error('Error in dashboard API:', error)
   return NextResponse.json(
     { error: error instanceof Error ? error.message : 'Error interno del servidor' },
