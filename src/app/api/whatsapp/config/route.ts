@@ -31,9 +31,9 @@ export async function GET() {
   const envToken   = process.env.WHATSAPP_ACCESS_TOKEN
   const envVerify  = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'http://localhost:3000'
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
 
   const webhookUrl = `${appUrl}/api/webhooks/whatsapp`
 

@@ -2,6 +2,43 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+// Meta Graph API versions to try (newest first)
+const API_VERSIONS = ['v19.0', 'v18.0']
+
+async function fetchPhoneNumber(
+  phoneNumberId: string,
+  accessToken: string,
+): Promise<{ ok: boolean; json: Record<string, unknown>; status: number }> {
+  for (const version of API_VERSIONS) {
+    const url = `https://graph.facebook.com/${version}/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating`
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(10_000),
+    })
+    const json = await res.json() as Record<string, unknown>
+    if (res.ok) return { ok: true, json, status: res.status }
+    // Only retry on 404 (wrong API version)
+    if (res.status !== 404) return { ok: false, json, status: res.status }
+  }
+  return { ok: false, json: {}, status: 404 }
+}
+
+async function persistError(admin: ReturnType<typeof createAdminClient>, msg: string) {
+  await admin
+    .from('channel_configs')
+    .update({ last_error: msg, last_error_at: new Date().toISOString() })
+    .eq('channel_type', 'whatsapp')
+    .eq('label', 'Principal')
+}
+
+async function clearError(admin: ReturnType<typeof createAdminClient>) {
+  await admin
+    .from('channel_configs')
+    .update({ last_error: null, last_error_at: null })
+    .eq('channel_type', 'whatsapp')
+    .eq('label', 'Principal')
+}
+
 export async function POST() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -22,119 +59,42 @@ export async function POST() {
   if (!accessToken) {
     return NextResponse.json({ success: false, error: 'Token de acceso no configurado' }, { status: 400 })
   }
-
   if (!phoneNumberId) {
     return NextResponse.json({ success: false, error: 'Phone Number ID no configurado' }, { status: 400 })
   }
 
-  // Call Meta Graph API to verify the phone number
   try {
-    // First, let's test the token permissions
-    const tokenTestUrl = `https://graph.facebook.com/v18.0/me?fields=id,name`
-    const tokenRes = await fetch(tokenTestUrl, {
+    // ── 1. Validate token ────────────────────────────────────────────────────
+    const tokenRes = await fetch('https://graph.facebook.com/v19.0/me?fields=id,name', {
       headers: { Authorization: `Bearer ${accessToken}` },
       signal: AbortSignal.timeout(5_000),
     })
 
     if (!tokenRes.ok) {
-      const tokenError = await tokenRes.json() as Record<string, unknown>
-      return NextResponse.json({ 
-        success: false, 
-        error: `Token inválido o sin permisos: ${(tokenError?.error as Record<string, unknown>)?.message ?? 'Token error'}`,
-        debug: { step: 'token_validation', error: tokenError?.error }
-      })
+      const tokenErr = await tokenRes.json() as Record<string, unknown>
+      const errMsg = (tokenErr?.error as Record<string, unknown>)?.message as string ?? 'Token inválido'
+      await persistError(admin, errMsg)
+      return NextResponse.json({ success: false, error: `Token inválido o sin permisos: ${errMsg}` })
     }
 
-    // Skip business permissions test for now - go directly to phone number test
+    // ── 2. Fetch phone number details ────────────────────────────────────────
+    const { ok, json, status } = await fetchPhoneNumber(phoneNumberId, accessToken)
 
-    // Try with v18.0 first (more stable for test numbers)
-    const apiUrl = `https://graph.facebook.com/v18.0/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating,name_status`
-    
-    const res = await fetch(apiUrl, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      signal: AbortSignal.timeout(10_000),
-    })
-
-    const json = await res.json() as Record<string, unknown>
-
-    if (!res.ok) {
-      const error = json?.error as Record<string, unknown>
-      const errMsg = error?.message as string
-        ?? `HTTP ${res.status}`
-      
-      // Add more debugging info
-      const debugInfo = {
-        phone_number_id: phoneNumberId,
-        api_version: 'v18.0',
-        error_code: error?.code,
-        error_type: error?.type,
-        full_error: error
-      }
-
-      // Try with v19.0 as fallback
-      if (res.status === 404) {
-        try {
-          const v19Res = await fetch(
-            `https://graph.facebook.com/v19.0/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating`,
-            {
-              headers: { Authorization: `Bearer ${accessToken}` },
-              signal: AbortSignal.timeout(8_000),
-            }
-          )
-          
-          if (v19Res.ok) {
-            const v19Json = await v19Res.json() as Record<string, unknown>
-            await admin
-              .from('channel_configs')
-              .update({ last_error: null, last_error_at: null })
-              .eq('channel_type', 'whatsapp')
-              .eq('label', 'Principal')
-
-            return NextResponse.json({
-              success: true,
-              phone_number:   v19Json.display_phone_number,
-              verified_name:  v19Json.verified_name,
-              quality_rating: v19Json.quality_rating,
-            })
-          }
-        } catch (fallbackError) {
-          // Continue with original error
-        }
-      }
-
-      // Persist error to DB
-      await admin
-        .from('channel_configs')
-        .update({ 
-          last_error: `${errMsg} (Debug: ${JSON.stringify(debugInfo)})`, 
-          last_error_at: new Date().toISOString() 
-        })
-        .eq('channel_type', 'whatsapp')
-        .eq('label', 'Principal')
-
-      return NextResponse.json({ 
-        success: false, 
-        error: errMsg,
-        debug: debugInfo
-      })
+    if (!ok) {
+      const error  = json?.error as Record<string, unknown> | undefined
+      const errMsg = error?.message as string ?? `HTTP ${status}`
+      await persistError(admin, errMsg)
+      return NextResponse.json({ success: false, error: errMsg })
     }
 
-    // Clear last_error on success
-    await admin
-      .from('channel_configs')
-      .update({ last_error: null, last_error_at: null })
-      .eq('channel_type', 'whatsapp')
-      .eq('label', 'Principal')
-
-    const result = {
-      success: true,
+    // ── 3. Success ────────────────────────────────────────────────────────────
+    await clearError(admin)
+    return NextResponse.json({
+      success:        true,
       phone_number:   json.display_phone_number,
       verified_name:  json.verified_name,
       quality_rating: json.quality_rating,
-    }
-    
-    console.log('WhatsApp test successful:', result)
-    return NextResponse.json(result)
+    })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Error de red al contactar Meta'
     return NextResponse.json({ success: false, error: msg })
