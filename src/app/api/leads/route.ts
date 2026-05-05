@@ -158,7 +158,10 @@ export async function POST(req: NextRequest) {
     .select('*, responsable:users!responsable_id(id, full_name, avatar_url)')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('Error creating lead:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   // Si hay notas, crear una actividad de tipo "nota"
   if (body.notas && typeof body.notas === 'string' && body.notas.trim()) {

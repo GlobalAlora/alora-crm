@@ -13,39 +13,40 @@ const FORECAST_MIN_PROB: Record<'d7' | 'd30' | 'd90', number> = {
 }
 
 export async function GET(req: NextRequest) {
-  const supabase = await createClient()
+  try {
+    const supabase = await createClient()
 
-  const sp = req.nextUrl.searchParams
-  const responsableId = sp.get('responsable_id')
-  const now = getArgentinaDate()
-  const fechaDesde = sp.get('fecha_desde') ?? new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const fechaHasta = sp.get('fecha_hasta') ?? toArgentinaISOString(now)
+    const sp = req.nextUrl.searchParams
+    const responsableId = sp.get('responsable_id')
+    const now = getArgentinaDate()
+    const fechaDesde = sp.get('fecha_desde') ?? new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+    const fechaHasta = sp.get('fecha_hasta') ?? toArgentinaISOString(now)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function applyFilters(query: any) {
-    let q = query.is('deleted_at', null)
-    if (responsableId) q = q.eq('responsable_id', responsableId)
-    return q
-  }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function applyFilters(query: any) {
+      let q = query.is('deleted_at', null)
+      if (responsableId) q = q.eq('responsable_id', responsableId)
+      return q
+    }
 
-  const twentyFourHoursAgo = toArgentinaISOString(new Date(now.getTime() - 24 * 60 * 60 * 1000))
-  const threeDaysAgo = toArgentinaISOString(new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000))
-  const sevenDaysAgo = toArgentinaISOString(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000))
-  const oneHourAgo = toArgentinaISOString(new Date(now.getTime() - 60 * 60 * 1000))
+    const twentyFourHoursAgo = toArgentinaISOString(new Date(now.getTime() - 24 * 60 * 60 * 1000))
+    const threeDaysAgo = toArgentinaISOString(new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000))
+    const sevenDaysAgo = toArgentinaISOString(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000))
+    const oneHourAgo = toArgentinaISOString(new Date(now.getTime() - 60 * 60 * 1000))
 
-  // Run all independent queries in parallel
-  const [
-    { data: allLeads },
-    { data: sinRespuestaLeads },
-    { count: tareasVencidas },
-    { data: leadsInactivosLeads },
-    { data: leadsEstancadosLeads },
-    { data: leadsCalientesLeads },
-    { data: responsablesRaw },
-    { data: actividadRaw },
-    { data: ultimosLeadsRaw },
-    { data: topOportunidadesRaw },
-  ] = await Promise.all([
+    // Run all independent queries in parallel with error handling
+    const [
+      allLeadsResult,
+      sinRespuestaLeadsResult,
+      tareasVencidasResult,
+      leadsInactivosLeadsResult,
+      leadsEstancadosLeadsResult,
+      leadsCalientesLeadsResult,
+      responsablesRawResult,
+      actividadRawResult,
+      ultimosLeadsRawResult,
+      topOportunidadesRawResult,
+    ] = await Promise.allSettled([
     applyFilters(
       supabase.from('leads').select('estado_pipeline, fuente, fecha_ingreso, valor_propuesta_usd, valor_propuesta_ars, valor_propuesta_moneda, pais, responsable_id, created_at, stage_updated_at, last_activity_at')
     ),
@@ -99,6 +100,18 @@ export async function GET(req: NextRequest) {
         .limit(50)
     ),
   ])
+
+  // Extract data safely from Promise.allSettled results
+  const allLeads = allLeadsResult.status === 'fulfilled' ? allLeadsResult.value.data : []
+  const sinRespuestaLeads = sinRespuestaLeadsResult.status === 'fulfilled' ? sinRespuestaLeadsResult.value.data : []
+  const tareasVencidas = tareasVencidasResult.status === 'fulfilled' ? tareasVencidasResult.value.count : 0
+  const leadsInactivosLeads = leadsInactivosLeadsResult.status === 'fulfilled' ? leadsInactivosLeadsResult.value.data : []
+  const leadsEstancadosLeads = leadsEstancadosLeadsResult.status === 'fulfilled' ? leadsEstancadosLeadsResult.value.data : []
+  const leadsCalientesLeads = leadsCalientesLeadsResult.status === 'fulfilled' ? leadsCalientesLeadsResult.value.data : []
+  const responsablesRaw = responsablesRawResult.status === 'fulfilled' ? responsablesRawResult.value.data : []
+  const actividadRaw = actividadRawResult.status === 'fulfilled' ? actividadRawResult.value.data : []
+  const ultimosLeadsRaw = ultimosLeadsRawResult.status === 'fulfilled' ? ultimosLeadsRawResult.value.data : []
+  const topOportunidadesRaw = topOportunidadesRawResult.status === 'fulfilled' ? topOportunidadesRawResult.value.data : []
 
   const leads = allLeads ?? []
 
@@ -361,10 +374,16 @@ export async function GET(req: NextRequest) {
         leads_calientes: Array.isArray(leadsCalientesLeads) ? leadsCalientesLeads.length : 0,
         leads_calientes_leads: Array.isArray(leadsCalientesLeads) ? leadsCalientesLeads.map((l: { id: string; nombre: string; apellido: string | null }) => ({ id: l.id, nombre: [l.nombre, l.apellido].filter(Boolean).join(' ') })) : [],
       },
-      top_responsables: topResponsables,
+      top_responsables: topResponsibles,
       actividad_reciente: actividadReciente,
       ultimos_leads: ultimosLeadsRaw ?? [],
       top_oportunidades: topOportunidades,
     },
   })
+} catch (error) {
+  console.error('Error in dashboard API:', error)
+  return NextResponse.json(
+    { error: error instanceof Error ? error.message : 'Error interno del servidor' },
+    { status: 500 }
+  )
 }
