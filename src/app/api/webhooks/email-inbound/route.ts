@@ -1,26 +1,39 @@
 /**
- * Resend Inbound Email Webhook
+ * Inbound Email Webhook
  *
- * Fires when a lead replies to an email (reply@reply.globalalora.com).
- * Matches sender email to a lead and logs the reply as an inbound activity.
+ * Handles inbound emails from Postmark (primary) or Resend (fallback).
+ * Postmark sends the full email body including StrippedTextReply.
+ * Resend sends only metadata (email_id, from, subject) without body.
  *
- * Resend inbound payload reference:
- * https://resend.com/docs/api-reference/webhooks/email-events
+ * Postmark inbound docs: https://postmarkapp.com/developer/user-guide/inbound
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-// Resend sends inbound email data as a webhook event
-interface ResendInboundEvent {
-  type: 'email.received'
-  data: {
-    from: string          // "Name <email@domain.com>" or "email@domain.com"
-    to: string[]          // ["reply@globalalora.com"]
-    subject?: string
-    html?: string
-    text?: string
-    headers?: Record<string, string>
-  }
+interface PostmarkInbound {
+  From: string
+  FromName?: string
+  Subject?: string
+  HtmlBody?: string
+  TextBody?: string
+  StrippedTextReply?: string
+}
+
+interface ResendInboundData {
+  from?: string
+  subject?: string
+  email_id?: string
+  html?: string
+  text?: string
+}
+
+interface ResendInbound {
+  type?: string
+  data?: ResendInboundData
+  from?: string
+  subject?: string
+  html?: string
+  text?: string
 }
 
 function extractEmail(raw: string): string {
@@ -34,36 +47,60 @@ function extractName(raw: string): string {
   return match ? match[1].trim().replace(/^["']|["']$/g, '') : ''
 }
 
+function stripHtmlTags(html: string): string {
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
 function stripQuotedReply(html: string): string {
-  // Remove Gmail quote block (may be deeply nested — remove the outer wrapper)
   let stripped = html
     .replace(/<div class="gmail_quote"[\s\S]*$/i, '')
+    .replace(/<div id="divRplyFwdMsg"[\s\S]*$/i, '')  // Outlook
     .replace(/<blockquote[\s\S]*?<\/blockquote>/gi, '')
     .replace(/<!--[\s\S]*?-->/g, '')
     .trim()
 
-  // If stripping removed everything, return the full html so we don't lose the message
-  if (!stripped || stripped.replace(/<[^>]*>/g, '').trim() === '') {
-    return html
-  }
+  if (!stripped || stripHtmlTags(stripped) === '') return html
   return stripped
 }
 
 export async function POST(req: NextRequest) {
-  let event: ResendInboundEvent
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let payload: any
 
   try {
-    event = await req.json()
+    payload = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  // Support both direct payload and wrapped event format
-  const data = (event as { data?: ResendInboundEvent['data'] }).data ?? (event as unknown as ResendInboundEvent['data'])
+  // Detect Postmark vs Resend by checking for Postmark-specific fields
+  const isPostmark = typeof payload?.From === 'string' || typeof payload?.Subject === 'string'
 
-  const fromRaw = data?.from ?? ''
+  let fromRaw = ''
+  let subject = '(sin asunto)'
+  let htmlBody = ''
+  let textBody = ''
+
+  if (isPostmark) {
+    const pm = payload as PostmarkInbound
+    fromRaw = pm.From ?? ''
+    subject = pm.Subject ?? '(sin asunto)'
+    htmlBody = pm.HtmlBody ?? ''
+    // StrippedTextReply is the reply content without quoted history — perfect
+    textBody = pm.StrippedTextReply ?? pm.TextBody ?? ''
+  } else {
+    const rs = payload as ResendInbound
+    const data = rs.data ?? rs
+    fromRaw = data.from ?? ''
+    subject = data.subject ?? '(sin asunto)'
+    htmlBody = data.html ?? ''
+    textBody = data.text ?? ''
+  }
+
   const senderEmail = extractEmail(fromRaw)
-  const senderDisplayName = extractName(fromRaw)
+  const senderDisplayName = isPostmark
+    ? ((payload as PostmarkInbound).FromName ?? extractName(fromRaw))
+    : extractName(fromRaw)
 
   if (!senderEmail) {
     return NextResponse.json({ error: 'No sender email' }, { status: 400 })
@@ -79,7 +116,6 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
 
   if (!lead) {
-    // No matching lead — acknowledge without error so Resend doesn't retry
     return NextResponse.json({ ok: true, note: 'No matching lead for ' + senderEmail })
   }
 
@@ -87,35 +123,13 @@ export async function POST(req: NextRequest) {
     [lead.nombre, lead.apellido].filter(Boolean).join(' ') ||
     senderEmail
 
-  const subject = data?.subject ?? '(sin asunto)'
-  const emailId = (data as Record<string, unknown>)?.email_id as string | undefined
-
-  // Resend inbound webhook only sends metadata — fetch full content via API
-  let rawHtml = ''
-  let rawText = ''
-  if (emailId && process.env.RESEND_API_KEY) {
-    try {
-      const emailRes = await fetch(`https://api.resend.com/emails/${emailId}`, {
-        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
-      })
-      if (emailRes.ok) {
-        const emailData = await emailRes.json() as Record<string, unknown>
-        rawHtml = (emailData.html as string) ?? ''
-        rawText = (emailData.text as string) ?? ''
-      } else {
-        console.error('[email-inbound] failed to fetch email content, status:', emailRes.status)
-      }
-    } catch (err) {
-      console.error('[email-inbound] error fetching email content:', err)
-    }
+  // Build body: prefer stripped HTML, fallback to text, fallback to full html
+  let body = ''
+  if (htmlBody) {
+    body = stripQuotedReply(htmlBody)
+  } else if (textBody) {
+    body = textBody.replace(/\n/g, '<br>')
   }
-
-  // Prefer HTML, strip quoted content, fall back to plain text
-  const body = rawHtml
-    ? stripQuotedReply(rawHtml)
-    : rawText
-      ? rawText.split(/\n>{1,}|\nOn .+wrote:/)[0].replace(/\n/g, '<br>').trim() || rawText.replace(/\n/g, '<br>')
-      : ''
 
   await adminSupabase.from('activities').insert({
     lead_id: lead.id,
@@ -125,7 +139,7 @@ export async function POST(req: NextRequest) {
       `<strong>✉ Respuesta de ${leadName}</strong>`,
       `<span style="color:#64748b;font-size:12px">Asunto: ${subject}</span>`,
       '',
-      body || rawHtml || rawText || '(mensaje vacío)',
+      body || '(mensaje vacío)',
     ].join('<br>'),
     metadata: {
       direction: 'inbound',
