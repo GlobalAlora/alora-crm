@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Target } from 'lucide-react'
 import { formatUSD, formatARS } from '@/lib/utils'
@@ -46,6 +47,8 @@ const CustomTooltip = ({ active, payload }: TooltipProps) => {
 }
 
 export function TopOpportunitiesChart({ data, isLoading }: TopOpportunitiesChartProps) {
+  const router = useRouter()
+
   if (isLoading) {
     return (
       <div className="bg-white rounded-xl border p-6">
@@ -62,10 +65,15 @@ export function TopOpportunitiesChart({ data, isLoading }: TopOpportunitiesChart
 
   const chartData = data.slice(0, 5).map((lead) => ({
     name: lead.empresa || lead.nombre,
+    id: lead.id,
     valor_usd: lead.valor_propuesta_usd || 0,
     valor_ars: lead.valor_propuesta_ars || 0,
     total: (lead.valor_propuesta_usd || 0) + ((lead.valor_propuesta_ars || 0) / 100), // Convert ARS to USD approximation
   }))
+
+  const handleLeadClick = (leadId: string) => {
+    router.push(`/leads/${leadId}`)
+  }
 
   return (
     <div className="bg-white rounded-xl border p-6">
@@ -95,19 +103,25 @@ export function TopOpportunitiesChart({ data, isLoading }: TopOpportunitiesChart
               dataKey="total" 
               fill="#10b981"
               radius={[4, 4, 0, 0]}
+              onClick={(data) => handleLeadClick(data.id)}
+              cursor="pointer"
             />
           </BarChart>
         </ResponsiveContainer>
       </div>
       <div className="mt-4 space-y-1">
         {chartData.map((item, index) => (
-          <div key={item.name} className="flex items-center justify-between text-xs">
-            <span className="text-slate-600 truncate flex-1">{item.name}</span>
+          <button
+            key={item.name}
+            onClick={() => handleLeadClick(item.id)}
+            className="flex items-center justify-between text-xs w-full hover:bg-slate-50 px-2 py-1 rounded cursor-pointer transition-colors"
+          >
+            <span className="text-slate-600 truncate flex-1 text-left">{item.name}</span>
             <div className="flex items-center gap-3 ml-2">
               <span className="font-medium text-slate-700">{formatUSD(item.valor_usd)}</span>
               <span className="font-medium text-slate-700">{formatARS(item.valor_ars)}</span>
             </div>
-          </div>
+          </button>
         ))}
       </div>
     </div>

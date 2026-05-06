@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Globe } from 'lucide-react'
 
@@ -32,6 +33,8 @@ const CustomTooltip = ({ active, payload }: TooltipProps) => {
 }
 
 export function LeadsByCountryChart({ data, isLoading }: LeadsByCountryChartProps) {
+  const router = useRouter()
+
   if (isLoading) {
     return (
       <div className="bg-white rounded-xl border p-6">
@@ -49,10 +52,15 @@ export function LeadsByCountryChart({ data, isLoading }: LeadsByCountryChartProp
   const chartData = Object.entries(data)
     .map(([country, count]) => ({
       country: country === 'AR' ? 'Argentina' : country === 'UY' ? 'Uruguay' : country,
+      originalCountry: country,
       leads: count,
     }))
     .sort((a, b) => b.leads - a.leads)
     .slice(0, 8) // Top 8 países
+
+  const handleCountryClick = (country: string) => {
+    router.push(`/leads?view=kanban&pais=${country}`)
+  }
 
   return (
     <div className="bg-white rounded-xl border p-6">
@@ -82,6 +90,8 @@ export function LeadsByCountryChart({ data, isLoading }: LeadsByCountryChartProp
               dataKey="leads" 
               fill="#3b82f6"
               radius={[4, 4, 0, 0]}
+              onClick={(data) => handleCountryClick(data.originalCountry)}
+              cursor="pointer"
             />
           </BarChart>
         </ResponsiveContainer>

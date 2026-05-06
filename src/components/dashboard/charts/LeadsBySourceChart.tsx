@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { Clock } from 'lucide-react'
 
@@ -45,6 +46,8 @@ const CustomTooltip = ({ active, payload }: TooltipProps) => {
 }
 
 export function LeadsBySourceChart({ data, isLoading }: LeadsBySourceChartProps) {
+  const router = useRouter()
+
   if (isLoading) {
     return (
       <div className="bg-white rounded-xl border p-6">
@@ -66,6 +69,10 @@ export function LeadsBySourceChart({ data, isLoading }: LeadsBySourceChartProps)
 
   const total = chartData.reduce((sum, item) => sum + item.value, 0)
 
+  const handleSourceClick = (source: string) => {
+    router.push(`/leads?view=kanban&fuente=${source}`)
+  }
+
   return (
     <div className="bg-white rounded-xl border p-6">
       <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-4">
@@ -84,6 +91,8 @@ export function LeadsBySourceChart({ data, isLoading }: LeadsBySourceChartProps)
               outerRadius={80}
               fill="#8884d8"
               dataKey="value"
+              onClick={(data) => handleSourceClick(data.name)}
+              cursor="pointer"
             >
               {chartData.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -95,14 +104,18 @@ export function LeadsBySourceChart({ data, isLoading }: LeadsBySourceChartProps)
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         {chartData.map((item, index) => (
-          <div key={item.name} className="flex items-center gap-2 text-xs">
+          <button
+            key={item.name}
+            onClick={() => handleSourceClick(item.name)}
+            className="flex items-center gap-2 text-xs hover:bg-slate-50 px-2 py-1 rounded cursor-pointer transition-colors"
+          >
             <div 
               className="w-3 h-3 rounded-full" 
               style={{ backgroundColor: COLORS[index % COLORS.length] }}
             />
             <span className="text-slate-600">{item.name}</span>
             <span className="font-medium text-slate-700">{item.value}</span>
-          </div>
+          </button>
         ))}
       </div>
     </div>
