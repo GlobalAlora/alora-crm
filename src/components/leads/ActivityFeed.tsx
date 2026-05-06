@@ -124,12 +124,22 @@ interface ActivityFeedProps {
   leadEmail?: string | null
 }
 
+const SENDER_NAME_KEY = 'alora_email_sender_name'
+
 export function ActivityFeed({ leadId, leadEmail }: ActivityFeedProps) {
   const qc = useQueryClient()
   const [tipo, setTipo] = useState<typeof ACTIVITY_TYPES[number]>('nota')
   const [text, setText] = useState('')
   const [emailSubject, setEmailSubject] = useState('')
+  const [fromName, setFromName] = useState(() =>
+    (typeof window !== 'undefined' ? localStorage.getItem(SENDER_NAME_KEY) : null) ?? 'Alora CRM'
+  )
   const [editorKey, setEditorKey] = useState(0)
+
+  const handleFromNameChange = (v: string) => {
+    setFromName(v)
+    if (typeof window !== 'undefined') localStorage.setItem(SENDER_NAME_KEY, v)
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ['activities', leadId],
@@ -173,7 +183,7 @@ export function ActivityFeed({ leadId, leadEmail }: ActivityFeedProps) {
       fetch(`/api/leads/${leadId}/send-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject: emailSubject, html: text }),
+        body: JSON.stringify({ subject: emailSubject, html: text, fromName }),
       }).then(async (r) => {
         const json = await r.json()
         if (!r.ok || json.error) throw new Error(json.error ?? 'Error al enviar')
@@ -227,15 +237,30 @@ export function ActivityFeed({ leadId, leadEmail }: ActivityFeedProps) {
             )
           })}
         </div>
-        {/* Subject field for email compose */}
+        {/* Email compose fields */}
         {tipo === 'email' && (
-          <input
-            type="text"
-            value={emailSubject}
-            onChange={(e) => setEmailSubject(e.target.value)}
-            placeholder="Asunto del email"
-            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white"
-          />
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400 w-12 shrink-0">De:</span>
+              <input
+                type="text"
+                value={fromName}
+                onChange={(e) => handleFromNameChange(e.target.value)}
+                placeholder="Tu nombre"
+                className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400 w-12 shrink-0">Asunto:</span>
+              <input
+                type="text"
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+                placeholder="Asunto del email"
+                className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white"
+              />
+            </div>
+          </div>
         )}
 
         <RichTextEditor
