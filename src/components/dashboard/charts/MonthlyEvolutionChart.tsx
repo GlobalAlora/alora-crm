@@ -183,7 +183,8 @@ export function MonthlyEvolutionChart({ responsableId, months = 6 }: MonthlyEvol
             <YAxis 
               tick={{ fontSize: 11, fill: '#64748b' }}
               axisLine={{ stroke: '#e2e8f0' }}
-              domain={[0, 100]}
+              domain={[0, 'dataMax + 10']}
+              ticks={[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]}
             />
             <Tooltip
               formatter={(value) => typeof value === 'number' ? [`${value}%`, 'Conversión'] : [value, '']}
