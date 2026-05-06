@@ -90,7 +90,7 @@ export function LeadsByCountryChart({ data, isLoading }: LeadsByCountryChartProp
               dataKey="leads" 
               fill="#3b82f6"
               radius={[4, 4, 0, 0]}
-              onClick={(data) => handleCountryClick(data.originalCountry)}
+              onClick={(data, index) => handleCountryClick(chartData[index].originalCountry)}
               cursor="pointer"
             />
           </BarChart>
