@@ -45,6 +45,18 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
 
 // ── Inline editable field ─────────────────────────────────────────────────────
 
+function formatDateToDDMMYYYY(isoDate: string): string {
+  if (!isoDate) return ''
+  const [year, month, day] = isoDate.split('-')
+  return `${day}/${month}/${year}`
+}
+
+function formatDDMMYYYYToISO(ddMmYyyy: string): string {
+  if (!ddMmYyyy) return ''
+  const [day, month, year] = ddMmYyyy.split('/')
+  return `${year}-${month}-${day}`
+}
+
 function EditableField({
   label, value, onSave, type = 'text', placeholder = '—',
 }: {
@@ -61,6 +73,8 @@ function EditableField({
     onSave(draft)
     setEditing(false)
   }
+
+  const displayValue = type === 'date' ? formatDateToDDMMYYYY(value) : value
 
   return (
     <div className="group">
@@ -87,7 +101,7 @@ function EditableField({
           onClick={() => { setDraft(value); setEditing(true) }}
           className="w-full text-left text-sm text-slate-800 hover:text-blue-600 group-hover:underline decoration-dashed underline-offset-2 transition-colors truncate"
         >
-          {value || <span className="text-slate-300">{placeholder}</span>}
+          {displayValue || <span className="text-slate-300">{placeholder}</span>}
         </button>
       )}
     </div>
