@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   MessageSquare, Phone, Mail, Users, ArrowRight, CheckSquare,
-  Globe, MessageCircle, Plus, Loader2, Trash2, Pencil, Check, X
+  Globe, MessageCircle, Plus, Loader2, Trash2, Pencil, Check, X, Reply
 } from 'lucide-react'
 import { activitiesApi } from '@/lib/api'
+import { createClient } from '@/lib/supabase/client'
 import { timeAgoWithFullDate } from '@/lib/utils'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { RichTextEditor } from '@/components/shared/RichTextEditor'
@@ -28,10 +29,11 @@ const TIPO_CONFIG: Record<string, { icon: React.ElementType; color: string; labe
 
 const ACTIVITY_TYPES = ['nota', 'llamada', 'email', 'reunion'] as const
 
-function ActivityItem({ activity, onDelete, onEdit }: {
+function ActivityItem({ activity, onDelete, onEdit, onReply }: {
   activity: Activity
   onDelete: (id: string) => void
   onEdit: (id: string, text: string) => void
+  onReply?: (subject: string) => void
 }) {
   const config = TIPO_CONFIG[activity.tipo] ?? TIPO_CONFIG.nota
   const Icon = config.icon
@@ -40,6 +42,8 @@ function ActivityItem({ activity, onDelete, onEdit }: {
   const [editorKey, setEditorKey] = useState(0)
 
   const isEditable = ['nota', 'llamada', 'email', 'reunion'].includes(activity.tipo)
+  const isInbound = activity.tipo === 'email' && activity.metadata?.direction === 'inbound'
+  const inboundSubject = (activity.metadata?.subject as string | undefined) ?? ''
 
   const handleSave = () => {
     if (draft) {
@@ -108,11 +112,19 @@ function ActivityItem({ activity, onDelete, onEdit }: {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
           {activity.user && (
             <UserAvatar user={activity.user} size="xs" showName />
           )}
           <span className="text-xs text-slate-400">{timeAgoWithFullDate(activity.created_at)}</span>
+          {isInbound && onReply && (
+            <button
+              onClick={() => onReply(`Re: ${inboundSubject}`)}
+              className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 font-medium ml-1"
+            >
+              <Reply size={11} /> Responder
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -139,6 +151,34 @@ export function ActivityFeed({ leadId, leadEmail }: ActivityFeedProps) {
   const handleFromNameChange = (v: string) => {
     setFromName(v)
     if (typeof window !== 'undefined') localStorage.setItem(SENDER_NAME_KEY, v)
+  }
+
+  // Real-time: toast + refresh when lead replies via email
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`activities:lead:${leadId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'activities', filter: `lead_id=eq.${leadId}` },
+        (payload) => {
+          const meta = (payload.new as { metadata?: Record<string, unknown> }).metadata
+          if (meta?.direction === 'inbound') {
+            const subject = (meta.subject as string | undefined) ?? 'nuevo email'
+            toast(`📬 Respuesta recibida: ${subject}`, { duration: 6000 })
+          }
+          qc.invalidateQueries({ queryKey: ['activities', leadId] })
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [leadId, qc])
+
+  const handleReply = (subject: string) => {
+    setTipo('email')
+    setEmailSubject(subject)
+    // Scroll to top of form
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const { data, isLoading } = useQuery({
@@ -320,6 +360,7 @@ export function ActivityFeed({ leadId, leadEmail }: ActivityFeedProps) {
               activity={a}
               onDelete={(id) => deleteMutation.mutate(id)}
               onEdit={(id, descripcion) => editMutation.mutate({ id, descripcion })}
+              onReply={leadEmail ? handleReply : undefined}
             />
           ))}
         </div>

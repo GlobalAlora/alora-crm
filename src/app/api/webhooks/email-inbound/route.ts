@@ -35,11 +35,18 @@ function extractName(raw: string): string {
 }
 
 function stripQuotedReply(html: string): string {
-  return html
+  // Remove Gmail quote block (may be deeply nested — remove the outer wrapper)
+  let stripped = html
+    .replace(/<div class="gmail_quote"[\s\S]*$/i, '')
     .replace(/<blockquote[\s\S]*?<\/blockquote>/gi, '')
     .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<div class="gmail_quote"[\s\S]*?<\/div>/gi, '')
     .trim()
+
+  // If stripping removed everything, return the full html so we don't lose the message
+  if (!stripped || stripped.replace(/<[^>]*>/g, '').trim() === '') {
+    return html
+  }
+  return stripped
 }
 
 export async function POST(req: NextRequest) {
@@ -81,13 +88,18 @@ export async function POST(req: NextRequest) {
     senderEmail
 
   const subject = data?.subject ?? '(sin asunto)'
-  const rawHtml = data?.html ?? ''
-  const rawText = data?.text ?? ''
+  const rawHtml = (data as Record<string, unknown>)?.html as string ?? ''
+  const rawText = (data as Record<string, unknown>)?.text as string ?? ''
+
+  // Log for debugging in Vercel
+  console.log('[email-inbound] from:', senderEmail, '| subject:', subject, '| hasHtml:', !!rawHtml, '| hasText:', !!rawText)
 
   // Prefer HTML, strip quoted content, fall back to plain text
   const body = rawHtml
     ? stripQuotedReply(rawHtml)
-    : rawText.split(/\n>{1,}|\nOn .+wrote:/)[0].replace(/\n/g, '<br>').trim()
+    : rawText
+      ? rawText.split(/\n>{1,}|\nOn .+wrote:/)[0].replace(/\n/g, '<br>').trim() || rawText.replace(/\n/g, '<br>')
+      : ''
 
   await adminSupabase.from('activities').insert({
     lead_id: lead.id,
