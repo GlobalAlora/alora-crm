@@ -106,6 +106,11 @@ export async function POST(req: NextRequest) {
       ? rawText.split(/\n>{1,}|\nOn .+wrote:/)[0].replace(/\n/g, '<br>').trim() || rawText.replace(/\n/g, '<br>')
       : ''
 
+  // Temporarily store raw payload keys for debugging
+  const payloadKeys = Object.keys(data ?? {})
+  const payloadTopKeys = Object.keys(event ?? {})
+  const debugSnippet = rawHtml ? '' : ` [DEBUG keys: top=${payloadTopKeys.join(',')}, data=${payloadKeys.join(',')}]`
+
   await adminSupabase.from('activities').insert({
     lead_id: lead.id,
     user_id: null,
@@ -114,7 +119,7 @@ export async function POST(req: NextRequest) {
       `<strong>✉ Respuesta de ${leadName}</strong>`,
       `<span style="color:#64748b;font-size:12px">Asunto: ${subject}</span>`,
       '',
-      body || rawHtml || rawText || '(mensaje vacío)',
+      body || rawHtml || rawText || `(mensaje vacío${debugSnippet})`,
     ].join('<br>'),
     metadata: {
       direction: 'inbound',
