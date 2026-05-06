@@ -22,8 +22,12 @@ function rolLabel(role: string) {
 }
 
 const API = '/api/team-members'
-const fetch_ = (url: string, opts?: RequestInit) =>
-  fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts }).then(r => r.json())
+const fetch_ = async (url: string, opts?: RequestInit) => {
+  const r = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts })
+  const json = await r.json()
+  if (!r.ok) throw new Error(json?.error ?? `Error ${r.status}`)
+  return json
+}
 
 export default function EquipoPage() {
   const qc = useQueryClient()
@@ -51,7 +55,7 @@ export default function EquipoPage() {
       setNewEmail('')
       toast.success('Miembro creado')
     },
-    onError: () => toast.error('Error al crear'),
+    onError: (e: Error) => toast.error(e.message || 'Error al crear'),
   })
 
   // Edit
