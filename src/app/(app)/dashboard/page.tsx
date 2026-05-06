@@ -21,6 +21,7 @@ import { useLeadFormStore } from '@/hooks/useLeadFormStore'
 import { LeadsBySourceChart } from '@/components/dashboard/charts/LeadsBySourceChart'
 import { LeadsByCountryChart } from '@/components/dashboard/charts/LeadsByCountryChart'
 import { TopOpportunitiesChart } from '@/components/dashboard/charts/TopOpportunitiesChart'
+import { MonthlyEvolutionChart } from '@/components/dashboard/charts/MonthlyEvolutionChart'
 
 function getDefaultFechaDesde(): string {
   const date = new Date()
@@ -614,9 +615,15 @@ export default function DashboardPage() {
       />
 
       {/* Top oportunidades */}
-      <TopOpportunitiesChart 
-        data={d?.top_oportunidades || []} 
-        isLoading={isLoading} 
+      <TopOpportunitiesChart
+        data={d?.top_oportunidades || []}
+        isLoading={isLoading}
+      />
+
+      {/* Evolución mensual */}
+      <MonthlyEvolutionChart
+        responsableId={responsableId}
+        months={6}
       />
     </div>
   )
