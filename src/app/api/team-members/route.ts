@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 
 export async function GET() {
-  const supabase = createAdminClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('team_members')
     .select('id, full_name, role, email, created_at')
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Nombre requerido' }, { status: 400 })
   }
 
-  const supabase = createAdminClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('team_members')
     .insert({ full_name: full_name.trim(), role: role?.trim() || 'dev', email: email?.trim() || null })
