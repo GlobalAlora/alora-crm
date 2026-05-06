@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -9,7 +10,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { data, error } = await supabase
+  const adminSupabase = createAdminClient()
+  const { data, error } = await adminSupabase
     .from('campaigns')
     .select('*')
     .eq('id', id)
@@ -32,7 +34,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (key in body) update[key] = body[key]
   }
 
-  const { data, error } = await supabase
+  const adminSupabase = createAdminClient()
+  const { data, error } = await adminSupabase
     .from('campaigns').update(update).eq('id', id).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -45,7 +48,8 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { error } = await supabase.from('campaigns').delete().eq('id', id)
+  const adminSupabase = createAdminClient()
+  const { error } = await adminSupabase.from('campaigns').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })
 }

@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { data, error } = await supabase
+  const adminSupabase = createAdminClient()
+  const { data, error } = await adminSupabase
     .from('campaigns')
     .select('*, recipient_count:campaign_recipients(count)')
     .order('created_at', { ascending: false })
@@ -31,7 +33,8 @@ export async function POST(req: NextRequest) {
   if (!body.subject?.trim()) return NextResponse.json({ error: 'Asunto requerido' }, { status: 400 })
   if (!body.body?.trim()) return NextResponse.json({ error: 'Cuerpo requerido' }, { status: 400 })
 
-  const { data, error } = await supabase
+  const adminSupabase = createAdminClient()
+  const { data, error } = await adminSupabase
     .from('campaigns')
     .insert({
       name: body.name.trim(),
