@@ -52,11 +52,16 @@ function stripQuotedReply(html: string): string {
 export async function POST(req: NextRequest) {
   let event: ResendInboundEvent
 
+  let rawBody = ''
   try {
-    event = await req.json()
+    rawBody = await req.text()
+    event = JSON.parse(rawBody)
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
+
+  // Log full payload so we can see Resend's actual structure in Vercel logs
+  console.log('[email-inbound] RAW PAYLOAD:', rawBody.slice(0, 3000))
 
   // Support both direct payload and wrapped event format
   const data = (event as { data?: ResendInboundEvent['data'] }).data ?? (event as unknown as ResendInboundEvent['data'])
