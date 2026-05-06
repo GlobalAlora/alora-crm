@@ -77,7 +77,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
     .upsert(recipientRows, { onConflict: 'campaign_id,lead_id', ignoreDuplicates: true })
 
   // Fire-and-forget — respond immediately to avoid Vercel timeout
-  sendEmails(id, campaign, leadsWithEmail, user.id).catch(() => {})
+  sendEmails(id, campaign, leadsWithEmail, user.id, user.email ?? undefined).catch(() => {})
 
   return NextResponse.json({
     success: true,
@@ -90,7 +90,8 @@ async function sendEmails(
   campaignId: string,
   campaign: { subject: string; body: string; from_name: string; from_email: string; name: string },
   leads: { id: string; nombre: string; apellido: string | null; email: string | null; empresa?: string | null }[],
-  userId: string
+  userId: string,
+  replyTo?: string
 ) {
   const resend = new Resend(process.env.RESEND_API_KEY)
   const adminSupabase = createAdminClient()
@@ -112,6 +113,7 @@ async function sendEmails(
           await resend.emails.send({
             from: `${campaign.from_name} <${campaign.from_email}>`,
             to: [lead.email!],
+            ...(replyTo ? { reply_to: replyTo } : {}),
             subject,
             html,
           })

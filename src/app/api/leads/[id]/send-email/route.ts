@@ -46,12 +46,15 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const senderName = fromName?.trim() || 'Alora CRM'
   const senderEmail = fromEmail?.trim() || 'hola@globalalora.com'
+  // Replies go back to the logged-in user, not the sending domain
+  const replyTo = user.email ?? senderEmail
 
   try {
     const resend = new Resend(process.env.RESEND_API_KEY)
     await resend.emails.send({
       from: `${senderName} <${senderEmail}>`,
       to: [lead.email],
+      reply_to: replyTo,
       subject: subject.trim(),
       html: html.trim(),
     })
