@@ -77,7 +77,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
     .upsert(recipientRows, { onConflict: 'campaign_id,lead_id', ignoreDuplicates: true })
 
   // Fire-and-forget — respond immediately to avoid Vercel timeout
-  sendEmails(id, campaign, leadsWithEmail, user.id, 'reply@globalalora.com').catch(() => {})
+  sendEmails(id, campaign, leadsWithEmail, user.id, 'reply@reply.globalalora.com').catch(() => {})
 
   return NextResponse.json({
     success: true,

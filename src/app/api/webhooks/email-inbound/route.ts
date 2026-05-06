@@ -1,7 +1,7 @@
 /**
  * Resend Inbound Email Webhook
  *
- * Fires when a lead replies to an email (reply@globalalora.com).
+ * Fires when a lead replies to an email (reply@reply.globalalora.com).
  * Matches sender email to a lead and logs the reply as an inbound activity.
  *
  * Resend inbound payload reference:

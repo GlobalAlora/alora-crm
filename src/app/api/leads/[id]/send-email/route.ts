@@ -47,7 +47,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const senderName = fromName?.trim() || 'Alora CRM'
   const senderEmail = fromEmail?.trim() || 'hola@globalalora.com'
   // Replies go to a globalalora.com address so Resend inbound can capture them
-  const replyTo = 'reply@globalalora.com'
+  const replyTo = 'reply@reply.globalalora.com'
 
   try {
     const resend = new Resend(process.env.RESEND_API_KEY)
