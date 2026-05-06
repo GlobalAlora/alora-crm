@@ -169,9 +169,9 @@ export async function POST(req: NextRequest) {
       .from('activities')
       .insert({
         lead_id: data.id,
+        user_id: user.id,
         tipo: 'nota',
         descripcion: body.notas.trim(),
-        created_by: user.id,
       })
 
     if (activityError) {
