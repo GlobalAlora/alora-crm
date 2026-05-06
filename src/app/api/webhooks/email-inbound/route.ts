@@ -1,50 +1,70 @@
 /**
  * Resend Inbound Email Webhook
  *
- * Setup required (one-time, in Resend dashboard + DNS):
- * 1. In your DNS provider, add MX records for a subdomain (e.g. reply.globalalora.com):
- *    - MX  10  inbound.resend.com
- * 2. In Resend → Domains → globalalora.com → Inbound, add the subdomain and
- *    point the webhook URL to: https://alora-crm.vercel.app/api/webhooks/email-inbound
+ * Fires when a lead replies to an email (reply@globalalora.com).
+ * Matches sender email to a lead and logs the reply as an inbound activity.
  *
- * When a lead replies to an email, Resend parses it and POSTs the payload here.
- * We match the sender's email to a lead and log the reply as an inbound activity.
+ * Resend inbound payload reference:
+ * https://resend.com/docs/api-reference/webhooks/email-events
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-interface ResendInboundPayload {
-  from: string        // e.g. "Juan García <juan@empresa.com>"
-  to: string[]        // e.g. ["reply@globalalora.com"]
-  subject: string
-  html?: string
-  text?: string
-  headers?: Record<string, string>
+// Resend sends inbound email data as a webhook event
+interface ResendInboundEvent {
+  type: 'email.received'
+  data: {
+    from: string          // "Name <email@domain.com>" or "email@domain.com"
+    to: string[]          // ["reply@globalalora.com"]
+    subject?: string
+    html?: string
+    text?: string
+    headers?: Record<string, string>
+  }
 }
 
 function extractEmail(raw: string): string {
-  // "Name <email@domain.com>" → "email@domain.com"
+  if (!raw) return ''
   const match = raw.match(/<([^>]+)>/)
-  return match ? match[1].toLowerCase() : raw.toLowerCase().trim()
+  return (match ? match[1] : raw).toLowerCase().trim()
+}
+
+function extractName(raw: string): string {
+  const match = raw.match(/^(.+?)\s*</)
+  return match ? match[1].trim().replace(/^["']|["']$/g, '') : ''
+}
+
+function stripQuotedReply(html: string): string {
+  return html
+    .replace(/<blockquote[\s\S]*?<\/blockquote>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<div class="gmail_quote"[\s\S]*?<\/div>/gi, '')
+    .trim()
 }
 
 export async function POST(req: NextRequest) {
-  let payload: ResendInboundPayload
+  let event: ResendInboundEvent
 
   try {
-    payload = await req.json()
+    event = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const senderEmail = extractEmail(payload.from ?? '')
+  // Support both direct payload and wrapped event format
+  const data = (event as { data?: ResendInboundEvent['data'] }).data ?? (event as unknown as ResendInboundEvent['data'])
+
+  const fromRaw = data?.from ?? ''
+  const senderEmail = extractEmail(fromRaw)
+  const senderDisplayName = extractName(fromRaw)
+
   if (!senderEmail) {
     return NextResponse.json({ error: 'No sender email' }, { status: 400 })
   }
 
   const adminSupabase = createAdminClient()
 
-  // Find lead by email
+  // Match sender to a lead by email
   const { data: lead } = await adminSupabase
     .from('leads')
     .select('id, nombre, apellido')
@@ -52,29 +72,37 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
 
   if (!lead) {
-    // No lead found — just acknowledge without logging
-    return NextResponse.json({ ok: true, note: 'No matching lead' })
+    // No matching lead — acknowledge without error so Resend doesn't retry
+    return NextResponse.json({ ok: true, note: 'No matching lead for ' + senderEmail })
   }
 
-  const senderName = [lead.nombre, lead.apellido].filter(Boolean).join(' ')
-  const subject = payload.subject ?? '(sin asunto)'
-  const body = payload.html ?? payload.text?.replace(/\n/g, '<br>') ?? ''
+  const leadName = senderDisplayName ||
+    [lead.nombre, lead.apellido].filter(Boolean).join(' ') ||
+    senderEmail
 
-  // Strip quoted reply text (everything after "-- " or "El ... escribió:")
-  const cleanBody = body
-    .replace(/<blockquote[\s\S]*?<\/blockquote>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .trim()
+  const subject = data?.subject ?? '(sin asunto)'
+  const rawHtml = data?.html ?? ''
+  const rawText = data?.text ?? ''
+
+  // Prefer HTML, strip quoted content, fall back to plain text
+  const body = rawHtml
+    ? stripQuotedReply(rawHtml)
+    : rawText.split(/\n>{1,}|\nOn .+wrote:/)[0].replace(/\n/g, '<br>').trim()
 
   await adminSupabase.from('activities').insert({
     lead_id: lead.id,
-    user_id: null,   // inbound — no CRM user sent this
+    user_id: null,
     tipo: 'email',
-    descripcion: `<strong>Respuesta de ${senderName}:</strong><br><strong>Asunto:</strong> ${subject}<br><br>${cleanBody || body}`,
+    descripcion: [
+      `<strong>✉ Respuesta de ${leadName}</strong>`,
+      `<span style="color:#64748b;font-size:12px">Asunto: ${subject}</span>`,
+      '',
+      body || rawHtml || rawText || '(mensaje vacío)',
+    ].join('<br>'),
     metadata: {
       direction: 'inbound',
       from: senderEmail,
-      from_name: senderName,
+      from_name: leadName,
       subject,
     },
   })
