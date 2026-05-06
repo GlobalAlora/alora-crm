@@ -5,6 +5,7 @@ import { useLeadFormStore } from '@/hooks/useLeadFormStore'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { GlobalLeadSearch } from '@/components/shared/GlobalLeadSearch'
+import { NotificationBell } from '@/components/layout/NotificationBell'
 
 export function Header() {
   const open = useLeadFormStore((s) => s.open)
@@ -21,6 +22,7 @@ export function Header() {
     <header className="h-14 flex items-center justify-between px-6 border-b bg-white flex-shrink-0">
       <GlobalLeadSearch />
       <div className="flex items-center gap-3">
+        <NotificationBell />
         <button
           onClick={() => open()}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-md transition-colors"

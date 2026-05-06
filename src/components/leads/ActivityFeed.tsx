@@ -153,6 +153,17 @@ export function ActivityFeed({ leadId, leadEmail }: ActivityFeedProps) {
     if (typeof window !== 'undefined') localStorage.setItem(SENDER_NAME_KEY, v)
   }
 
+  // Auto-mark inbound emails as read when viewing this lead
+  useEffect(() => {
+    fetch('/api/activities/read-inbound', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lead_id: leadId }),
+    }).then(() => {
+      qc.invalidateQueries({ queryKey: ['notifications'] })
+    }).catch(() => {})
+  }, [leadId, qc])
+
   // Real-time: toast + refresh when lead replies via email
   useEffect(() => {
     const supabase = createClient()
