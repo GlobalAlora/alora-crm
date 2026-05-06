@@ -269,14 +269,10 @@ function TaskItem({ task, onComplete, onDelete, onUpdate, isCompleting, isDeleti
 
   const saveEdit = () => {
     if (!draftTitulo.trim()) return
-    // Convert datetime-local to ISO preserving local time
+    // Preserve datetime-local as-is without timezone conversion
     let vencimiento: string | undefined
     if (draftVenc) {
-      // Add 'Z' to interpret as UTC
-      const d = new Date(draftVenc + 'Z')
-      if (!isNaN(d.getTime())) {
-        vencimiento = d.toISOString()
-      }
+      vencimiento = draftVenc
     }
     onUpdate({
       titulo: draftTitulo.trim(),

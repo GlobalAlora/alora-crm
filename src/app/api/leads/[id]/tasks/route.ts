@@ -67,15 +67,12 @@ export async function POST(req: NextRequest, { params }: Params) {
     assignee = lead?.responsable_id ?? user.id
   }
 
-  // Handle vencimiento safely - convert datetime-local to ISO preserving local time
+  // Handle vencimiento safely - preserve datetime-local as-is
   let processedVencimiento: string | null = null
   if (vencimiento) {
     try {
-      // Add 'Z' to interpret as UTC, then convert to ISO
-      const date = new Date(vencimiento + 'Z')
-      if (!isNaN(date.getTime())) {
-        processedVencimiento = date.toISOString()
-      }
+      // datetime-local is already in user's local timezone, preserve it as-is
+      processedVencimiento = vencimiento
     } catch (error) {
       console.error('Error processing vencimiento:', error)
       // Continue with null vencimiento if date parsing fails
