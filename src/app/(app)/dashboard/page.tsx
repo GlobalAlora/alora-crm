@@ -8,7 +8,7 @@ import {
   TrendingUp, Users, DollarSign, AlertTriangle,
   Zap, Clock, Activity, Target,
   FileText, Phone, Mail, Calendar, CheckSquare, Globe,
-  Plus, MessageSquare, ListTodo,
+  Plus, MessageSquare, ListTodo, FolderKanban,
 } from 'lucide-react'
 import { dashboardApi } from '@/lib/api'
 import { formatUSD, formatARS } from '@/lib/utils'
@@ -271,6 +271,62 @@ export default function DashboardPage() {
             color="purple"
             onClick={() => router.push('/pipeline')}
           />
+        </div>
+      )}
+
+      {/* Proyectos — only visible when there are won clients */}
+      {!isLoading && (d?.proyectos?.en_tiempo ?? 0) + (d?.proyectos?.proximo_a_vencer ?? 0) + (d?.proyectos?.atrasado ?? 0) > 0 && (
+        <div className="bg-white rounded-xl border p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+            <FolderKanban size={15} className="text-slate-400" />
+            Proyectos en curso
+          </h2>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+              <p className="text-xl font-bold text-green-700">{d!.proyectos.en_tiempo}</p>
+              <p className="text-xs text-green-600 mt-0.5">🟢 En tiempo</p>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
+              <p className="text-xl font-bold text-amber-700">{d!.proyectos.proximo_a_vencer}</p>
+              <p className="text-xs text-amber-600 mt-0.5">🟡 Próximo a vencer</p>
+            </div>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+              <p className="text-xl font-bold text-red-700">{d!.proyectos.atrasado}</p>
+              <p className="text-xs text-red-600 mt-0.5">🔴 Atrasado</p>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            {d!.proyectos.lista.map((p) => {
+              const colorMap = {
+                en_tiempo: 'text-green-700 bg-green-50 border-green-200',
+                proximo_a_vencer: 'text-amber-700 bg-amber-50 border-amber-200',
+                atrasado: 'text-red-700 bg-red-50 border-red-200',
+              }
+              const emoji = { en_tiempo: '🟢', proximo_a_vencer: '🟡', atrasado: '🔴' }[p.status]
+              const daysLabel = p.dias_restantes < 0
+                ? `${Math.abs(p.dias_restantes)}d de retraso`
+                : p.dias_restantes === 0
+                ? 'vence hoy'
+                : `${p.dias_restantes}d restantes`
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => router.push(`/leads/${p.id}`)}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg border hover:bg-slate-50 transition-colors text-left"
+                >
+                  <span className="text-sm text-slate-700 font-medium truncate">{p.nombre}{p.empresa ? ` · ${p.empresa}` : ''}</span>
+                  <span className={cn('text-xs font-medium px-2 py-0.5 rounded border flex-shrink-0 ml-2', colorMap[p.status])}>
+                    {emoji} {daysLabel}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          {(d!.proyectos.sin_fecha ?? 0) > 0 && (
+            <p className="text-xs text-slate-400">
+              +{d!.proyectos.sin_fecha} cliente{d!.proyectos.sin_fecha !== 1 ? 's' : ''} ganado{d!.proyectos.sin_fecha !== 1 ? 's' : ''} sin fecha de proyecto asignada
+            </p>
+          )}
         </div>
       )}
 

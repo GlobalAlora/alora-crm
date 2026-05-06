@@ -8,7 +8,7 @@ import {
   Check, AlertCircle, MessageCircle, ChevronDown,
 } from 'lucide-react'
 import { leadsApi } from '@/lib/api'
-import { cn, formatUSD, formatARS, timeAgo } from '@/lib/utils'
+import { cn, formatUSD, formatARS, timeAgo, getProjectStatus, getDaysUntil } from '@/lib/utils'
 import { PIPELINE_STAGES, FUENTES, PAISES, PIPELINE_STAGE_MAP } from '@/types'
 import type { Lead, PipelineStage } from '@/types'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -457,6 +457,32 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
               </div>
             )}
 
+            {/* Project dates — only shown for won clients */}
+            {lead.estado_pipeline === 'cliente_ganado' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1">
+                    <Calendar size={10} /> Proyecto
+                  </p>
+                  <ProjectStatusBadge fechaCierre={lead.fecha_cierre_proyecto} />
+                </div>
+                <EditableField
+                  label="Inicio proyecto"
+                  value={lead.fecha_inicio_proyecto ? lead.fecha_inicio_proyecto.slice(0, 10) : ''}
+                  onSave={(v) => patch({ fecha_inicio_proyecto: v || null })}
+                  type="date"
+                  placeholder="Sin fecha"
+                />
+                <EditableField
+                  label="Cierre proyecto"
+                  value={lead.fecha_cierre_proyecto ? lead.fecha_cierre_proyecto.slice(0, 10) : ''}
+                  onSave={(v) => patch({ fecha_cierre_proyecto: v || null })}
+                  type="date"
+                  placeholder="Sin fecha"
+                />
+              </div>
+            )}
+
             {/* Notes — only show in left panel when NOT fullPage */}
             {!fullPage && (
               <div className="space-y-2">
@@ -592,6 +618,32 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                 />
               </div>
 
+              {/* Project dates — right panel, fullPage, only for cliente_ganado */}
+              {lead.estado_pipeline === 'cliente_ganado' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1">
+                      <Calendar size={10} /> Proyecto
+                    </p>
+                    <ProjectStatusBadge fechaCierre={lead.fecha_cierre_proyecto} />
+                  </div>
+                  <EditableField
+                    label="Inicio proyecto"
+                    value={lead.fecha_inicio_proyecto ? lead.fecha_inicio_proyecto.slice(0, 10) : ''}
+                    onSave={(v) => patch({ fecha_inicio_proyecto: v || null })}
+                    type="date"
+                    placeholder="Sin fecha"
+                  />
+                  <EditableField
+                    label="Cierre proyecto"
+                    value={lead.fecha_cierre_proyecto ? lead.fecha_cierre_proyecto.slice(0, 10) : ''}
+                    onSave={(v) => patch({ fecha_cierre_proyecto: v || null })}
+                    type="date"
+                    placeholder="Sin fecha"
+                  />
+                </div>
+              )}
+
               {/* Notes */}
               <div className="space-y-2">
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Notas</p>
@@ -662,5 +714,25 @@ function NotesRichEditor({ value, onSave }: { value: string; onSave: (v: string)
         dangerouslySetInnerHTML={{ __html: value || '<p class="text-slate-400">Clic para agregar notas...</p>' }}
       />
     </div>
+  )
+}
+
+// ── Project status badge ──────────────────────────────────────────────────────
+
+function ProjectStatusBadge({ fechaCierre }: { fechaCierre: string | null }) {
+  if (!fechaCierre) return null
+  const status = getProjectStatus(fechaCierre)
+  if (!status) return null
+  const days = getDaysUntil(fechaCierre)
+  const cfg = {
+    en_tiempo: { label: '🟢 En tiempo', cls: 'bg-green-50 text-green-700 border-green-200' },
+    proximo_a_vencer: { label: '🟡 Vence pronto', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+    atrasado: { label: '🔴 Atrasado', cls: 'bg-red-50 text-red-700 border-red-200' },
+  }[status]
+  const daysLabel = days < 0 ? `${Math.abs(days)}d` : days === 0 ? 'hoy' : `${days}d`
+  return (
+    <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded border', cfg.cls)}>
+      {cfg.label} ({daysLabel})
+    </span>
   )
 }

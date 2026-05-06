@@ -15,6 +15,8 @@ export type PipelineStage =
 
 export type LeadQuality = 'MQL' | 'SQL' | 'no_calificado'
 
+export type ProjectStatus = 'en_tiempo' | 'proximo_a_vencer' | 'atrasado'
+
 export type ActivityType =
   | 'nota'
   | 'llamada'
@@ -100,6 +102,8 @@ export interface Lead {
   fecha_propuesta: string | null
   fecha_followup: string | null
   fecha_cierre: string | null
+  fecha_inicio_proyecto: string | null
+  fecha_cierre_proyecto: string | null
   form_id: string | null                        // which form generated this lead
   form_data: Record<string, string> | null      // all fields submitted from embed form
   stage_updated_at: string
@@ -329,6 +333,20 @@ export interface DashboardMetrics {
     valor_propuesta_moneda: 'USD' | 'ARS' | null
     responsable_id: string | null
   }[]
+  proyectos: {
+    en_tiempo: number
+    proximo_a_vencer: number
+    atrasado: number
+    sin_fecha: number
+    lista: {
+      id: string
+      nombre: string
+      empresa: string | null
+      fecha_cierre_proyecto: string
+      status: ProjectStatus
+      dias_restantes: number
+    }[]
+  }
 }
 
 // Pipeline config — single source of truth for labels, colors, order

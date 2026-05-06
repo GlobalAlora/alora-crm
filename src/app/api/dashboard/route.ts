@@ -46,6 +46,7 @@ export async function GET(req: NextRequest) {
       actividadRawResult,
       ultimosLeadsRawResult,
       topOportunidadesRawResult,
+    proyectosRawResult,
     ] = await Promise.allSettled([
     applyFilters(
       supabase.from('leads').select('estado_pipeline, fuente, fecha_ingreso, valor_propuesta_usd, valor_propuesta_ars, valor_propuesta_moneda, pais, responsable_id, created_at, stage_updated_at, last_activity_at')
@@ -99,6 +100,13 @@ export async function GET(req: NextRequest) {
         .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado)')
         .limit(50)
     ),
+    // Proyectos: leads ganados con fecha_cierre_proyecto
+    supabase
+      .from('leads')
+      .select('id, nombre, empresa, fecha_cierre_proyecto')
+      .is('deleted_at', null)
+      .eq('estado_pipeline', 'cliente_ganado')
+      .not('fecha_cierre_proyecto', 'is', null),
   ])
 
   // Extract data safely from Promise.allSettled results
@@ -112,6 +120,7 @@ export async function GET(req: NextRequest) {
   const actividadRaw = actividadRawResult.status === 'fulfilled' ? actividadRawResult.value.data : []
   const ultimosLeadsRaw = ultimosLeadsRawResult.status === 'fulfilled' ? ultimosLeadsRawResult.value.data : []
   const topOportunidadesRaw = topOportunidadesRawResult.status === 'fulfilled' ? topOportunidadesRawResult.value.data : []
+  const proyectosRaw = proyectosRawResult.status === 'fulfilled' ? proyectosRawResult.value.data : []
 
   const leads = allLeads ?? []
 
@@ -338,6 +347,39 @@ export async function GET(req: NextRequest) {
     })
     .slice(0, 5)
 
+  // Compute project status
+  type RawProyecto = { id: string; nombre: string; empresa: string | null; fecha_cierre_proyecto: string }
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  let proyectosEnTiempo = 0
+  let proyectosProximos = 0
+  let proyectosAtrasados = 0
+  const proyectosLista: {
+    id: string
+    nombre: string
+    empresa: string | null
+    fecha_cierre_proyecto: string
+    status: 'en_tiempo' | 'proximo_a_vencer' | 'atrasado'
+    dias_restantes: number
+  }[] = []
+
+  for (const p of (proyectosRaw as unknown as RawProyecto[]) ?? []) {
+    const target = new Date(p.fecha_cierre_proyecto)
+    target.setHours(0, 0, 0, 0)
+    const days = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    const status = days < 0 ? 'atrasado' : days <= 3 ? 'proximo_a_vencer' : 'en_tiempo'
+    if (status === 'atrasado') proyectosAtrasados++
+    else if (status === 'proximo_a_vencer') proyectosProximos++
+    else proyectosEnTiempo++
+    proyectosLista.push({ id: p.id, nombre: p.nombre, empresa: p.empresa, fecha_cierre_proyecto: p.fecha_cierre_proyecto, status, dias_restantes: days })
+  }
+
+  proyectosLista.sort((a, b) => a.dias_restantes - b.dias_restantes)
+
+  // Leads ganados sin fecha_cierre_proyecto
+  const sinFechaProyecto = (porEtapaCount['cliente_ganado'] ?? 0) - proyectosLista.length
+
   return NextResponse.json({
     data: {
       leads: {
@@ -384,6 +426,13 @@ export async function GET(req: NextRequest) {
       actividad_reciente: actividadReciente,
       ultimos_leads: ultimosLeadsRaw ?? [],
       top_oportunidades: topOportunidades,
+      proyectos: {
+        en_tiempo: proyectosEnTiempo,
+        proximo_a_vencer: proyectosProximos,
+        atrasado: proyectosAtrasados,
+        sin_fecha: Math.max(0, sinFechaProyecto),
+        lista: proyectosLista,
+      },
     },
   })
   } catch (error) {

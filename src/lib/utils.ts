@@ -2,6 +2,7 @@ import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
+import type { ProjectStatus } from '@/types'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -89,6 +90,24 @@ export function hoursSince(dateString: string): number {
   } catch {
     return 0
   }
+}
+
+/** Days from today to a future date (negative = past) */
+export function getDaysUntil(isoDate: string): number {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const target = new Date(isoDate)
+  target.setHours(0, 0, 0, 0)
+  return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+/** Project delivery status based on days remaining */
+export function getProjectStatus(fechaCierreProyecto: string | null): ProjectStatus | null {
+  if (!fechaCierreProyecto) return null
+  const days = getDaysUntil(fechaCierreProyecto)
+  if (days < 0) return 'atrasado'
+  if (days <= 3) return 'proximo_a_vencer'
+  return 'en_tiempo'
 }
 
 export function midpoint(a: number | null, b: number | null): number {
