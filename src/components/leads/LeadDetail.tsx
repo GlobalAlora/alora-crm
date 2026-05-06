@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   X, Mail, Building2, Tag as TagIcon, Globe, Calendar,
   MessageSquare, CheckSquare, FileText, History, ExternalLink,
-  Check, AlertCircle, MessageCircle, ChevronDown,
+  Check, AlertCircle, MessageCircle, ChevronDown, Users,
 } from 'lucide-react'
 import { leadsApi } from '@/lib/api'
 import { cn, formatUSD, formatARS, timeAgo, getProjectStatus, getDaysUntil } from '@/lib/utils'
@@ -457,7 +457,7 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
               </div>
             )}
 
-            {/* Project dates — only shown for won clients */}
+            {/* Project section — only shown for won clients */}
             {lead.estado_pipeline === 'cliente_ganado' && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -479,6 +479,20 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                   onSave={(v) => patch({ fecha_cierre_proyecto: v || null })}
                   type="date"
                   placeholder="Sin fecha"
+                />
+                <UserPickerField
+                  label="Líder técnico"
+                  currentUser={lead.lider_tecnico}
+                  onSave={(id) => patch({ lider_tecnico_id: id })}
+                />
+                <UserPickerField
+                  label="Dev asignado"
+                  currentUser={lead.dev}
+                  onSave={(id) => patch({ dev_id: id })}
+                />
+                <ProgressField
+                  value={lead.avance_proyecto}
+                  onSave={(v) => patch({ avance_proyecto: v })}
                 />
               </div>
             )}
@@ -618,7 +632,7 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                 />
               </div>
 
-              {/* Project dates — right panel, fullPage, only for cliente_ganado */}
+              {/* Project section — right panel, fullPage, only for cliente_ganado */}
               {lead.estado_pipeline === 'cliente_ganado' && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -640,6 +654,20 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                     onSave={(v) => patch({ fecha_cierre_proyecto: v || null })}
                     type="date"
                     placeholder="Sin fecha"
+                  />
+                  <UserPickerField
+                    label="Líder técnico"
+                    currentUser={lead.lider_tecnico}
+                    onSave={(id) => patch({ lider_tecnico_id: id })}
+                  />
+                  <UserPickerField
+                    label="Dev asignado"
+                    currentUser={lead.dev}
+                    onSave={(id) => patch({ dev_id: id })}
+                  />
+                  <ProgressField
+                    value={lead.avance_proyecto}
+                    onSave={(v) => patch({ avance_proyecto: v })}
                   />
                 </div>
               )}
@@ -712,6 +740,82 @@ function NotesRichEditor({ value, onSave }: { value: string; onSave: (v: string)
         onClick={() => setEditing(true)}
         className="prose prose-sm max-w-none text-slate-600 hover:text-slate-800 cursor-pointer p-2 rounded-lg hover:bg-slate-100 transition-colors min-h-[40px] overflow-x-hidden break-words"
         dangerouslySetInnerHTML={{ __html: value || '<p class="text-slate-400">Clic para agregar notas...</p>' }}
+      />
+    </div>
+  )
+}
+
+// ── User picker for project team ─────────────────────────────────────────────
+
+type SimpleUser = { id: string; full_name: string; avatar_url: string | null }
+
+function UserPickerField({
+  label,
+  currentUser,
+  onSave,
+}: {
+  label: string
+  currentUser?: SimpleUser | null
+  onSave: (userId: string | null) => void
+}) {
+  const { data } = useQuery<{ data: SimpleUser[] }>({
+    queryKey: ['users-list'],
+    queryFn: () => fetch('/api/users').then(r => r.json()),
+    staleTime: 5 * 60_000,
+  })
+  const users = data?.data ?? []
+
+  return (
+    <div>
+      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+        <Users size={9} /> {label}
+      </p>
+      <select
+        value={currentUser?.id ?? ''}
+        onChange={(e) => onSave(e.target.value || null)}
+        className="w-full text-sm text-slate-800 bg-transparent focus:outline-none cursor-pointer hover:text-blue-600 transition-colors"
+      >
+        <option value="">— Sin asignar —</option>
+        {users.map((u) => (
+          <option key={u.id} value={u.id}>{u.full_name}</option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+// ── Progress field ────────────────────────────────────────────────────────────
+
+function ProgressField({ value, onSave }: { value: number | null; onSave: (v: number) => void }) {
+  const [draft, setDraft] = useState(value ?? 0)
+
+  useEffect(() => { setDraft(value ?? 0) }, [value])
+
+  const pct = draft
+  const color = pct === 100 ? 'bg-green-500' : pct >= 70 ? 'bg-blue-500' : pct >= 30 ? 'bg-amber-500' : 'bg-slate-400'
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Avance</p>
+        <span className="text-xs font-bold text-slate-700">{draft}%</span>
+      </div>
+      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+        <div
+          className={cn('h-full rounded-full transition-all duration-300', color)}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={100}
+        step={5}
+        value={draft}
+        onChange={(e) => setDraft(Number(e.target.value))}
+        onMouseUp={() => onSave(draft)}
+        onTouchEnd={() => onSave(draft)}
+        className="w-full accent-blue-600 cursor-pointer"
       />
     </div>
   )

@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
     // Proyectos: leads ganados con fecha_cierre_proyecto
     supabase
       .from('leads')
-      .select('id, nombre, empresa, fecha_cierre_proyecto')
+      .select('id, nombre, empresa, fecha_cierre_proyecto, avance_proyecto')
       .is('deleted_at', null)
       .eq('estado_pipeline', 'cliente_ganado')
       .not('fecha_cierre_proyecto', 'is', null),
@@ -348,7 +348,7 @@ export async function GET(req: NextRequest) {
     .slice(0, 5)
 
   // Compute project status
-  type RawProyecto = { id: string; nombre: string; empresa: string | null; fecha_cierre_proyecto: string }
+  type RawProyecto = { id: string; nombre: string; empresa: string | null; fecha_cierre_proyecto: string; avance_proyecto: number | null }
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
@@ -362,6 +362,7 @@ export async function GET(req: NextRequest) {
     fecha_cierre_proyecto: string
     status: 'en_tiempo' | 'proximo_a_vencer' | 'atrasado'
     dias_restantes: number
+    avance_proyecto: number | null
   }[] = []
 
   for (const p of (proyectosRaw as unknown as RawProyecto[]) ?? []) {
@@ -372,7 +373,7 @@ export async function GET(req: NextRequest) {
     if (status === 'atrasado') proyectosAtrasados++
     else if (status === 'proximo_a_vencer') proyectosProximos++
     else proyectosEnTiempo++
-    proyectosLista.push({ id: p.id, nombre: p.nombre, empresa: p.empresa, fecha_cierre_proyecto: p.fecha_cierre_proyecto, status, dias_restantes: days })
+    proyectosLista.push({ id: p.id, nombre: p.nombre, empresa: p.empresa, fecha_cierre_proyecto: p.fecha_cierre_proyecto, status, dias_restantes: days, avance_proyecto: p.avance_proyecto })
   }
 
   proyectosLista.sort((a, b) => a.dias_restantes - b.dias_restantes)

@@ -104,6 +104,9 @@ export interface Lead {
   fecha_cierre: string | null
   fecha_inicio_proyecto: string | null
   fecha_cierre_proyecto: string | null
+  lider_tecnico_id: string | null
+  dev_id: string | null
+  avance_proyecto: number | null
   form_id: string | null                        // which form generated this lead
   form_data: Record<string, string> | null      // all fields submitted from embed form
   stage_updated_at: string
@@ -113,6 +116,8 @@ export interface Lead {
   updated_at: string
   // Computed on GET /leads/[id]
   responsable?: Pick<User, 'id' | 'full_name' | 'avatar_url'>
+  lider_tecnico?: Pick<User, 'id' | 'full_name' | 'avatar_url'>
+  dev?: Pick<User, 'id' | 'full_name' | 'avatar_url'>
   calidad_lead?: LeadQuality
   dias_sin_respuesta?: number
   propuestas?: Propuesta[]
@@ -345,6 +350,7 @@ export interface DashboardMetrics {
       fecha_cierre_proyecto: string
       status: ProjectStatus
       dias_restantes: number
+      avance_proyecto: number | null
     }[]
   }
 }

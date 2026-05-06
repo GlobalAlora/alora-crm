@@ -308,16 +308,26 @@ export default function DashboardPage() {
                 : p.dias_restantes === 0
                 ? 'vence hoy'
                 : `${p.dias_restantes}d restantes`
+              const avance = p.avance_proyecto ?? 0
+              const avanceColor = avance === 100 ? 'bg-green-500' : avance >= 70 ? 'bg-blue-500' : avance >= 30 ? 'bg-amber-500' : 'bg-slate-300'
               return (
                 <button
                   key={p.id}
                   onClick={() => router.push(`/leads/${p.id}`)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg border hover:bg-slate-50 transition-colors text-left"
+                  className="w-full px-3 py-2 rounded-lg border hover:bg-slate-50 transition-colors text-left space-y-1.5"
                 >
-                  <span className="text-sm text-slate-700 font-medium truncate">{p.nombre}{p.empresa ? ` · ${p.empresa}` : ''}</span>
-                  <span className={cn('text-xs font-medium px-2 py-0.5 rounded border flex-shrink-0 ml-2', colorMap[p.status])}>
-                    {emoji} {daysLabel}
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-700 font-medium truncate">{p.nombre}{p.empresa ? ` · ${p.empresa}` : ''}</span>
+                    <span className={cn('text-xs font-medium px-2 py-0.5 rounded border flex-shrink-0 ml-2', colorMap[p.status])}>
+                      {emoji} {daysLabel}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={cn('h-full rounded-full transition-all', avanceColor)} style={{ width: `${avance}%` }} />
+                    </div>
+                    <span className="text-[10px] text-slate-500 w-8 text-right">{avance}%</span>
+                  </div>
                 </button>
               )
             })}
