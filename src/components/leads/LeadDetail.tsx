@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   X, Mail, Building2, Tag as TagIcon, Globe, Calendar,
@@ -68,13 +68,19 @@ function EditableField({
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
+  const [displayValue, setDisplayValue] = useState(() => 
+    type === 'date' ? formatDateToDDMMYYYY(value) : value
+  )
 
   const save = () => {
     onSave(draft)
     setEditing(false)
   }
 
-  const displayValue = type === 'date' ? formatDateToDDMMYYYY(value) : value
+  useEffect(() => {
+    setDraft(value)
+    setDisplayValue(type === 'date' ? formatDateToDDMMYYYY(value) : value)
+  }, [value, type])
 
   return (
     <div className="group">

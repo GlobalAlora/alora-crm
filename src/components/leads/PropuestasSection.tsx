@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Edit3 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, FileText, ExternalLink, Trash2, CheckCircle2, XCircle, Clock } from 'lucide-react'
 import { formatUSD, formatARS, timeAgo } from '@/lib/utils'
@@ -24,6 +25,7 @@ interface PropuestasSectionProps {
 export function PropuestasSection({ leadId, propuestas: initialPropuestas }: PropuestasSectionProps) {
   const qc = useQueryClient()
   const [adding, setAdding] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState({
     descripcion: '', valor: '', moneda: 'USD' as 'USD' | 'ARS',
     tipo_pago: 'unica_vez' as 'unica_vez' | 'mensual', link: '',
@@ -91,6 +93,47 @@ export function PropuestasSection({ leadId, propuestas: initialPropuestas }: Pro
     },
     onError: () => toast.error('Error al actualizar estado'),
   })
+
+  const updateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const payload = {
+        descripcion: form.descripcion,
+        moneda: form.moneda,
+        valor_usd: form.moneda === 'USD' && form.valor ? Number(form.valor) : null,
+        valor_ars: form.moneda === 'ARS' && form.valor ? Number(form.valor) : null,
+        tipo_pago: form.tipo_pago,
+        link: form.link || null,
+      }
+      await fetch(`/api/propuestas/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['propuestas', leadId] })
+      qc.invalidateQueries({ queryKey: ['lead', leadId] })
+      qc.invalidateQueries({ queryKey: ['leads'] })
+      setEditingId(null)
+      setForm({ descripcion: '', valor: '', moneda: 'USD', tipo_pago: 'unica_vez', link: '' })
+      toast.success('Propuesta actualizada')
+    },
+    onError: () => toast.error('Error al actualizar propuesta'),
+  })
+
+  const startEdit = (p: Propuesta) => {
+    setEditingId(p.id)
+    setForm({
+      descripcion: p.descripcion,
+      valor: p.moneda === 'USD' ? (p.valor_usd?.toString() ?? '') : (p.valor_ars?.toString() ?? ''),
+      moneda: p.moneda,
+      tipo_pago: p.tipo_pago,
+      link: p.link ?? '',
+    })
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setForm({ descripcion: '', valor: '', moneda: 'USD', tipo_pago: 'unica_vez', link: '' })
+  }
 
   return (
     <div className="space-y-4">
@@ -168,6 +211,63 @@ export function PropuestasSection({ leadId, propuestas: initialPropuestas }: Pro
             ? (p.valor_usd ? `USD ${p.valor_usd.toLocaleString('en-US')}` : '—')
             : (p.valor_ars ? `ARS ${p.valor_ars.toLocaleString('es-AR')}` : '—')
           void valorNum
+          const isEditing = editingId === p.id
+
+          if (isEditing) {
+            return (
+              <div key={p.id} className="border border-blue-200 rounded-xl p-4 bg-blue-50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-slate-700">Editar propuesta</span>
+                  <button onClick={cancelEdit} className="text-xs text-slate-600 hover:bg-slate-100 px-2 py-1 rounded">Cancelar</button>
+                </div>
+                <label className="block space-y-1">
+                  <span className="text-xs font-medium text-slate-600">Descripción *</span>
+                  <input value={form.descripcion} onChange={(e) => setForm(f => ({ ...f, descripcion: e.target.value }))} className={INPUT} />
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="space-y-1">
+                    <span className="text-xs font-medium text-slate-600">Valor</span>
+                    <div className="flex rounded-md overflow-hidden border border-slate-200 focus-within:ring-2 focus-within:ring-blue-500">
+                      <select
+                        value={form.moneda}
+                        onChange={(e) => setForm(f => ({ ...f, moneda: e.target.value as 'USD' | 'ARS' }))}
+                        className="px-2 py-1.5 text-xs bg-slate-50 border-r border-slate-200 focus:outline-none"
+                      >
+                        <option value="USD">USD</option>
+                        <option value="ARS">ARS</option>
+                      </select>
+                      <input
+                        type="number" min="0" value={form.valor}
+                        onChange={(e) => setForm(f => ({ ...f, valor: e.target.value }))}
+                        className="flex-1 px-2 py-1.5 text-sm focus:outline-none bg-white"
+                      />
+                    </div>
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-xs font-medium text-slate-600">Tipo de pago</span>
+                    <select value={form.tipo_pago} onChange={(e) => setForm(f => ({ ...f, tipo_pago: e.target.value as 'unica_vez' | 'mensual' }))} className={INPUT}>
+                      <option value="unica_vez">Única vez</option>
+                      <option value="mensual">Mensual</option>
+                    </select>
+                  </label>
+                </div>
+                <label className="block space-y-1">
+                  <span className="text-xs font-medium text-slate-600">Link de propuesta</span>
+                  <input type="url" value={form.link} onChange={(e) => setForm(f => ({ ...f, link: e.target.value }))} className={INPUT} />
+                </label>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => updateMutation.mutate(p.id)}
+                    disabled={!form.descripcion.trim() || updateMutation.isPending}
+                    className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    Guardar cambios
+                  </button>
+                </div>
+              </div>
+            )
+          }
+
           return (
             <div key={p.id} className="border border-slate-200 rounded-xl p-4 bg-white space-y-3 group">
               <div className="flex items-start justify-between gap-2">
@@ -175,12 +275,20 @@ export function PropuestasSection({ leadId, propuestas: initialPropuestas }: Pro
                   <FileText size={14} className="text-slate-400 flex-shrink-0" />
                   <span className="text-sm font-medium text-slate-800 truncate">{p.descripcion}</span>
                 </div>
-                <button
-                  onClick={() => deleteMutation.mutate(p.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
-                >
-                  <Trash2 size={13} />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => startEdit(p)}
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition-all"
+                  >
+                    <Edit3 size={13} />
+                  </button>
+                  <button
+                    onClick={() => deleteMutation.mutate(p.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-sm font-semibold text-slate-900 tabular-nums">{valor}</span>
