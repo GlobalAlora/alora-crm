@@ -54,7 +54,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     await resend.emails.send({
       from: `${senderName} <${senderEmail}>`,
       to: [lead.email],
-      reply_to: replyTo,
+      replyTo: replyTo,
       subject: subject.trim(),
       html: html.trim(),
     })

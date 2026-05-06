@@ -113,7 +113,7 @@ async function sendEmails(
           await resend.emails.send({
             from: `${campaign.from_name} <${campaign.from_email}>`,
             to: [lead.email!],
-            ...(replyTo ? { reply_to: replyTo } : {}),
+            ...(replyTo ? { replyTo } : {}),
             subject,
             html,
           })
