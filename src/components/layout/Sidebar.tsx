@@ -3,12 +3,13 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
-import { LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, List, MessageCircle, Smartphone, ContactRound, X, Menu } from 'lucide-react'
+import { LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, List, MessageCircle, Smartphone, ContactRound, X, Menu, UserCog } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import type { WhatsAppConversation } from '@/types'
 
 const settingsNav = [
+  { href: '/settings/equipo',    label: 'Equipo',      icon: UserCog     },
   { href: '/settings/forms',     label: 'Formularios', icon: FileCode2   },
   { href: '/settings/tags',      label: 'Etiquetas',   icon: Tag         },
   { href: '/settings/lists',     label: 'Listas',      icon: List        },

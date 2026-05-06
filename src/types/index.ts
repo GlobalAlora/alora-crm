@@ -17,6 +17,14 @@ export type LeadQuality = 'MQL' | 'SQL' | 'no_calificado'
 
 export type ProjectStatus = 'en_tiempo' | 'proximo_a_vencer' | 'atrasado'
 
+export interface TeamMember {
+  id: string
+  full_name: string
+  role: string
+  email: string | null
+  created_at: string
+}
+
 export type ActivityType =
   | 'nota'
   | 'llamada'
@@ -116,8 +124,8 @@ export interface Lead {
   updated_at: string
   // Computed on GET /leads/[id]
   responsable?: Pick<User, 'id' | 'full_name' | 'avatar_url'>
-  lider_tecnico?: Pick<User, 'id' | 'full_name' | 'avatar_url'>
-  dev?: Pick<User, 'id' | 'full_name' | 'avatar_url'>
+  lider_tecnico?: Pick<TeamMember, 'id' | 'full_name' | 'role'>
+  dev?: Pick<TeamMember, 'id' | 'full_name' | 'role'>
   calidad_lead?: LeadQuality
   dias_sin_respuesta?: number
   propuestas?: Propuesta[]

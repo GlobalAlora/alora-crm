@@ -10,7 +10,7 @@ import {
 import { leadsApi } from '@/lib/api'
 import { cn, formatUSD, formatARS, timeAgo, getProjectStatus, getDaysUntil } from '@/lib/utils'
 import { PIPELINE_STAGES, FUENTES, PAISES, PIPELINE_STAGE_MAP } from '@/types'
-import type { Lead, PipelineStage } from '@/types'
+import type { Lead, PipelineStage, TeamMember } from '@/types'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { ActivityFeed } from './ActivityFeed'
@@ -747,23 +747,21 @@ function NotesRichEditor({ value, onSave }: { value: string; onSave: (v: string)
 
 // ── User picker for project team ─────────────────────────────────────────────
 
-type SimpleUser = { id: string; full_name: string; avatar_url: string | null }
-
 function UserPickerField({
   label,
   currentUser,
   onSave,
 }: {
   label: string
-  currentUser?: SimpleUser | null
+  currentUser?: Pick<TeamMember, 'id' | 'full_name' | 'role'> | null
   onSave: (userId: string | null) => void
 }) {
-  const { data } = useQuery<{ data: SimpleUser[] }>({
-    queryKey: ['users-list'],
-    queryFn: () => fetch('/api/users').then(r => r.json()),
+  const { data } = useQuery<{ data: TeamMember[] }>({
+    queryKey: ['team-members'],
+    queryFn: () => fetch('/api/team-members').then(r => r.json()),
     staleTime: 5 * 60_000,
   })
-  const users = data?.data ?? []
+  const members = data?.data ?? []
 
   return (
     <div>
@@ -776,8 +774,8 @@ function UserPickerField({
         className="w-full text-sm text-slate-800 bg-transparent focus:outline-none cursor-pointer hover:text-blue-600 transition-colors"
       >
         <option value="">— Sin asignar —</option>
-        {users.map((u) => (
-          <option key={u.id} value={u.id}>{u.full_name}</option>
+        {members.map((m) => (
+          <option key={m.id} value={m.id}>{m.full_name} ({m.role})</option>
         ))}
       </select>
     </div>
