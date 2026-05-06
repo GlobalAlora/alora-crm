@@ -3,7 +3,7 @@
 import { Search, X } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { usersApi } from '@/lib/api'
-import { PIPELINE_STAGES } from '@/types'
+import { PIPELINE_STAGES, FUENTES, PAISES } from '@/types'
 import type { LeadFilterState } from '@/hooks/useLeadFilters'
 import type { PipelineStage } from '@/types'
 
@@ -61,6 +61,30 @@ export function LeadFilters({ filters, onFilter, onReset, hasActiveFilters, tota
           ))}
         </select>
       )}
+
+      {/* Fuente filter */}
+      <select
+        value={filters.fuente}
+        onChange={(e) => onFilter('fuente', e.target.value)}
+        className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700"
+      >
+        <option value="">Todas las fuentes</option>
+        {FUENTES.map((f) => (
+          <option key={f.value} value={f.value}>{f.label}</option>
+        ))}
+      </select>
+
+      {/* País filter */}
+      <select
+        value={filters.pais}
+        onChange={(e) => onFilter('pais', e.target.value)}
+        className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700"
+      >
+        <option value="">Todos los países</option>
+        {PAISES.map((p) => (
+          <option key={p} value={p}>{p}</option>
+        ))}
+      </select>
 
       {/* Total + clear */}
       <div className="flex items-center gap-2 ml-auto">

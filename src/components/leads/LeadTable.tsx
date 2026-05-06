@@ -61,6 +61,8 @@ export function LeadTable({ onLeadClick }: LeadTableProps) {
     setBuscar,
     toggleEstado,
     setResponsableId,
+    setFuente,
+    setPais,
     clearAll,
     hasActiveFilters,
   } = useLeadFilters()
@@ -70,6 +72,8 @@ export function LeadTable({ onLeadClick }: LeadTableProps) {
     if (key === 'buscar') setBuscar(value as string)
     else if (key === 'estado') toggleEstado(value as import('@/types').PipelineStage)
     else if (key === 'responsableId') setResponsableId(value as string)
+    else if (key === 'fuente') setFuente(value as string)
+    else if (key === 'pais') setPais(value as string)
   }
   const resetFilters = clearAll
 
