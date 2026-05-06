@@ -52,16 +52,11 @@ function stripQuotedReply(html: string): string {
 export async function POST(req: NextRequest) {
   let event: ResendInboundEvent
 
-  let rawBody = ''
   try {
-    rawBody = await req.text()
-    event = JSON.parse(rawBody)
+    event = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
-
-  // Log full payload so we can see Resend's actual structure in Vercel logs
-  console.log('[email-inbound] RAW PAYLOAD:', rawBody.slice(0, 3000))
 
   // Support both direct payload and wrapped event format
   const data = (event as { data?: ResendInboundEvent['data'] }).data ?? (event as unknown as ResendInboundEvent['data'])
@@ -93,11 +88,27 @@ export async function POST(req: NextRequest) {
     senderEmail
 
   const subject = data?.subject ?? '(sin asunto)'
-  const rawHtml = (data as Record<string, unknown>)?.html as string ?? ''
-  const rawText = (data as Record<string, unknown>)?.text as string ?? ''
+  const emailId = (data as Record<string, unknown>)?.email_id as string | undefined
 
-  // Log for debugging in Vercel
-  console.log('[email-inbound] from:', senderEmail, '| subject:', subject, '| hasHtml:', !!rawHtml, '| hasText:', !!rawText)
+  // Resend inbound webhook only sends metadata — fetch full content via API
+  let rawHtml = ''
+  let rawText = ''
+  if (emailId && process.env.RESEND_API_KEY) {
+    try {
+      const emailRes = await fetch(`https://api.resend.com/emails/${emailId}`, {
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
+      })
+      if (emailRes.ok) {
+        const emailData = await emailRes.json() as Record<string, unknown>
+        rawHtml = (emailData.html as string) ?? ''
+        rawText = (emailData.text as string) ?? ''
+      } else {
+        console.error('[email-inbound] failed to fetch email content, status:', emailRes.status)
+      }
+    } catch (err) {
+      console.error('[email-inbound] error fetching email content:', err)
+    }
+  }
 
   // Prefer HTML, strip quoted content, fall back to plain text
   const body = rawHtml
@@ -105,11 +116,6 @@ export async function POST(req: NextRequest) {
     : rawText
       ? rawText.split(/\n>{1,}|\nOn .+wrote:/)[0].replace(/\n/g, '<br>').trim() || rawText.replace(/\n/g, '<br>')
       : ''
-
-  // Temporarily store raw payload keys for debugging
-  const payloadKeys = Object.keys(data ?? {})
-  const payloadTopKeys = Object.keys(event ?? {})
-  const debugSnippet = rawHtml ? '' : ` [DEBUG keys: top=${payloadTopKeys.join(',')}, data=${payloadKeys.join(',')}]`
 
   await adminSupabase.from('activities').insert({
     lead_id: lead.id,
@@ -119,7 +125,7 @@ export async function POST(req: NextRequest) {
       `<strong>✉ Respuesta de ${leadName}</strong>`,
       `<span style="color:#64748b;font-size:12px">Asunto: ${subject}</span>`,
       '',
-      body || rawHtml || rawText || `(mensaje vacío${debugSnippet})`,
+      body || rawHtml || rawText || '(mensaje vacío)',
     ].join('<br>'),
     metadata: {
       direction: 'inbound',
