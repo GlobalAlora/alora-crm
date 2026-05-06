@@ -71,7 +71,8 @@ export function TopOpportunitiesChart({ data, isLoading }: TopOpportunitiesChart
     total: (lead.valor_propuesta_usd || 0) + ((lead.valor_propuesta_ars || 0) / 100), // Convert ARS to USD approximation
   }))
 
-  const handleLeadClick = (leadId: string) => {
+  const handleLeadClick = (leadId: string | undefined) => {
+    if (!leadId) return
     router.push(`/leads/${leadId}`)
   }
 
