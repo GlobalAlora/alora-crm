@@ -399,24 +399,20 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                   type="date"
                   placeholder="Sin fecha"
                 />
-                {(lead.fecha_reunion || lead.reunion_hora) && (
-                  <EditableField
-                    label="Hora reunión"
-                    value={lead.reunion_hora ?? ''}
-                    onSave={(v) => patch({ reunion_hora: v || null })}
-                    type="time"
-                    placeholder="Sin hora"
-                  />
-                )}
-                {(lead.fecha_reunion || lead.reunion_link) && (
-                  <EditableField
-                    label="Link reunión"
-                    value={lead.reunion_link ?? ''}
-                    onSave={(v) => patch({ reunion_link: v || null })}
-                    type="url"
-                    placeholder="https://..."
-                  />
-                )}
+                <EditableField
+                  label="Hora reunión"
+                  value={lead.reunion_hora ?? ''}
+                  onSave={(v) => patch({ reunion_hora: v || null })}
+                  type="time"
+                  placeholder="Sin hora"
+                />
+                <EditableField
+                  label="Link reunión"
+                  value={lead.reunion_link ?? ''}
+                  onSave={(v) => patch({ reunion_link: v || null })}
+                  type="url"
+                  placeholder="https://..."
+                />
                 <EditableField
                   label="Propuesta enviada"
                   value={lead.fecha_propuesta ? lead.fecha_propuesta.slice(0, 10) : ''}
@@ -539,24 +535,20 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                   type="date"
                   placeholder="Sin fecha"
                 />
-                {(lead.fecha_reunion || lead.reunion_hora) && (
-                  <EditableField
-                    label="Hora reunión"
-                    value={lead.reunion_hora ?? ''}
-                    onSave={(v) => patch({ reunion_hora: v || null })}
-                    type="time"
-                    placeholder="Sin hora"
-                  />
-                )}
-                {(lead.fecha_reunion || lead.reunion_link) && (
-                  <EditableField
-                    label="Link reunión"
-                    value={lead.reunion_link ?? ''}
-                    onSave={(v) => patch({ reunion_link: v || null })}
-                    type="url"
-                    placeholder="https://..."
-                  />
-                )}
+                <EditableField
+                  label="Hora reunión"
+                  value={lead.reunion_hora ?? ''}
+                  onSave={(v) => patch({ reunion_hora: v || null })}
+                  type="time"
+                  placeholder="Sin hora"
+                />
+                <EditableField
+                  label="Link reunión"
+                  value={lead.reunion_link ?? ''}
+                  onSave={(v) => patch({ reunion_link: v || null })}
+                  type="url"
+                  placeholder="https://..."
+                />
                 <EditableField
                   label="Propuesta enviada"
                   value={lead.fecha_propuesta ? lead.fecha_propuesta.slice(0, 10) : ''}
