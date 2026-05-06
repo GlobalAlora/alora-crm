@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { toArgentinaISOString } from '@/lib/timezone'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -68,13 +67,15 @@ export async function POST(req: NextRequest, { params }: Params) {
     assignee = lead?.responsable_id ?? user.id
   }
 
-  // Handle vencimiento safely - convert datetime-local to Date
+  // Handle vencimiento safely - convert datetime-local to ISO preserving local time
   let processedVencimiento: string | null = null
   if (vencimiento) {
     try {
       const date = new Date(vencimiento)
       if (!isNaN(date.getTime())) {
-        processedVencimiento = toArgentinaISOString(date)
+        // datetime-local is in local timezone, convert to ISO preserving local time
+        const offset = date.getTimezoneOffset() * 60000 // offset in milliseconds
+        processedVencimiento = new Date(date.getTime() - offset).toISOString()
       }
     } catch (error) {
       console.error('Error processing vencimiento:', error)
