@@ -139,7 +139,8 @@ export function MonthlyEvolutionChart({ responsableId, months = 6 }: MonthlyEvol
               border: '1px solid #e2e8f0',
               boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
             }}
-            formatter={(value: number, name: string) => {
+            formatter={(value, name) => {
+              if (typeof value !== 'number') return [value, name]
               if (name === 'conversion') return [`${value}%`, 'Conversión']
               return [value, name.charAt(0).toUpperCase() + name.slice(1)]
             }}
