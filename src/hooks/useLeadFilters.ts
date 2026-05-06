@@ -8,6 +8,8 @@ export interface LeadFilterState {
   buscar: string
   estados: PipelineStage[]
   responsableId: string
+  fuente: string
+  pais: string
   sortBy: 'nombre' | 'empresa' | 'valor_propuesta_usd' | 'last_activity_at' | 'created_at'
   sortOrder: 'asc' | 'desc'
 }
@@ -24,6 +26,8 @@ export function useLeadFilters() {
     buscar: searchParams.get('buscar') ?? '',
     estados: searchParams.getAll('estado_pipeline') as PipelineStage[],
     responsableId: searchParams.get('responsable_id') ?? '',
+    fuente: searchParams.get('fuente') ?? '',
+    pais: searchParams.get('pais') ?? '',
     sortBy: (searchParams.get('sort_by') as LeadFilterState['sortBy']) ?? 'last_activity_at',
     sortOrder: (searchParams.get('sort_order') as 'asc' | 'desc') ?? 'desc',
   }), [searchParams])
@@ -64,6 +68,20 @@ export function useLeadFilters() {
       params.delete('responsable_id')
     }
 
+    // Handle fuente
+    if (filters.fuente) {
+      params.set('fuente', filters.fuente)
+    } else {
+      params.delete('fuente')
+    }
+
+    // Handle pais
+    if (filters.pais) {
+      params.set('pais', filters.pais)
+    } else {
+      params.delete('pais')
+    }
+
     // Handle sort
     if (filters.sortBy !== 'last_activity_at') {
       params.set('sort_by', filters.sortBy)
@@ -82,7 +100,7 @@ export function useLeadFilters() {
     if (newQuery !== currentQuery) {
       router.replace(`${pathname}?${newQuery}`, { scroll: false })
     }
-  }, [debouncedBuscar, filters.estados, filters.responsableId, filters.sortBy, filters.sortOrder, pathname, router, searchParams])
+  }, [debouncedBuscar, filters.estados, filters.responsableId, filters.fuente, filters.pais, filters.sortBy, filters.sortOrder, pathname, router, searchParams])
 
   const setBuscar = useCallback((buscar: string) => {
     setFilters((f) => ({ ...f, buscar }))
@@ -105,6 +123,14 @@ export function useLeadFilters() {
     setFilters((f) => ({ ...f, responsableId: id }))
   }, [])
 
+  const setFuente = useCallback((fuente: string) => {
+    setFilters((f) => ({ ...f, fuente }))
+  }, [])
+
+  const setPais = useCallback((pais: string) => {
+    setFilters((f) => ({ ...f, pais }))
+  }, [])
+
   const setSort = useCallback((column: LeadFilterState['sortBy']) => {
     setFilters((f) => ({
       ...f,
@@ -118,6 +144,8 @@ export function useLeadFilters() {
       buscar: '',
       estados: [],
       responsableId: '',
+      fuente: '',
+      pais: '',
       sortBy: 'last_activity_at',
       sortOrder: 'desc',
     })
@@ -128,6 +156,8 @@ export function useLeadFilters() {
     buscar: debouncedBuscar || undefined,
     estado_pipeline: filters.estados.length > 0 ? filters.estados : undefined,
     responsable_id: filters.responsableId || undefined,
+    fuente: filters.fuente || undefined,
+    pais: filters.pais || undefined,
     sort_by: filters.sortBy,
     sort_order: filters.sortOrder,
   }
@@ -139,8 +169,10 @@ export function useLeadFilters() {
     toggleEstado,
     clearEstados,
     setResponsableId,
+    setFuente,
+    setPais,
     setSort,
     clearAll,
-    hasActiveFilters: debouncedBuscar || filters.estados.length > 0 || filters.responsableId,
+    hasActiveFilters: debouncedBuscar || filters.estados.length > 0 || filters.responsableId || filters.fuente || filters.pais,
   }
 }
