@@ -501,7 +501,7 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
 
           {/* Tab content */}
           <div className="flex-1 overflow-y-auto p-5">
-            {tab === 'actividad'  && <ActivityFeed leadId={lead.id} />}
+            {tab === 'actividad'  && <ActivityFeed leadId={lead.id} leadEmail={lead.email} />}
             {tab === 'tareas'     && <TaskList leadId={lead.id} />}
             {tab === 'propuestas' && <PropuestasSection leadId={lead.id} propuestas={lead.propuestas} />}
             {tab === 'tags'       && <TagsSection leadId={lead.id} />}

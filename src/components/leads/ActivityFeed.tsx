@@ -121,12 +121,14 @@ function ActivityItem({ activity, onDelete, onEdit }: {
 
 interface ActivityFeedProps {
   leadId: string
+  leadEmail?: string | null
 }
 
-export function ActivityFeed({ leadId }: ActivityFeedProps) {
+export function ActivityFeed({ leadId, leadEmail }: ActivityFeedProps) {
   const qc = useQueryClient()
   const [tipo, setTipo] = useState<typeof ACTIVITY_TYPES[number]>('nota')
   const [text, setText] = useState('')
+  const [emailSubject, setEmailSubject] = useState('')
   const [editorKey, setEditorKey] = useState(0)
 
   const { data, isLoading } = useQuery({
@@ -166,10 +168,37 @@ export function ActivityFeed({ leadId }: ActivityFeedProps) {
     onError: () => toast.error('Error al guardar'),
   })
 
+  const sendEmailMutation = useMutation({
+    mutationFn: () =>
+      fetch(`/api/leads/${leadId}/send-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject: emailSubject, html: text }),
+      }).then(async (r) => {
+        const json = await r.json()
+        if (!r.ok || json.error) throw new Error(json.error ?? 'Error al enviar')
+        return json
+      }),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['activities', leadId] })
+      setText('')
+      setEmailSubject('')
+      setEditorKey((k) => k + 1)
+      toast.success(res.message ?? 'Email enviado')
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Error al enviar'),
+  })
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!text) return
     addMutation.mutate()
+  }
+
+  const handleSendEmail = () => {
+    if (!emailSubject.trim()) { toast.error('Escribí el asunto del email'); return }
+    if (!text) { toast.error('El cuerpo del email no puede estar vacío'); return }
+    sendEmailMutation.mutate()
   }
 
   return (
@@ -198,22 +227,54 @@ export function ActivityFeed({ leadId }: ActivityFeedProps) {
             )
           })}
         </div>
+        {/* Subject field for email compose */}
+        {tipo === 'email' && (
+          <input
+            type="text"
+            value={emailSubject}
+            onChange={(e) => setEmailSubject(e.target.value)}
+            placeholder="Asunto del email"
+            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white"
+          />
+        )}
+
         <RichTextEditor
           key={editorKey}
           content=""
           onChange={setText}
-          placeholder={`Agregar ${TIPO_CONFIG[tipo].label.toLowerCase()}...`}
+          placeholder={tipo === 'email' ? 'Cuerpo del email...' : `Agregar ${TIPO_CONFIG[tipo].label.toLowerCase()}...`}
           minimal
         />
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={!text || addMutation.isPending}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
-            {addMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
-            Registrar
-          </button>
+
+        <div className="flex items-center justify-between gap-2">
+          {tipo === 'email' && leadEmail ? (
+            <span className="text-xs text-slate-400 flex items-center gap-1">
+              <Mail size={11} /> Para: {leadEmail}
+            </span>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            {tipo === 'email' && leadEmail && (
+              <button
+                type="button"
+                onClick={handleSendEmail}
+                disabled={sendEmailMutation.isPending || !text || !emailSubject}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors"
+              >
+                {sendEmailMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Mail size={13} />}
+                Enviar email
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={!text || addMutation.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {addMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+              {tipo === 'email' ? 'Solo registrar' : 'Registrar'}
+            </button>
+          </div>
         </div>
       </form>
 
