@@ -14,10 +14,10 @@ export async function GET(req: NextRequest) {
     const now = getArgentinaDate()
     const startDate = new Date(now.getFullYear(), now.getMonth() - numMonths + 1, 1)
 
-    // Build query with filters
+    // Build query with filters - get all leads for created_at
     let query = supabase
       .from('leads')
-      .select('created_at, estado_pipeline, responsable_id')
+      .select('created_at, estado_pipeline, responsable_id, stage_updated_at')
       .is('deleted_at', null)
       .gte('created_at', startDate.toISOString())
 
@@ -44,16 +44,25 @@ export async function GET(req: NextRequest) {
 
     // Aggregate data
     leads?.forEach((lead) => {
+      // Count created leads by created_at
       const createdDate = new Date(lead.created_at)
-      const monthKey = `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(2, '0')}`
+      const createdMonthKey = `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(2, '0')}`
 
-      if (monthlyData[monthKey]) {
-        monthlyData[monthKey].creados++
+      if (monthlyData[createdMonthKey]) {
+        monthlyData[createdMonthKey].creados++
+      }
+
+      // Count ganados/perdidos by when they changed to that state
+      if (lead.stage_updated_at) {
+        const stageDate = new Date(lead.stage_updated_at)
+        const stageMonthKey = `${stageDate.getFullYear()}-${String(stageDate.getMonth() + 1).padStart(2, '0')}`
         
-        if (lead.estado_pipeline === 'cliente_ganado') {
-          monthlyData[monthKey].ganados++
-        } else if (lead.estado_pipeline === 'cliente_perdido' || lead.estado_pipeline === 'no_cualificado') {
-          monthlyData[monthKey].perdidos++
+        if (monthlyData[stageMonthKey]) {
+          if (lead.estado_pipeline === 'cliente_ganado') {
+            monthlyData[stageMonthKey].ganados++
+          } else if (lead.estado_pipeline === 'cliente_perdido' || lead.estado_pipeline === 'no_cualificado') {
+            monthlyData[stageMonthKey].perdidos++
+          }
         }
       }
     })
