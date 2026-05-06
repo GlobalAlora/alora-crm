@@ -59,7 +59,7 @@ export function LeadsByCountryChart({ data, isLoading }: LeadsByCountryChartProp
     .slice(0, 8) // Top 8 países
 
   const handleCountryClick = (country: string) => {
-    router.push(`/leads?view=kanban&pais=${country}`)
+    router.push(`/contactos?pais=${country}`)
   }
 
   return (

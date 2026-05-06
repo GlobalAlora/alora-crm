@@ -71,7 +71,7 @@ export function LeadsBySourceChart({ data, isLoading }: LeadsBySourceChartProps)
 
   const handleSourceClick = (source: string | undefined) => {
     if (!source) return
-    router.push(`/leads?view=kanban&fuente=${source}`)
+    router.push(`/contactos?fuente=${source}`)
   }
 
   return (
