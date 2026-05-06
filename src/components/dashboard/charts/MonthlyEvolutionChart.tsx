@@ -185,10 +185,10 @@ export function MonthlyEvolutionChart({ responsableId, months = 6 }: MonthlyEvol
               axisLine={{ stroke: '#e2e8f0' }}
               domain={[0, 100]}
             />
-            <Tooltip 
-              formatter={(value: number) => [`${value}%`, 'Conversión']}
-              contentStyle={{ 
-                borderRadius: '8px', 
+            <Tooltip
+              formatter={(value) => typeof value === 'number' ? [`${value}%`, 'Conversión'] : [value, '']}
+              contentStyle={{
+                borderRadius: '8px',
                 border: '1px solid #e2e8f0',
                 boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
               }}
