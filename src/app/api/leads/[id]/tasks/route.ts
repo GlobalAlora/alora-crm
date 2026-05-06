@@ -71,11 +71,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   let processedVencimiento: string | null = null
   if (vencimiento) {
     try {
-      const date = new Date(vencimiento)
+      // Add 'Z' to interpret as UTC, then convert to ISO
+      const date = new Date(vencimiento + 'Z')
       if (!isNaN(date.getTime())) {
-        // datetime-local is in local timezone, convert to ISO preserving local time
-        const offset = date.getTimezoneOffset() * 60000 // offset in milliseconds
-        processedVencimiento = new Date(date.getTime() - offset).toISOString()
+        processedVencimiento = date.toISOString()
       }
     } catch (error) {
       console.error('Error processing vencimiento:', error)

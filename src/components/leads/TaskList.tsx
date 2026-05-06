@@ -269,16 +269,13 @@ function TaskItem({ task, onComplete, onDelete, onUpdate, isCompleting, isDeleti
 
   const saveEdit = () => {
     if (!draftTitulo.trim()) return
-    // Convert datetime-local to ISO with timezone (preserve local time)
+    // Convert datetime-local to ISO preserving local time
     let vencimiento: string | undefined
     if (draftVenc) {
-      // datetime-local is in local timezone, preserve it
-      const d = new Date(draftVenc)
+      // Add 'Z' to interpret as UTC
+      const d = new Date(draftVenc + 'Z')
       if (!isNaN(d.getTime())) {
-        // Use the local time as-is, convert to ISO preserving the timezone offset
-        const offset = d.getTimezoneOffset() * 60000 // offset in milliseconds
-        const localISOTime = new Date(d.getTime() - offset).toISOString()
-        vencimiento = localISOTime
+        vencimiento = d.toISOString()
       }
     }
     onUpdate({
