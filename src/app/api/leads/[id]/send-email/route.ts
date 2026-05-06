@@ -49,18 +49,18 @@ export async function POST(req: NextRequest, { params }: Params) {
   // Replies go to a globalalora.com address so Resend inbound can capture them
   const replyTo = 'reply@reply.globalalora.com'
 
-  try {
-    const resend = new Resend(process.env.RESEND_API_KEY)
-    await resend.emails.send({
-      from: `${senderName} <${senderEmail}>`,
-      to: [lead.email],
-      replyTo: replyTo,
-      subject: subject.trim(),
-      html: html.trim(),
-    })
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Error desconocido'
-    return NextResponse.json({ error: `Error al enviar: ${msg}` }, { status: 500 })
+  const resend = new Resend(process.env.RESEND_API_KEY)
+  const { error: sendError } = await resend.emails.send({
+    from: `${senderName} <${senderEmail}>`,
+    to: [lead.email],
+    replyTo: replyTo,
+    subject: subject.trim(),
+    html: html.trim(),
+  })
+
+  if (sendError) {
+    console.error('[send-email]', sendError)
+    return NextResponse.json({ error: `Error al enviar: ${sendError.message}` }, { status: 500 })
   }
 
   // Log activity

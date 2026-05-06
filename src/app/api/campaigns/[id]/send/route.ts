@@ -109,22 +109,29 @@ async function sendEmails(
         const html = interpolate(campaign.body, lead)
         const subject = interpolate(campaign.subject, lead)
 
-        try {
-          await resend.emails.send({
-            from: `${campaign.from_name} <${campaign.from_email}>`,
-            to: [lead.email!],
-            ...(replyTo ? { replyTo } : {}),
-            subject,
-            html,
-          })
+        const { error: sendError } = await resend.emails.send({
+          from: `${campaign.from_name} <${campaign.from_email}>`,
+          to: [lead.email!],
+          ...(replyTo ? { replyTo } : {}),
+          subject,
+          html,
+        })
 
+        if (sendError) {
+          console.error('[campaigns/send]', sendError)
+          await adminSupabase
+            .from('campaign_recipients')
+            .update({ status: 'failed', error: sendError.message })
+            .eq('campaign_id', campaignId)
+            .eq('lead_id', lead.id)
+          totalFailed++
+        } else {
           await adminSupabase
             .from('campaign_recipients')
             .update({ status: 'sent', sent_at: now, error: null })
             .eq('campaign_id', campaignId)
             .eq('lead_id', lead.id)
 
-          // Log activity on lead
           await adminSupabase.from('activities').insert({
             lead_id: lead.id,
             user_id: userId,
@@ -138,18 +145,7 @@ async function sendEmails(
               to: lead.email,
             },
           })
-
           totalSent++
-        } catch (err) {
-          const errorMsg = err instanceof Error ? err.message : 'Error desconocido'
-
-          await adminSupabase
-            .from('campaign_recipients')
-            .update({ status: 'failed', error: errorMsg })
-            .eq('campaign_id', campaignId)
-            .eq('lead_id', lead.id)
-
-          totalFailed++
         }
       })
     )
