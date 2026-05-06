@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Send, Users, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Send, Users, CheckCircle, XCircle, Clock, AlertTriangle, FlaskConical, ChevronDown, ChevronUp } from 'lucide-react'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
@@ -18,6 +18,14 @@ function StatusChip({ status }: { status: string }) {
   return <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.cls}`}>{s.label}</span>
 }
 
+interface LeadOption {
+  id: string
+  nombre: string
+  apellido: string | null
+  email: string | null
+  empresa: string | null
+}
+
 export default function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
@@ -25,6 +33,13 @@ export default function CampaignDetailPage() {
   const [previewCount, setPreviewCount] = useState<number | null>(null)
   const [previewing, setPreviewing] = useState(false)
   const [confirmSend, setConfirmSend] = useState(false)
+
+  // Test send state
+  const [showTestSend, setShowTestSend] = useState(false)
+  const [testEmail, setTestEmail] = useState('')
+  const [leadSearch, setLeadSearch] = useState('')
+  const [selectedLead, setSelectedLead] = useState<LeadOption | null>(null)
+  const [sendingTest, setSendingTest] = useState(false)
 
   const { data: campaignData, isLoading } = useQuery<{ data: Campaign }>({
     queryKey: ['campaign', id],
@@ -39,8 +54,16 @@ export default function CampaignDetailPage() {
     refetchInterval: campaignData?.data?.status === 'sending' ? 3000 : false,
   })
 
+  // Lead search for test send
+  const { data: leadSearchData } = useQuery<{ data: LeadOption[] }>({
+    queryKey: ['leads-search', leadSearch],
+    queryFn: () => fetch(`/api/leads?buscar=${encodeURIComponent(leadSearch)}&limit=8`).then(r => r.json()),
+    enabled: leadSearch.length >= 2,
+  })
+
   const campaign = campaignData?.data
   const recipients = recipientsData?.data ?? []
+  const leadOptions = leadSearchData?.data ?? []
 
   const previewSegment = async () => {
     setPreviewing(true)
@@ -67,6 +90,32 @@ export default function CampaignDetailPage() {
     },
     onError: () => toast.error('Error al enviar'),
   })
+
+  const handleTestSend = async () => {
+    if (!testEmail) { toast.error('Ingresá un email de destino'); return }
+    setSendingTest(true)
+    try {
+      const res = await fetch(`/api/campaigns/${id}/test-send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: testEmail, leadId: selectedLead?.id }),
+      })
+      const json = await res.json()
+      if (json.error) {
+        toast.error(json.error)
+      } else {
+        toast.success(json.message ?? `Email de prueba enviado a ${testEmail}`)
+        setTestEmail('')
+        setSelectedLead(null)
+        setLeadSearch('')
+        setShowTestSend(false)
+      }
+    } catch {
+      toast.error('Error al enviar el email de prueba')
+    } finally {
+      setSendingTest(false)
+    }
+  }
 
   if (isLoading || !campaign) {
     return <div className="p-6 text-slate-400 text-sm">Cargando campaña...</div>
@@ -162,6 +211,107 @@ export default function CampaignDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Test send section */}
+      <div className="bg-white border rounded-xl overflow-hidden">
+        <button
+          onClick={() => setShowTestSend(!showTestSend)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+        >
+          <span className="flex items-center gap-2 font-medium">
+            <FlaskConical size={14} className="text-violet-500" />
+            Enviar email de prueba
+          </span>
+          {showTestSend ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+        </button>
+
+        {showTestSend && (
+          <div className="border-t px-4 py-4 space-y-4">
+            {/* Destination email */}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Email de destino *</label>
+              <input
+                type="email"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                placeholder="tu@email.com"
+                className="w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-400"
+              />
+            </div>
+
+            {/* Lead picker for variable substitution */}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Usar datos de un lead para variables{' '}
+                <span className="text-slate-400 font-normal">(opcional — si no, se usan datos de ejemplo)</span>
+              </label>
+
+              {selectedLead ? (
+                <div className="flex items-center justify-between bg-violet-50 border border-violet-200 rounded-lg px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium text-violet-800">
+                      {[selectedLead.nombre, selectedLead.apellido].filter(Boolean).join(' ')}
+                    </p>
+                    <p className="text-xs text-violet-500">{selectedLead.empresa ?? selectedLead.email ?? '—'}</p>
+                  </div>
+                  <button
+                    onClick={() => { setSelectedLead(null); setLeadSearch('') }}
+                    className="text-xs text-violet-500 hover:text-violet-800"
+                  >
+                    Cambiar
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={leadSearch}
+                    onChange={(e) => setLeadSearch(e.target.value)}
+                    placeholder="Buscar lead por nombre o empresa..."
+                    className="w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                  />
+                  {leadOptions.length > 0 && leadSearch.length >= 2 && (
+                    <div className="absolute z-10 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                      {leadOptions.map((lead) => (
+                        <button
+                          key={lead.id}
+                          onClick={() => {
+                            setSelectedLead(lead)
+                            setLeadSearch('')
+                            // Auto-fill email if empty
+                            if (!testEmail && lead.email) setTestEmail(lead.email)
+                          }}
+                          className="w-full text-left px-3 py-2.5 hover:bg-slate-50 transition-colors border-b last:border-b-0"
+                        >
+                          <p className="text-sm font-medium text-slate-800">
+                            {[lead.nombre, lead.apellido].filter(Boolean).join(' ')}
+                          </p>
+                          <p className="text-xs text-slate-400">{lead.empresa ?? lead.email ?? '—'}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <p className="text-xs text-slate-400 mt-1.5">
+                Variables disponibles: <code className="bg-slate-100 px-1 rounded">{'{{nombre}}'}</code>{' '}
+                <code className="bg-slate-100 px-1 rounded">{'{{empresa}}'}</code>{' '}
+                <code className="bg-slate-100 px-1 rounded">{'{{email}}'}</code>
+              </p>
+            </div>
+
+            <button
+              onClick={handleTestSend}
+              disabled={sendingTest || !testEmail}
+              className="flex items-center gap-2 bg-violet-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-colors"
+            >
+              <FlaskConical size={13} />
+              {sendingTest ? 'Enviando...' : 'Enviar prueba'}
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Email preview */}
       <div className="bg-white border rounded-xl overflow-hidden">
