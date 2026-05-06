@@ -69,7 +69,8 @@ export function LeadsBySourceChart({ data, isLoading }: LeadsBySourceChartProps)
 
   const total = chartData.reduce((sum, item) => sum + item.value, 0)
 
-  const handleSourceClick = (source: string) => {
+  const handleSourceClick = (source: string | undefined) => {
+    if (!source) return
     router.push(`/leads?view=kanban&fuente=${source}`)
   }
 
