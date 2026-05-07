@@ -655,11 +655,11 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
 
           {/* Tab content */}
           <div className="flex-1 overflow-y-auto p-5">
-            {tab === 'actividad'  && <UnifiedTimeline leadId={lead.id} leadEmail={lead.email} />}
-            {tab === 'propuestas' && <PropuestasSection leadId={lead.id} propuestas={lead.propuestas} />}
-            {tab === 'tags'       && <TagsSection leadId={lead.id} />}
-            {tab === 'historial'  && <StageHistorySection history={lead.stage_history} />}
-            {tab === 'formulario' && <FormDataSection formData={lead.form_data} />}
+            {activeTab === 'actividad'  && <UnifiedTimeline leadId={lead.id} leadEmail={lead.email} />}
+            {activeTab === 'propuestas' && <PropuestasSection leadId={lead.id} propuestas={lead.propuestas} />}
+            {activeTab === 'tags'       && <TagsSection leadId={lead.id} />}
+            {activeTab === 'historial'  && <StageHistorySection history={lead.stage_history} />}
+            {activeTab === 'formulario' && <FormDataSection formData={lead.form_data} />}
           </div>
         </div>
 
