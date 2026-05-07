@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   X, Mail, Building2, Tag as TagIcon, Globe, Calendar,
-  MessageSquare, CheckSquare, FileText, History, ExternalLink,
+  MessageSquare, FileText, History, ExternalLink,
   Check, AlertCircle, MessageCircle, ChevronDown, Users,
 } from 'lucide-react'
 import { leadsApi } from '@/lib/api'
@@ -13,8 +13,7 @@ import { PIPELINE_STAGES, FUENTES, PAISES, PIPELINE_STAGE_MAP } from '@/types'
 import type { Lead, PipelineStage, TeamMember } from '@/types'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { UserAvatar } from '@/components/shared/UserAvatar'
-import { ActivityFeed } from './ActivityFeed'
-import { TaskList } from './TaskList'
+import { UnifiedTimeline } from './UnifiedTimeline'
 import { PropuestasSection } from './PropuestasSection'
 import { TagsSection } from './TagsSection'
 import { StageHistorySection } from './StageHistorySection'
@@ -32,11 +31,10 @@ interface LeadDetailProps {
   fullPage?: boolean
 }
 
-type Tab = 'actividad' | 'tareas' | 'propuestas' | 'tags' | 'historial' | 'formulario'
+type Tab = 'actividad' | 'propuestas' | 'tags' | 'historial' | 'formulario'
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'actividad',   label: 'Actividad',   icon: MessageSquare },
-  { id: 'tareas',      label: 'Tareas',       icon: CheckSquare   },
   { id: 'propuestas',  label: 'Propuestas',   icon: FileText      },
   { id: 'tags',        label: 'Etiquetas',    icon: TagIcon       },
   { id: 'historial',   label: 'Historial',    icon: History       },
@@ -557,8 +555,7 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
 
           {/* Tab content */}
           <div className="flex-1 overflow-y-auto p-5">
-            {tab === 'actividad'  && <ActivityFeed leadId={lead.id} leadEmail={lead.email} />}
-            {tab === 'tareas'     && <TaskList leadId={lead.id} />}
+            {tab === 'actividad'  && <UnifiedTimeline leadId={lead.id} leadEmail={lead.email} />}
             {tab === 'propuestas' && <PropuestasSection leadId={lead.id} propuestas={lead.propuestas} />}
             {tab === 'tags'       && <TagsSection leadId={lead.id} />}
             {tab === 'historial'  && <StageHistorySection history={lead.stage_history} />}
