@@ -59,3 +59,45 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   return NextResponse.json({ data })
 }
+
+export async function DELETE(req: NextRequest, { params }: Params) {
+  const { id } = await params
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const url = new URL(req.url)
+  const propuestaId = url.searchParams.get('id')
+
+  if (!propuestaId) {
+    return NextResponse.json({ error: 'ID de propuesta requerido' }, { status: 400 })
+  }
+
+  const { data: propuesta, error: fetchError } = await supabase
+    .from('propuestas')
+    .select('lead_id')
+    .eq('id', propuestaId)
+    .single()
+
+  if (fetchError || !propuesta) {
+    return NextResponse.json({ error: 'Propuesta no encontrada' }, { status: 404 })
+  }
+
+  if (propuesta.lead_id !== id) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
+
+  const { error: deleteError } = await supabase
+    .from('propuestas')
+    .delete()
+    .eq('id', propuestaId)
+
+  if (deleteError) {
+    return NextResponse.json({ error: deleteError.message }, { status: 500 })
+  }
+
+  await syncLeadValorPropuesta(supabase, id)
+
+  return NextResponse.json({ success: true })
+}
