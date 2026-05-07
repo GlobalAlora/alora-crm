@@ -10,6 +10,7 @@ export interface LeadFilterState {
   responsableId: string
   fuente: string
   pais: string
+  servicios: string[]
   sortBy: 'nombre' | 'empresa' | 'valor_propuesta_usd' | 'last_activity_at' | 'created_at'
   sortOrder: 'asc' | 'desc'
 }
@@ -28,6 +29,7 @@ export function useLeadFilters() {
     responsableId: searchParams.get('responsable_id') ?? '',
     fuente: searchParams.get('fuente') ?? '',
     pais: searchParams.get('pais') ?? '',
+    servicios: searchParams.getAll('servicio') ?? [],
     sortBy: (searchParams.get('sort_by') as LeadFilterState['sortBy']) ?? 'last_activity_at',
     sortOrder: (searchParams.get('sort_order') as 'asc' | 'desc') ?? 'desc',
   }), [searchParams])
@@ -82,6 +84,10 @@ export function useLeadFilters() {
       params.delete('pais')
     }
 
+    // Handle servicios
+    params.delete('servicio')
+    filters.servicios.forEach((s) => params.append('servicio', s))
+
     // Handle sort
     if (filters.sortBy !== 'last_activity_at') {
       params.set('sort_by', filters.sortBy)
@@ -131,6 +137,19 @@ export function useLeadFilters() {
     setFilters((f) => ({ ...f, pais }))
   }, [])
 
+  const toggleServicio = useCallback((servicio: string) => {
+    setFilters((f) => ({
+      ...f,
+      servicios: f.servicios.includes(servicio)
+        ? f.servicios.filter((s) => s !== servicio)
+        : [...f.servicios, servicio],
+    }))
+  }, [])
+
+  const setServicios = useCallback((servicios: string[]) => {
+    setFilters((f) => ({ ...f, servicios }))
+  }, [])
+
   const setSort = useCallback((column: LeadFilterState['sortBy']) => {
     setFilters((f) => ({
       ...f,
@@ -146,6 +165,7 @@ export function useLeadFilters() {
       responsableId: '',
       fuente: '',
       pais: '',
+      servicios: [],
       sortBy: 'last_activity_at',
       sortOrder: 'desc',
     })
@@ -158,6 +178,7 @@ export function useLeadFilters() {
     responsable_id: filters.responsableId || undefined,
     fuente: filters.fuente || undefined,
     pais: filters.pais || undefined,
+    servicio: filters.servicios.length > 0 ? filters.servicios : undefined,
     sort_by: filters.sortBy,
     sort_order: filters.sortOrder,
   }
@@ -171,8 +192,10 @@ export function useLeadFilters() {
     setResponsableId,
     setFuente,
     setPais,
+    toggleServicio,
+    setServicios,
     setSort,
     clearAll,
-    hasActiveFilters: debouncedBuscar || filters.estados.length > 0 || filters.responsableId || filters.fuente || filters.pais,
+    hasActiveFilters: debouncedBuscar || filters.estados.length > 0 || filters.responsableId || filters.fuente || filters.pais || filters.servicios.length > 0,
   }
 }
