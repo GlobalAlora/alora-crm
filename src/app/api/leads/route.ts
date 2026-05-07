@@ -54,7 +54,8 @@ export async function GET(req: NextRequest) {
     query = query.eq('pais', pais)
   }
   if (servicios.length > 0) {
-    query = query.contains('servicios_interesados', servicios)
+    const serviciosFilters = servicios.map(servicio => `servicios_interesados.cs.{servicio}`)
+    query = query.or(serviciosFilters.join(','))
   }
   if (fechaDesde) {
     query = query.gte('created_at', fechaDesde)
