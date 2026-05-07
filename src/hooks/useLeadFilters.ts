@@ -106,7 +106,8 @@ export function useLeadFilters() {
     if (newQuery !== currentQuery) {
       router.replace(`${pathname}?${newQuery}`, { scroll: false })
     }
-  }, [debouncedBuscar, filters.estados, filters.responsableId, filters.fuente, filters.pais, filters.sortBy, filters.sortOrder, pathname, router, searchParams])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedBuscar, filters.estados, filters.responsableId, filters.fuente, filters.pais, filters.servicios, filters.sortBy, filters.sortOrder, pathname, router, searchParams])
 
   const setBuscar = useCallback((buscar: string) => {
     setFilters((f) => ({ ...f, buscar }))

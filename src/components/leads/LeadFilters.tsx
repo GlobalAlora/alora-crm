@@ -86,10 +86,10 @@ export function LeadFilters({ filters, onFilter, onReset, hasActiveFilters, tota
         ))}
       </select>
 
-      {/* Servicios filter */}
+      {/* Servicios filter — single-select: replace the array, don't toggle */}
       <select
         value={filters.servicios[0] ?? ''}
-        onChange={(e) => onFilter('servicio', e.target.value)}
+        onChange={(e) => onFilter('servicios', e.target.value ? [e.target.value] : [])}
         className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700"
       >
         <option value="">Todos los servicios</option>

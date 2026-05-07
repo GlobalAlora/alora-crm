@@ -39,6 +39,8 @@ export type LeadsFilters = {
   estado_pipeline?: PipelineStage | PipelineStage[]
   responsable_id?: string
   fuente?: string
+  pais?: string
+  servicio?: string | string[]
   fecha_desde?: string
   fecha_hasta?: string
   buscar?: string

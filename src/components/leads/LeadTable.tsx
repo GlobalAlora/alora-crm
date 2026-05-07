@@ -70,7 +70,9 @@ export function LeadTable({ onLeadClick }: LeadTableProps) {
   } = useLeadFilters()
 
   // Unified setFilter adapter for LeadFilters component
+  // Always reset to page 1 on any filter change to avoid stale pagination
   const setFilter = (key: string, value: unknown) => {
+    setPage(1)
     if (key === 'buscar') setBuscar(value as string)
     else if (key === 'estado') toggleEstado(value as import('@/types').PipelineStage)
     else if (key === 'responsableId') setResponsableId(value as string)
@@ -79,7 +81,10 @@ export function LeadTable({ onLeadClick }: LeadTableProps) {
     else if (key === 'servicio') toggleServicio(value as string)
     else if (key === 'servicios') setServicios(value as string[])
   }
-  const resetFilters = clearAll
+  const resetFilters = () => {
+    setPage(1)
+    clearAll()
+  }
 
   const [sortBy, setSortBy]       = useState<SortColumn>('created_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
