@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertTriangle, DollarSign, CheckSquare, GripVertical, X } from 'lucide-react'
+import { AlertTriangle, DollarSign, CheckSquare, GripVertical, X, Edit2, Check } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Lead, Task, Propuesta, User } from '@/types'
 import { cn, timeAgo, hoursSince } from '@/lib/utils'
@@ -64,6 +64,9 @@ function usePropuestasSummary(leadId: string) {
 
 export function LeadCard({ lead, onClick }: LeadCardProps) {
   const queryClient = useQueryClient()
+  const [isEditing, setIsEditing] = useState(false)
+  const [editNombre, setEditNombre] = useState(lead.nombre || '')
+  const [editApellido, setEditApellido] = useState(lead.apellido || '')
   
   const {
     attributes,
@@ -104,6 +107,22 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
     },
   })
 
+  const updateNameMutation = useMutation({
+    mutationFn: async ({ nombre, apellido }: { nombre: string; apellido: string }) => {
+      const res = await fetch(`/api/leads/${lead.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre, apellido }),
+      })
+      if (!res.ok) throw new Error('Error al actualizar nombre')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] })
+      setIsEditing(false)
+    },
+  })
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -129,6 +148,27 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
     return null
   })()
 
+  const startEdit = () => {
+    setEditNombre(lead.nombre || '')
+    setEditApellido(lead.apellido || '')
+    setIsEditing(true)
+  }
+
+  const saveEdit = () => {
+    if (editNombre.trim()) {
+      updateNameMutation.mutate({ 
+        nombre: editNombre.trim(), 
+        apellido: editApellido.trim() 
+      })
+    }
+  }
+
+  const cancelEdit = () => {
+    setIsEditing(false)
+    setEditNombre(lead.nombre || '')
+    setEditApellido(lead.apellido || '')
+  }
+
   return (
     <div
       ref={setNodeRef}
@@ -146,9 +186,73 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
           {lead.empresa && (
             <p className="text-xs text-slate-500 truncate mb-1">{lead.empresa}</p>
           )}
-          <p className="text-sm font-semibold text-slate-900 truncate">
-            {[lead.nombre, lead.apellido].filter(Boolean).join(' ')}
-          </p>
+          {isEditing ? (
+            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              <input
+                type="text"
+                value={editNombre}
+                onChange={(e) => setEditNombre(e.target.value)}
+                placeholder="Nombre"
+                className="text-sm font-semibold text-slate-900 bg-transparent border-b border-blue-400 outline-none flex-1 min-w-0"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    saveEdit()
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault()
+                    cancelEdit()
+                  }
+                }}
+                autoFocus
+              />
+              <input
+                type="text"
+                value={editApellido}
+                onChange={(e) => setEditApellido(e.target.value)}
+                placeholder="Apellido"
+                className="text-sm font-semibold text-slate-900 bg-transparent border-b border-blue-400 outline-none flex-1 min-w-0"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    saveEdit()
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault()
+                    cancelEdit()
+                  }
+                }}
+              />
+              <button
+                onClick={saveEdit}
+                className="text-green-600 hover:text-green-700 p-0.5"
+                title="Guardar"
+              >
+                <Check size={12} />
+              </button>
+              <button
+                onClick={cancelEdit}
+                className="text-slate-400 hover:text-slate-600 p-0.5"
+                title="Cancelar"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 group">
+              <p className="text-sm font-semibold text-slate-900 truncate">
+                {[lead.nombre, lead.apellido].filter(Boolean).join(' ')}
+              </p>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  startEdit()
+                }}
+                className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-slate-600 p-0.5"
+                title="Editar nombre"
+              >
+                <Edit2 size={12} />
+              </button>
+            </div>
+          )}
           {(lead.servicios_interesados?.length > 0) ? (
             <p className="text-xs text-slate-500 truncate mt-0.5">{lead.servicios_interesados[0]}{lead.servicios_interesados.length > 1 ? ` +${lead.servicios_interesados.length - 1}` : ''}</p>
           ) : lead.servicio_interesado ? (
