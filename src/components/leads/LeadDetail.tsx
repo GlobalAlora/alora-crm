@@ -638,7 +638,7 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
               return (
                 <button
                   key={t.id}
-                  onClick={() => setTab(t.id)}
+                  onClick={() => setActiveTab(t.id)}
                   className={cn(
                     'flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
                     tab === t.id
