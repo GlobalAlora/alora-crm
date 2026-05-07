@@ -79,6 +79,38 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     body.valor_propuesta_ars = null
   }
 
+  // Detect responsable_id change BEFORE updating so we can log the activity
+  let responsableActivityPayload: {
+    prev: { id: string; full_name: string | null } | null
+    next: { id: string; full_name: string | null } | null
+  } | null = null
+
+  if ('responsable_id' in body) {
+    const { data: currentLead } = await supabase
+      .from('leads')
+      .select('responsable_id, responsable:users!responsable_id(id, full_name)')
+      .eq('id', id)
+      .is('deleted_at', null)
+      .single()
+
+    const prevId = currentLead?.responsable_id ?? null
+    const nextId = body.responsable_id ?? null
+
+    if (prevId !== nextId) {
+      const nextUser = nextId
+        ? await supabase.from('users').select('id, full_name').eq('id', nextId).maybeSingle().then(r => r.data)
+        : null
+
+      // Supabase typing returns array for joined relations, take first if present
+      const prevUserRaw = currentLead?.responsable as unknown
+      const prevUser = Array.isArray(prevUserRaw) ? prevUserRaw[0] : prevUserRaw
+      responsableActivityPayload = {
+        prev: prevUser ? { id: prevUser.id, full_name: prevUser.full_name ?? null } : null,
+        next: nextUser ? { id: nextUser.id, full_name: nextUser.full_name ?? null } : null,
+      }
+    }
+  }
+
   const { data, error } = await supabase
     .from('leads')
     .update({ ...body, updated_at: new Date().toISOString() })
@@ -88,6 +120,26 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Log responsable reassignment activity (best-effort; don't fail the request)
+  if (responsableActivityPayload) {
+    const { prev, next } = responsableActivityPayload
+    const prevName = prev?.full_name ?? 'sin asignar'
+    const nextName = next?.full_name ?? 'sin asignar'
+    await supabase.from('activities').insert({
+      lead_id: id,
+      user_id: user.id,
+      tipo: 'cambio_estado',
+      descripcion: `Responsable cambiado de ${prevName} a ${nextName}`,
+      metadata: {
+        kind: 'responsable_change',
+        prev_responsable_id: prev?.id ?? null,
+        prev_responsable_name: prev?.full_name ?? null,
+        next_responsable_id: next?.id ?? null,
+        next_responsable_name: next?.full_name ?? null,
+      },
+    })
+  }
 
   return NextResponse.json({ data })
 }

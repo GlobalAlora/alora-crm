@@ -8,10 +8,10 @@ import {
   Check, AlertCircle, MessageCircle, ChevronDown, Users,
   Edit2,
 } from 'lucide-react'
-import { leadsApi } from '@/lib/api'
+import { leadsApi, usersApi } from '@/lib/api'
 import { cn, formatUSD, formatARS, timeAgo, getProjectStatus, getDaysUntil } from '@/lib/utils'
 import { PIPELINE_STAGES, FUENTES, PAISES, PIPELINE_STAGE_MAP } from '@/types'
-import type { Lead, PipelineStage, TeamMember } from '@/types'
+import type { Lead, PipelineStage, TeamMember, User } from '@/types'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { UnifiedTimeline } from './UnifiedTimeline'
@@ -476,13 +476,12 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                 </select>
               </div>
 
-              {/* Responsable */}
-              {lead.responsable && (
-                <div>
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Responsable</p>
-                  <UserAvatar user={lead.responsable} size="sm" showName />
-                </div>
-              )}
+              {/* Responsable — editable */}
+              <ResponsableSelector
+                currentUser={lead.responsable ?? null}
+                saving={patchMutation.isPending && 'responsable_id' in (patchMutation.variables ?? {})}
+                onSave={(id) => patch({ responsable_id: id })}
+              />
             </div>
 
             {/* Servicios */}
@@ -842,7 +841,46 @@ function NotesRichEditor({ value, onSave }: { value: string; onSave: (v: string)
   )
 }
 
-// ── User picker for project team ─────────────────────────────────────────────
+// ── Responsable selector (sales/admin users) ─────────────────────────────────
+
+function ResponsableSelector({
+  currentUser,
+  onSave,
+  saving,
+}: {
+  currentUser?: Pick<User, 'id' | 'full_name' | 'avatar_url'> | null
+  onSave: (userId: string | null) => void
+  saving: boolean
+}) {
+  const { data: users } = useQuery<User[]>({
+    queryKey: ['users'],
+    queryFn: () => usersApi.list(),
+    staleTime: 5 * 60_000,
+  })
+  const list = Array.isArray(users) ? users : []
+
+  return (
+    <div>
+      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+        <Users size={9} /> Responsable {saving && <span className="text-blue-500 normal-case font-normal">· guardando…</span>}
+      </p>
+      <div className="flex items-center gap-2">
+        {currentUser && <UserAvatar user={currentUser} size="sm" />}
+        <select
+          value={currentUser?.id ?? ''}
+          disabled={saving}
+          onChange={(e) => onSave(e.target.value || null)}
+          className="flex-1 text-sm text-slate-800 bg-transparent focus:outline-none cursor-pointer hover:text-blue-600 transition-colors disabled:opacity-50 disabled:cursor-wait"
+        >
+          <option value="">— Sin asignar —</option>
+          {list.map((u) => (
+            <option key={u.id} value={u.id}>{u.full_name}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+  )
+}
 
 function UserPickerField({
   label,

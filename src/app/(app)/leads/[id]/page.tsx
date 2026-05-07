@@ -5,12 +5,16 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { leadsApi } from '@/lib/api'
 import { LeadDetail } from '@/components/leads/LeadDetail'
+import { useLeadsRealtime } from '@/hooks/useLeadsRealtime'
 import { Suspense } from 'react'
 
 function LeadPageInner() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const searchParams = useSearchParams()
+  // Subscribe to leads/activities realtime so reassignments by other users
+  // appear without a manual refresh.
+  useLeadsRealtime()
 
   // "from" param lets us know where to go back: 'contactos' | 'pipeline' (default)
   const from = searchParams.get('from')

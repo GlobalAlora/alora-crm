@@ -18,8 +18,27 @@ export function useLeadsRealtime() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'leads' },
-        () => {
+        (payload) => {
+          // Invalidate list-level queries
           qcRef.current.invalidateQueries({ queryKey: ['leads'] })
+          // Invalidate the single-lead detail query too so open detail panels refresh
+          const row = (payload.new ?? payload.old) as { id?: string } | null
+          if (row?.id) {
+            qcRef.current.invalidateQueries({ queryKey: ['lead', row.id] })
+          }
+          // Dashboard metrics may also depend on responsable assignments — invalidate
+          qcRef.current.invalidateQueries({ queryKey: ['dashboard'] })
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'activities' },
+        (payload) => {
+          // When a reassignment activity is logged, refresh that lead's activity feed
+          const row = payload.new as { lead_id?: string } | null
+          if (row?.lead_id) {
+            qcRef.current.invalidateQueries({ queryKey: ['activities', row.lead_id] })
+          }
         }
       )
       .subscribe()
