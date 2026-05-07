@@ -186,8 +186,6 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] })
       queryClient.invalidateQueries({ queryKey: ['lead', lead.id] })
-      qc.invalidateQueries({ queryKey: ['leads'] })
-      qc.invalidateQueries({ queryKey: ['lead', lead.id] })
       toast.success('Guardado')
     },
     onError: () => toast.error('Error al guardar'),
