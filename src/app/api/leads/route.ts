@@ -14,6 +14,8 @@ export async function GET(req: NextRequest) {
   const estadosPipeline = searchParams.getAll('estado_pipeline') as PipelineStage[]
   const responsableId   = searchParams.get('responsable_id')
   const fuente          = searchParams.get('fuente')
+  const pais            = searchParams.get('pais')
+  const servicios       = searchParams.getAll('servicio')
   const fechaDesde      = searchParams.get('fecha_desde')
   const fechaHasta      = searchParams.get('fecha_hasta')
   const buscar          = searchParams.get('buscar')?.trim()
@@ -47,6 +49,12 @@ export async function GET(req: NextRequest) {
   }
   if (fuente) {
     query = query.eq('fuente', fuente as LeadFuente)
+  }
+  if (pais) {
+    query = query.eq('pais', pais)
+  }
+  if (servicios.length > 0) {
+    query = query.contains('servicios_interesados', servicios)
   }
   if (fechaDesde) {
     query = query.gte('created_at', fechaDesde)
