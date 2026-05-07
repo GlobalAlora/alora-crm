@@ -14,7 +14,8 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   }
 
   const json = await res.json()
-  return json.data ?? json
+  // Use 'in' instead of ?? so that data:null routes return null (not the full envelope object)
+  return 'data' in json ? json.data : json
 }
 
 async function requestPaginated<T>(url: string, options?: RequestInit): Promise<PaginatedResponse<T>> {

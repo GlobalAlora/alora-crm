@@ -32,7 +32,8 @@ export function DashboardFilters({
     staleTime: 5 * 60 * 1000,
   })
 
-  const selectedResponsable = users?.find((u) => u.id === responsableId)
+  const usersArray = Array.isArray(users) ? users : []
+  const selectedResponsable = usersArray.find((u) => u.id === responsableId)
 
   const hasFilters = fechaDesde || fechaHasta || responsableId
 
@@ -107,7 +108,7 @@ export function DashboardFilters({
                 </div>
                 Todos
               </button>
-              {users?.map((user) => (
+              {usersArray.map((user) => (
                 <button
                   key={user.id}
                   onClick={() => { onResponsableChange(user.id); setShowResponsables(false) }}
