@@ -6,6 +6,7 @@ import {
   X, Mail, Building2, Tag as TagIcon, Globe, Calendar,
   MessageSquare, FileText, History, ExternalLink,
   Check, AlertCircle, MessageCircle, ChevronDown, Users,
+  Edit2,
 } from 'lucide-react'
 import { leadsApi } from '@/lib/api'
 import { cn, formatUSD, formatARS, timeAgo, getProjectStatus, getDaysUntil } from '@/lib/utils'
@@ -173,13 +174,18 @@ function StageSelector({ lead, onStageChange }: { lead: Lead; onStageChange?: (l
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetailProps) {
-  const qc = useQueryClient()
-  const [tab, setTab] = useState<Tab>('actividad')
+  const queryClient = useQueryClient()
+  const [activeTab, setActiveTab] = useState<Tab>('actividad')
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [editNombre, setEditNombre] = useState(lead.nombre || '')
+  const [editApellido, setEditApellido] = useState(lead.apellido || '')
   const [servicios, setServicios] = useState<string[]>(lead.servicios_interesados ?? [])
 
   const patchMutation = useMutation({
     mutationFn: (data: Partial<Lead>) => leadsApi.update(lead.id, data),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] })
+      queryClient.invalidateQueries({ queryKey: ['lead', lead.id] })
       qc.invalidateQueries({ queryKey: ['leads'] })
       qc.invalidateQueries({ queryKey: ['lead', lead.id] })
       toast.success('Guardado')
@@ -187,7 +193,39 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
     onError: () => toast.error('Error al guardar'),
   })
 
+  const updateNameMutation = useMutation({
+    mutationFn: ({ nombre, apellido }: { nombre: string; apellido: string }) => leadsApi.update(lead.id, { nombre, apellido }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] })
+      queryClient.invalidateQueries({ queryKey: ['lead', lead.id] })
+      setIsEditingName(false)
+      toast.success('Nombre actualizado')
+    },
+    onError: () => toast.error('Error al actualizar nombre'),
+  })
+
   const patch = (data: Partial<Lead>) => patchMutation.mutate(data)
+
+  const startEditName = () => {
+    setEditNombre(lead.nombre || '')
+    setEditApellido(lead.apellido || '')
+    setIsEditingName(true)
+  }
+
+  const saveEditName = () => {
+    if (editNombre.trim()) {
+      updateNameMutation.mutate({ 
+        nombre: editNombre.trim(), 
+        apellido: editApellido.trim() 
+      })
+    }
+  }
+
+  const cancelEditName = () => {
+    setIsEditingName(false)
+    setEditNombre(lead.nombre || '')
+    setEditApellido(lead.apellido || '')
+  }
 
   const deleteMutation = useMutation({
     mutationFn: () => leadsApi.remove(lead.id),
@@ -237,9 +275,73 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
             {/* Header */}
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <h2 className="text-base font-bold text-slate-900 leading-tight">
-                  {lead.nombre}{lead.apellido ? ` ${lead.apellido}` : ''}
-                </h2>
+                {isEditingName ? (
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="text"
+                      value={editNombre}
+                      onChange={(e) => setEditNombre(e.target.value)}
+                      placeholder="Nombre"
+                      className="text-base font-bold text-slate-900 bg-transparent border-b border-blue-400 outline-none flex-1 min-w-0"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          saveEditName()
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault()
+                          cancelEditName()
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <input
+                      type="text"
+                      value={editApellido}
+                      onChange={(e) => setEditApellido(e.target.value)}
+                      placeholder="Apellido"
+                      className="text-base font-bold text-slate-900 bg-transparent border-b border-blue-400 outline-none flex-1 min-w-0"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          saveEditName()
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault()
+                          cancelEditName()
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={saveEditName}
+                      className="text-green-600 hover:text-green-700 p-1"
+                      title="Guardar"
+                    >
+                      <Check size={14} />
+                    </button>
+                    <button
+                      onClick={cancelEditName}
+                      className="text-slate-400 hover:text-slate-600 p-1"
+                      title="Cancelar"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 group">
+                    <h2 className="text-base font-bold text-slate-900 leading-tight">
+                      {lead.nombre}{lead.apellido ? ` ${lead.apellido}` : ''}
+                    </h2>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        startEditName()
+                      }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-slate-600 p-1"
+                      title="Editar nombre"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                  </div>
+                )}
                 {lead.empresa && (
                   <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
                     <Building2 size={11} /> {lead.empresa}
