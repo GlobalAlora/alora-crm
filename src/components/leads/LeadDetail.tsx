@@ -228,7 +228,7 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
   const deleteMutation = useMutation({
     mutationFn: () => leadsApi.remove(lead.id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['leads'] })
+      queryClient.invalidateQueries({ queryKey: ['leads'] })
       onClose()
       toast.success('Lead eliminado')
     },
