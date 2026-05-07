@@ -4,8 +4,11 @@ export function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 30 * 1000, // 30s default
+        staleTime: 60 * 1000,         // 60s — realtime handles live updates
+        gcTime: 5 * 60 * 1000,        // 5 min cache retention
         retry: 1,
+        refetchOnWindowFocus: false,   // realtime subscriptions handle this
+        refetchOnReconnect: true,
       },
       mutations: {
         retry: 0,

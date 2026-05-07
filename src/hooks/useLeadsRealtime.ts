@@ -1,11 +1,14 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 
 export function useLeadsRealtime() {
   const queryClient = useQueryClient()
+  // Stable ref so the effect never re-runs due to queryClient identity changes
+  const qcRef = useRef(queryClient)
+  qcRef.current = queryClient
 
   useEffect(() => {
     const supabase = createClient()
@@ -16,13 +19,12 @@ export function useLeadsRealtime() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'leads' },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['leads'] })
+          qcRef.current.invalidateQueries({ queryKey: ['leads'] })
         }
       )
       .subscribe()
 
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [queryClient])
+    // Singleton client — just remove this channel, not the whole connection
+    return () => { supabase.removeChannel(channel) }
+  }, []) // empty deps: subscribe once, cleanup on unmount
 }

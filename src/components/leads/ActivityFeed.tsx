@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   MessageSquare, Phone, Mail, Users, ArrowRight, CheckSquare,
@@ -153,6 +153,10 @@ export function ActivityFeed({ leadId, leadEmail }: ActivityFeedProps) {
     if (typeof window !== 'undefined') localStorage.setItem(SENDER_NAME_KEY, v)
   }
 
+  // Stable ref — keeps qc stable so effects don't re-run on identity changes
+  const qcRef = useRef(qc)
+  qcRef.current = qc
+
   // Auto-mark inbound emails as read when viewing this lead
   useEffect(() => {
     fetch('/api/activities/read-inbound', {
@@ -160,9 +164,9 @@ export function ActivityFeed({ leadId, leadEmail }: ActivityFeedProps) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lead_id: leadId }),
     }).then(() => {
-      qc.invalidateQueries({ queryKey: ['notifications'] })
+      qcRef.current.invalidateQueries({ queryKey: ['notifications'] })
     }).catch(() => {})
-  }, [leadId, qc])
+  }, [leadId]) // only re-run when lead changes
 
   // Real-time: toast + refresh when lead replies via email
   useEffect(() => {
@@ -178,12 +182,12 @@ export function ActivityFeed({ leadId, leadEmail }: ActivityFeedProps) {
             const subject = (meta.subject as string | undefined) ?? 'nuevo email'
             toast(`📬 Respuesta recibida: ${subject}`, { duration: 6000 })
           }
-          qc.invalidateQueries({ queryKey: ['activities', leadId] })
+          qcRef.current.invalidateQueries({ queryKey: ['activities', leadId] })
         }
       )
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [leadId, qc])
+  }, [leadId]) // only re-subscribe when lead changes, not on qc identity
 
   const handleReply = (subject: string) => {
     setTipo('email')

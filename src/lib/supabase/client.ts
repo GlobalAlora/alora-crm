@@ -1,15 +1,20 @@
 import { createBrowserClient } from '@supabase/ssr'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
-export function createClient() {
+// Module-level singleton — one WebSocket connection for the entire app lifetime.
+// Never call createBrowserClient() directly in components or hooks.
+let _client: SupabaseClient | null = null
+
+export function createClient(): SupabaseClient {
+  if (_client) return _client
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  console.log('[Supabase Client] URL exists:', !!url)
-  console.log('[Supabase Client] KEY exists:', !!key)
-
   if (!url || !key) {
-    throw new Error(`Missing Supabase env vars. URL: ${url}, KEY: ${key}`)
+    throw new Error('Missing Supabase env vars: NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY')
   }
 
-  return createBrowserClient(url, key)
+  _client = createBrowserClient(url, key)
+  return _client
 }

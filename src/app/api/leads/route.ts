@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
 
   // Determine next kanban position in target stage
   const targetStage = (body.estado_pipeline as PipelineStage | undefined | null) ?? 'lead_entrante'
-  const { data: maxPos } = await supabase
+  const { data: maxPos, error: posError } = await supabase
     .from('leads')
     .select('kanban_position')
     .eq('estado_pipeline', targetStage)
@@ -129,6 +129,11 @@ export async function POST(req: NextRequest) {
     .order('kanban_position', { ascending: false })
     .limit(1)
     .maybeSingle()
+
+  if (posError) {
+    console.error('[POST /api/leads] kanban position query failed:', posError)
+    // Non-fatal: continue with position 1 rather than failing the whole request
+  }
 
   const payload = {
     nombre:                 (body.nombre as string).trim(),

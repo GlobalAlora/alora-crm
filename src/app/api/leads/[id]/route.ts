@@ -7,6 +7,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params
   const supabase = await createClient()
 
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
   // Fetch lead with propuestas and stage history
   const [{ data: lead, error: leadError }, { data: propuestas }, { data: stageHistory }] = await Promise.all([
     supabase

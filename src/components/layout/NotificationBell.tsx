@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bell } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -51,6 +51,11 @@ export function NotificationBell() {
   const [soundEnabled, setSoundEnabled] = useState(true)
   const ref = useRef<HTMLDivElement>(null)
   const prevCountRef = useRef<number | null>(null)
+  // Stable ref for soundEnabled so realtime effect never re-runs on toggle
+  const soundRef = useRef(soundEnabled)
+  soundRef.current = soundEnabled
+  // Suppress unused warning — useMemo used for its side-effect-free memoization
+  useMemo(() => { soundRef.current = soundEnabled }, [soundEnabled])
 
   const { data } = useQuery<{ data: NotifActivity[] }>({
     queryKey: ['notifications'],
@@ -62,7 +67,11 @@ export function NotificationBell() {
   const notifications = data?.data ?? []
   const unread = notifications.length
 
-  // Realtime subscription for new inbound emails
+  // Stable ref for qc so realtime effect never re-runs on identity changes
+  const qcRef = useRef(qc)
+  qcRef.current = qc
+
+  // Realtime subscription — subscribe once, use refs for mutable values
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
@@ -73,14 +82,14 @@ export function NotificationBell() {
         (payload) => {
           const meta = (payload.new as { metadata?: Record<string, unknown> }).metadata
           if (meta?.direction === 'inbound') {
-            qc.invalidateQueries({ queryKey: ['notifications'] })
-            if (soundEnabled) playNotifSound()
+            qcRef.current.invalidateQueries({ queryKey: ['notifications'] })
+            if (soundRef.current) playNotifSound()
           }
         }
       )
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [qc, soundEnabled])
+  }, []) // subscribe once for app lifetime
 
   // Show browser notification badge when count increases
   useEffect(() => {
