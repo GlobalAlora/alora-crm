@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 import { TrendingUp } from 'lucide-react'
 
 interface MonthlyEvolutionChartProps {
@@ -147,8 +147,7 @@ export function MonthlyEvolutionChart({ responsableId, months = 6 }: MonthlyEvol
               return [value, name.charAt(0).toUpperCase() + name.slice(1)]
             }}
           />
-          <Legend />
-          <Bar 
+          <Bar
             dataKey="creados" 
             fill="#3b82f6" 
             name="creados"

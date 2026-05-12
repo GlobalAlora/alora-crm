@@ -68,7 +68,10 @@ export function TopOpportunitiesChart({ data, isLoading }: TopOpportunitiesChart
     id: lead.id,
     valor_usd: lead.valor_propuesta_usd || 0,
     valor_ars: lead.valor_propuesta_ars || 0,
-    total: (lead.valor_propuesta_usd || 0) + ((lead.valor_propuesta_ars || 0) / 100), // Convert ARS to USD approximation
+    // For chart height use USD if available, otherwise ARS (shown as-is, same axis)
+    total: lead.valor_propuesta_moneda === 'ARS'
+      ? lead.valor_propuesta_ars || 0
+      : lead.valor_propuesta_usd || 0,
   }))
 
   const handleLeadClick = (leadId: string | undefined) => {

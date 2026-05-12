@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { Clock } from 'lucide-react'
+import { FUENTES } from '@/types'
 
 interface LeadsBySourceChartProps {
   data: Record<string, number>
@@ -62,16 +63,22 @@ export function LeadsBySourceChart({ data, isLoading }: LeadsBySourceChartProps)
     )
   }
 
+  const getFuenteLabel = (key: string): string => {
+    const fuente = FUENTES.find((f) => f.value === key)
+    return fuente ? fuente.label : key.charAt(0).toUpperCase() + key.slice(1)
+  }
+
   const chartData = Object.entries(data).map(([source, count]) => ({
-    name: source,
+    name: getFuenteLabel(source),
+    rawName: source,
     value: count,
   }))
 
   const total = chartData.reduce((sum, item) => sum + item.value, 0)
 
-  const handleSourceClick = (source: string | undefined) => {
-    if (!source) return
-    router.push(`/contactos?fuente=${source}`)
+  const handleSourceClick = (rawSource: string | undefined) => {
+    if (!rawSource) return
+    router.push(`/contactos?fuente=${rawSource}`)
   }
 
   return (
@@ -92,7 +99,7 @@ export function LeadsBySourceChart({ data, isLoading }: LeadsBySourceChartProps)
               outerRadius={80}
               fill="#8884d8"
               dataKey="value"
-              onClick={(data) => handleSourceClick(data.name)}
+              onClick={(data) => handleSourceClick(data.rawName)}
               cursor="pointer"
             >
               {chartData.map((entry, index) => (
@@ -106,8 +113,8 @@ export function LeadsBySourceChart({ data, isLoading }: LeadsBySourceChartProps)
       <div className="mt-4 flex flex-wrap gap-2">
         {chartData.map((item, index) => (
           <button
-            key={item.name}
-            onClick={() => handleSourceClick(item.name)}
+            key={item.rawName}
+            onClick={() => handleSourceClick(item.rawName)}
             className="flex items-center gap-2 text-xs hover:bg-slate-50 px-2 py-1 rounded cursor-pointer transition-colors"
           >
             <div 

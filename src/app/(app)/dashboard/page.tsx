@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { dashboardApi } from '@/lib/api'
 import { formatUSD, formatARS } from '@/lib/utils'
-import { PIPELINE_STAGE_MAP, PIPELINE_STAGES } from '@/types'
+import { PIPELINE_STAGE_MAP, PIPELINE_STAGES, FUENTES } from '@/types'
 import type { PipelineStage } from '@/types'
 import { DashboardFilters } from '@/components/dashboard/DashboardFilters'
 import { UserAvatar } from '@/components/shared/UserAvatar'
@@ -561,7 +561,7 @@ export default function DashboardPage() {
                         <span className="font-medium">{lead.nombre}</span>
                         <span className="text-slate-400"> · nuevo lead</span>
                       </p>
-                      <p className="text-xs text-slate-400">{lead.fuente ?? 'desconocido'} · {timeAgo(lead.created_at)}</p>
+                      <p className="text-xs text-slate-400">{lead.fuente ? (FUENTES.find((f) => f.value === lead.fuente)?.label ?? lead.fuente) : '—'} · {timeAgo(lead.created_at)}</p>
                     </div>
                   </div>
                 )
