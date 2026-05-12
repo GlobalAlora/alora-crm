@@ -42,6 +42,7 @@ export type LeadFuente =
   | 'instagram'
   | 'whatsapp'
   | 'chatbot'
+  | 'mail'
   | 'otro'
 
 export interface User {
@@ -408,6 +409,7 @@ export const FUENTES: { value: LeadFuente; label: string }[] = [
   { value: 'instagram', label: 'Instagram' },
   { value: 'whatsapp', label: 'WhatsApp' },
   { value: 'chatbot', label: 'Chatbot' },
+  { value: 'mail', label: 'Mail' },
   { value: 'otro', label: 'Otro' },
 ]
 
