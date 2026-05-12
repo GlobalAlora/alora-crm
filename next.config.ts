@@ -2,7 +2,7 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   turbopack: {
-    root: __dirname,
+    root: '/Users/bruno/Desktop/Cosas/Alora/crm-alora',
   },
 }
 
