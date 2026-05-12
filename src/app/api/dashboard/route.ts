@@ -189,11 +189,11 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Aggregate por fuente
+  // Aggregate por fuente (solo leads con fuente asignada)
   const porFuente: Record<string, number> = {}
   for (const lead of leads) {
-    const f = lead.fuente ?? 'desconocido'
-    porFuente[f] = (porFuente[f] ?? 0) + 1
+    if (!lead.fuente) continue
+    porFuente[lead.fuente] = (porFuente[lead.fuente] ?? 0) + 1
   }
 
   // Revenue + forecast (USD y ARS)
