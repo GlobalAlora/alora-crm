@@ -99,7 +99,7 @@ export function LeadsBySourceChart({ data, isLoading }: LeadsBySourceChartProps)
               outerRadius={80}
               fill="#8884d8"
               dataKey="value"
-              onClick={(data) => handleSourceClick(data.rawName)}
+              onClick={(data) => handleSourceClick((data as unknown as { rawName: string }).rawName)}
               cursor="pointer"
             >
               {chartData.map((entry, index) => (
