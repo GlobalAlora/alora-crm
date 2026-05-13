@@ -40,22 +40,25 @@ const SENDER_NAME_KEY = 'alora_email_sender_name'
 
 function formatDueDate(date: string): { label: string; status: 'overdue' | 'today' | 'soon' | 'future' } {
   const d = new Date(date)
-  const local = new Date(d.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }))
-  const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0
-  const timeStr = hasTime ? ` ${format(d, 'HH:mm')}` : ''
+  // Always use Argentina timezone for comparisons and display
+  const ar = new Date(d.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }))
+  const hasTime = ar.getHours() !== 0 || ar.getMinutes() !== 0
+  const timeStr = hasTime ? ` ${format(ar, 'HH:mm')}` : ''
 
-  if (isPast(local) && !isToday(local)) return { label: `Vencida · ${format(local, "d MMM", { locale: es })}${timeStr}`, status: 'overdue' }
-  if (isToday(local))    return { label: `Hoy${timeStr}`,                                                                  status: 'today'   }
-  if (isTomorrow(local)) return { label: `Mañana${timeStr}`,                                                               status: 'soon'    }
-  return { label: `${format(local, "d 'de' MMMM", { locale: es })}${timeStr}`,                                            status: 'future'  }
+  if (isPast(ar) && !isToday(ar)) return { label: `Vencida · ${format(ar, "d MMM", { locale: es })}${timeStr}`, status: 'overdue' }
+  if (isToday(ar))    return { label: `Hoy${timeStr}`,                                                          status: 'today'   }
+  if (isTomorrow(ar)) return { label: `Mañana${timeStr}`,                                                       status: 'soon'    }
+  return { label: `${format(ar, "d 'de' MMMM", { locale: es })}${timeStr}`,                                    status: 'future'  }
 }
 
 function toDatetimeLocal(iso: string | null | undefined): string {
   if (!iso) return ''
   const d = new Date(iso)
   if (isNaN(d.getTime())) return ''
+  // Always use Argentina timezone so the edit field shows the correct local time
+  const ar = new Date(d.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }))
   const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return `${ar.getFullYear()}-${pad(ar.getMonth() + 1)}-${pad(ar.getDate())}T${pad(ar.getHours())}:${pad(ar.getMinutes())}`
 }
 
 // ── Task inline item ───────────────────────────────────────────────────────────

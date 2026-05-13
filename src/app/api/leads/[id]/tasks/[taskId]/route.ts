@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { normaliseVencimiento } from '@/lib/tz'
 
 type Params = { params: Promise<{ id: string; taskId: string }> }
 
@@ -14,7 +15,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const allowed = ['titulo', 'descripcion', 'vencimiento', 'asignado_a', 'completada']
   const patch: Record<string, unknown> = {}
   for (const key of allowed) {
-    if (key in body) patch[key] = body[key]
+    if (key in body) {
+      // Normalise vencimiento: datetime-local (Argentina) → UTC ISO string
+      patch[key] = key === 'vencimiento'
+        ? normaliseVencimiento(body[key] as string | null)
+        : body[key]
+    }
   }
 
   if (Object.keys(patch).length === 0) {

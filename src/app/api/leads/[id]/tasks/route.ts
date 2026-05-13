@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-// restored
+import { normaliseVencimiento } from '@/lib/tz'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -68,17 +68,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     assignee = lead?.responsable_id ?? user.id
   }
 
-  // Handle vencimiento safely - preserve datetime-local as-is
-  let processedVencimiento: string | null = null
-  if (vencimiento) {
-    try {
-      // datetime-local is already in user's local timezone, preserve it as-is
-      processedVencimiento = vencimiento
-    } catch (error) {
-      console.error('Error processing vencimiento:', error)
-      // Continue with null vencimiento if date parsing fails
-    }
-  }
+  // Normalise vencimiento: convert datetime-local (Argentina local) → UTC ISO string
+  const processedVencimiento = normaliseVencimiento(vencimiento ?? null)
 
   const { data, error } = await supabase
     .from('tasks')

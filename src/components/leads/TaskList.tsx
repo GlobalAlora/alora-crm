@@ -219,29 +219,29 @@ export function TaskList({ leadId }: TaskListProps) {
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function formatDueDate(date: string): { label: string; urgent: boolean } {
-  // Convertir fecha a timezone de Argentina para comparación
   const d = new Date(date)
-  const argentinaDate = new Date(d.toLocaleString("en-US", { timeZone: 'America/Argentina/Buenos_Aires' }))
-  
-  // Check if the time is not midnight (00:00) to determine if it has a specific time
-  const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0
-  const timeStr = hasTime ? ` ${format(d, 'HH:mm')}` : ''
+  // Use Argentina timezone for all comparisons and display
+  const ar = new Date(d.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }))
+  const hasTime = ar.getHours() !== 0 || ar.getMinutes() !== 0 || ar.getSeconds() !== 0
+  const timeStr = hasTime ? ` ${format(ar, 'HH:mm')}` : ''
 
-  if (isPast(argentinaDate) && !isToday(argentinaDate)) {
-    return { label: `Vencida · ${format(argentinaDate, "d MMM yyyy", { locale: es })}${timeStr}`, urgent: true }
+  if (isPast(ar) && !isToday(ar)) {
+    return { label: `Vencida · ${format(ar, "d MMM yyyy", { locale: es })}${timeStr}`, urgent: true }
   }
-  if (isToday(argentinaDate)) return { label: `Hoy${timeStr}`, urgent: true }
-  if (isTomorrow(argentinaDate)) return { label: `Mañana${timeStr}`, urgent: false }
-  return { label: `${format(argentinaDate, "d 'de' MMMM yyyy", { locale: es })}${timeStr}`, urgent: false }
+  if (isToday(ar)) return { label: `Hoy${timeStr}`, urgent: true }
+  if (isTomorrow(ar)) return { label: `Mañana${timeStr}`, urgent: false }
+  return { label: `${format(ar, "d 'de' MMMM yyyy", { locale: es })}${timeStr}`, urgent: false }
 }
 
-// Convert ISO date to datetime-local input value (YYYY-MM-DDTHH:mm)
+// Convert ISO date to datetime-local input value in Argentina timezone (YYYY-MM-DDTHH:mm)
 function toDatetimeLocal(iso: string | null | undefined): string {
   if (!iso) return ''
   const d = new Date(iso)
   if (isNaN(d.getTime())) return ''
+  // Always use Argentina timezone so the edit field shows the correct local time
+  const ar = new Date(d.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }))
   const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return `${ar.getFullYear()}-${pad(ar.getMonth() + 1)}-${pad(ar.getDate())}T${pad(ar.getHours())}:${pad(ar.getMinutes())}`
 }
 
 // ── TaskItem ──────────────────────────────────────────────────────────────────
