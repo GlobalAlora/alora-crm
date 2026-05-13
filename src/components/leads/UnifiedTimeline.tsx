@@ -44,11 +44,12 @@ function formatDueDate(date: string): { label: string; status: 'overdue' | 'toda
   const ar = new Date(d.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }))
   const hasTime = ar.getHours() !== 0 || ar.getMinutes() !== 0
   const timeStr = hasTime ? ` ${format(ar, 'HH:mm')}` : ''
+  const dateStr = format(ar, "d 'de' MMMM", { locale: es })
 
-  if (isPast(ar) && !isToday(ar)) return { label: `Vencida · ${format(ar, "d MMM", { locale: es })}${timeStr}`, status: 'overdue' }
-  if (isToday(ar))    return { label: `Hoy${timeStr}`,                                                          status: 'today'   }
-  if (isTomorrow(ar)) return { label: `Mañana${timeStr}`,                                                       status: 'soon'    }
-  return { label: `${format(ar, "d 'de' MMMM", { locale: es })}${timeStr}`,                                    status: 'future'  }
+  if (isPast(ar) && !isToday(ar)) return { label: `Vencida · ${dateStr}${timeStr}`, status: 'overdue' }
+  if (isToday(ar))                return { label: `${dateStr}${timeStr}`,            status: 'today'   }
+  if (isTomorrow(ar))             return { label: `${dateStr}${timeStr}`,            status: 'soon'    }
+  return                               { label: `${dateStr}${timeStr}`,            status: 'future'  }
 }
 
 function toDatetimeLocal(iso: string | null | undefined): string {

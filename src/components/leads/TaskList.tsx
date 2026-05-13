@@ -1,6 +1,6 @@
 'use client'
 
-import { format, isPast, isToday, isTomorrow } from 'date-fns'
+import { format, isPast, isToday } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useState } from 'react'
 import { Clock, Trash2, Plus, X, AlertCircle, Pencil, Check } from 'lucide-react'
@@ -224,13 +224,13 @@ function formatDueDate(date: string): { label: string; urgent: boolean } {
   const ar = new Date(d.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }))
   const hasTime = ar.getHours() !== 0 || ar.getMinutes() !== 0 || ar.getSeconds() !== 0
   const timeStr = hasTime ? ` ${format(ar, 'HH:mm')}` : ''
+  const dateStr = format(ar, "d 'de' MMMM yyyy", { locale: es })
 
   if (isPast(ar) && !isToday(ar)) {
-    return { label: `Vencida · ${format(ar, "d MMM yyyy", { locale: es })}${timeStr}`, urgent: true }
+    return { label: `Vencida · ${dateStr}${timeStr}`, urgent: true }
   }
-  if (isToday(ar)) return { label: `Hoy${timeStr}`, urgent: true }
-  if (isTomorrow(ar)) return { label: `Mañana${timeStr}`, urgent: false }
-  return { label: `${format(ar, "d 'de' MMMM yyyy", { locale: es })}${timeStr}`, urgent: false }
+  if (isToday(ar)) return { label: `${dateStr}${timeStr}`, urgent: true }
+  return { label: `${dateStr}${timeStr}`, urgent: false }
 }
 
 // Convert ISO date to datetime-local input value in Argentina timezone (YYYY-MM-DDTHH:mm)
