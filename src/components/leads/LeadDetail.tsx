@@ -407,14 +407,13 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                 type="email"
                 placeholder="Sin email"
               />
-              {lead.email_secundario && (
-                <EditableField
-                  label="Email secundario"
-                  value={lead.email_secundario ?? ''}
-                  onSave={(v) => patch({ email_secundario: v || null })}
-                  type="email"
-                />
-              )}
+              <EditableField
+                label="Email secundario"
+                value={lead.email_secundario ?? ''}
+                onSave={(v) => patch({ email_secundario: v || null })}
+                type="email"
+                placeholder="Sin email secundario"
+              />
               <EditableField
                 label="Teléfono"
                 value={lead.telefono ?? ''}
