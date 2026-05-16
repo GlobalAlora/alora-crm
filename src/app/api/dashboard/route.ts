@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
     applyFilters(
       supabase
         .from('leads')
-        .select('id, nombre, empresa, estado_pipeline, responsable_id, propuestas(valor_usd, valor_ars, moneda)')
+        .select('id, nombre, empresa, estado_pipeline, responsable_id, propuestas(valor_usd, valor_ars, moneda, estado)')
         .is('deleted_at', null)
         .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado)')
         .limit(50)
@@ -313,18 +313,19 @@ export async function GET(req: NextRequest) {
     }
   })
 
-  // Procesar top oportunidades: calcular valor total de propuestas por lead
+  // Procesar top oportunidades: calcular valor total de propuestas ACEPTADAS por lead
   type RawLeadWithPropuestas = {
     id: string
     nombre: string
     empresa: string | null
     estado_pipeline: PipelineStage
     responsable_id: string | null
-    propuestas: { valor_usd: number | null; valor_ars: number | null; moneda: 'USD' | 'ARS' }[] | null
+    propuestas: { valor_usd: number | null; valor_ars: number | null; moneda: 'USD' | 'ARS'; estado: string }[] | null
   }
   const topOportunidades = ((topOportunidadesRaw as unknown as RawLeadWithPropuestas[]) ?? [])
     .map((lead) => {
-      const propuestas = lead.propuestas ?? []
+      // Only count accepted proposals — rejected/pending are excluded
+      const propuestas = (lead.propuestas ?? []).filter((p) => p.estado === 'aceptada')
       const totalUSD = propuestas.reduce((sum, p) => sum + (p.moneda === 'USD' ? (p.valor_usd ?? 0) : 0), 0)
       const totalARS = propuestas.reduce((sum, p) => sum + (p.moneda === 'ARS' ? (p.valor_ars ?? 0) : 0), 0)
       const hasUSD = totalUSD > 0
