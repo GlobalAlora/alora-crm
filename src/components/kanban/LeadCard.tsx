@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Lead, Task, Propuesta, User } from '@/types'
 import { cn, timeAgo, hoursSince } from '@/lib/utils'
 import { UserAvatar } from '@/components/shared/UserAvatar'
+import { usersApi } from '@/lib/api'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -85,17 +86,15 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
   const pendingTasksCount = useTasksCount(lead.id)
   const propuestasSummary = usePropuestasSummary(lead.id)
 
-  // Fetch users for responsable picker
-  const { data: usersData } = useQuery<{ data: User[] }>({
+  // Fetch users for responsable picker — must use usersApi.list() so the
+  // ['users'] cache key stores User[] consistently with ResponsableSelector
+  // in LeadDetail. Mixing raw fetch ({data:User[]}) with usersApi (User[])
+  // under the same key causes the select to lose its options on cache hit.
+  const { data: users = [] } = useQuery<User[]>({
     queryKey: ['users'],
-    queryFn: async () => {
-      const res = await fetch('/api/users')
-      if (!res.ok) return { data: [] }
-      return res.json()
-    },
+    queryFn: () => usersApi.list(),
     staleTime: 5 * 60_000,
   })
-  const users = usersData?.data ?? []
 
   const updateResponsableMutation = useMutation({
     mutationFn: async (userId: string | null) => {
