@@ -12,13 +12,14 @@ import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 // Helper function to format important dates.
-// Date-only values (YYYY-MM-DD) are parsed at noon local time to avoid
-// the UTC-midnight → previous-day-in-Argentina timezone shift.
+// Always extract the YYYY-MM-DD portion and parse at noon local time so that
+// full ISO timestamps like "2026-05-18T00:00:00Z" (UTC midnight) don't shift
+// to the previous day in Argentina (UTC-3).
 function formatImportantDate(dateString: string | null): string | null {
   if (!dateString) return null
   try {
-    const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(dateString)
-    const date = isDateOnly ? new Date(`${dateString}T12:00:00`) : parseISO(dateString)
+    const datePart = dateString.slice(0, 10) // "YYYY-MM-DD"
+    const date = new Date(`${datePart}T12:00:00`)
     return format(date, "d MMM", { locale: es })
   } catch {
     return null
