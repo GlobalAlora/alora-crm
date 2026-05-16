@@ -529,6 +529,19 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                   type="url"
                   placeholder="https://..."
                 />
+                {lead.drive_folder_url && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Carpeta Drive</p>
+                    <a
+                      href={lead.drive_folder_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                    >
+                      <ExternalLink size={11} /> Abrir carpeta
+                    </a>
+                  </div>
+                )}
                 <EditableField
                   label="Propuesta enviada"
                   value={lead.fecha_propuesta ? lead.fecha_propuesta.slice(0, 10) : ''}
@@ -704,6 +717,19 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                   type="url"
                   placeholder="https://..."
                 />
+                {lead.drive_folder_url && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Carpeta Drive</p>
+                    <a
+                      href={lead.drive_folder_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                    >
+                      <ExternalLink size={11} /> Abrir carpeta
+                    </a>
+                  </div>
+                )}
                 <EditableField
                   label="Propuesta enviada"
                   value={lead.fecha_propuesta ? lead.fecha_propuesta.slice(0, 10) : ''}

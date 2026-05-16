@@ -118,6 +118,8 @@ export interface Lead {
   avance_proyecto: number | null
   form_id: string | null                        // which form generated this lead
   form_data: Record<string, string> | null      // all fields submitted from embed form
+  drive_folder_id: string | null               // Google Drive folder created on reunion_realizada
+  drive_folder_url: string | null
   stage_updated_at: string
   last_activity_at: string
   deleted_at: string | null
