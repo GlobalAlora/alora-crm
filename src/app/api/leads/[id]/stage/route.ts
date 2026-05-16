@@ -8,9 +8,11 @@ const VALID_STAGES: PipelineStage[] = [
   'follow_up', 'cliente_ganado', 'cliente_perdido', 'no_cualificado',
 ]
 
+// fecha_reunion is NOT auto-stamped here — it must be supplied explicitly by the
+// user (via the KanbanBoard meeting-date modal or the LeadDetail form) so the
+// card shows the actual meeting date, not the moment the card was dragged.
 const STAGE_DATE_MAP: Partial<Record<PipelineStage, string>> = {
   lead_contactado: 'fecha_contacto',
-  reunion_reservada: 'fecha_reunion',
   propuesta_enviada: 'fecha_propuesta',
   follow_up: 'fecha_followup',
   cliente_ganado: 'fecha_cierre',
@@ -26,7 +28,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { estado_pipeline } = await req.json()
+  const body = await req.json()
+  const { estado_pipeline, fecha_reunion } = body as { estado_pipeline: PipelineStage; fecha_reunion?: string | null }
 
   if (!VALID_STAGES.includes(estado_pipeline)) {
     return NextResponse.json({ error: 'Etapa inválida' }, { status: 400 })
@@ -49,9 +52,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     updated_at: now,
   }
 
-  // Set date field if not already set
+  // Set auto date fields for stages that stamp automatically
   const dateField = STAGE_DATE_MAP[estado_pipeline as PipelineStage]
   if (dateField) updates[dateField] = now
+
+  // Accept explicitly provided meeting date (reunion_reservada only)
+  if (estado_pipeline === 'reunion_reservada' && fecha_reunion) {
+    updates['fecha_reunion'] = fecha_reunion
+  }
 
   const { data, error } = await supabase
     .from('leads')

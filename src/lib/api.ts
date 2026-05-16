@@ -82,10 +82,10 @@ export const leadsApi = {
     return request(`${BASE}/leads/${id}`, { method: 'DELETE' })
   },
 
-  moveStage(id: string, estado_pipeline: PipelineStage): Promise<Lead> {
+  moveStage(id: string, estado_pipeline: PipelineStage, fecha_reunion?: string | null): Promise<Lead> {
     return request(`${BASE}/leads/${id}/stage`, {
       method: 'PATCH',
-      body: JSON.stringify({ estado_pipeline }),
+      body: JSON.stringify({ estado_pipeline, ...(fecha_reunion != null ? { fecha_reunion } : {}) }),
     })
   },
 
