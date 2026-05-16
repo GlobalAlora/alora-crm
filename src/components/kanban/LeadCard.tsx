@@ -56,9 +56,10 @@ function usePropuestasSummary(leadId: string) {
   })
   const propuestas = data?.data ?? []
   const count = propuestas.length
-  // Only count the value for the propuesta's declared moneda to avoid cross-currency double-counting
-  const totalUSD = propuestas.reduce((sum, p) => sum + (p.moneda === 'USD' ? (p.valor_usd || 0) : 0), 0)
-  const totalARS = propuestas.reduce((sum, p) => sum + (p.moneda === 'ARS' ? (p.valor_ars || 0) : 0), 0)
+  // Only count accepted proposals — rejected/pending must not inflate the card value
+  const aceptadas = propuestas.filter((p) => p.estado === 'aceptada')
+  const totalUSD = aceptadas.reduce((sum, p) => sum + (p.moneda === 'USD' ? (p.valor_usd || 0) : 0), 0)
+  const totalARS = aceptadas.reduce((sum, p) => sum + (p.moneda === 'ARS' ? (p.valor_ars || 0) : 0), 0)
   return { count, totalUSD, totalARS }
 }
 
