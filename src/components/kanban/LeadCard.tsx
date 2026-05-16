@@ -11,11 +11,14 @@ import { UserAvatar } from '@/components/shared/UserAvatar'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 
-// Helper function to format important dates
+// Helper function to format important dates.
+// Date-only values (YYYY-MM-DD) are parsed at noon local time to avoid
+// the UTC-midnight → previous-day-in-Argentina timezone shift.
 function formatImportantDate(dateString: string | null): string | null {
   if (!dateString) return null
   try {
-    const date = parseISO(dateString)
+    const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(dateString)
+    const date = isDateOnly ? new Date(`${dateString}T12:00:00`) : parseISO(dateString)
     return format(date, "d MMM", { locale: es })
   } catch {
     return null
