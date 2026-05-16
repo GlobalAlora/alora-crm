@@ -20,7 +20,6 @@ import { leadsApi } from '@/lib/api'
 import { midpoint } from '@/lib/utils'
 import { KanbanColumn } from './KanbanColumn'
 import { LeadCard } from './LeadCard'
-import { Calendar, X } from 'lucide-react'
 
 interface KanbanBoardProps {
   onLeadClick: (lead: Lead) => void
@@ -48,10 +47,6 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
   const [startX, setStartX] = useState(0)
   const [scrollLeft, setScrollLeft] = useState(0)
 
-  // Meeting date modal — shown when dropping a lead into reunion_reservada
-  const [meetingModal, setMeetingModal] = useState<{ leadId: string; leadName: string } | null>(null)
-  const [meetingDate, setMeetingDate] = useState('')
-  const pendingMeetingRef = useRef<{ lead: Lead; targetStage: PipelineStage } | null>(null)
 
   // Horizontal scroll with mouse wheel
   useEffect(() => {
@@ -114,8 +109,8 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
   const grouped = groupByStage(displayLeads)
 
   const stageMutation = useMutation({
-    mutationFn: ({ id, stage, fechaReunion }: { id: string; stage: PipelineStage; fechaReunion?: string | null }) =>
-      leadsApi.moveStage(id, stage, fechaReunion),
+    mutationFn: ({ id, stage }: { id: string; stage: PipelineStage }) =>
+      leadsApi.moveStage(id, stage),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
@@ -185,14 +180,6 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
     const stageChanged = draggedLead.estado_pipeline !== targetStage
 
     if (stageChanged) {
-      if (targetStage === 'reunion_reservada') {
-        // Ask for the actual meeting date before committing the move
-        pendingMeetingRef.current = { lead: draggedLead, targetStage }
-        setMeetingDate('')
-        setMeetingModal({ leadId: draggedLead.id, leadName: [draggedLead.nombre, draggedLead.apellido].filter(Boolean).join(' ') })
-        return
-      }
-
       // Optimistic: move card to new column at the end
       const updated = displayLeads.map((l) =>
         l.id === draggedLead.id ? { ...l, estado_pipeline: targetStage } : l
@@ -228,29 +215,6 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
       )
     }
   }, [displayLeads, grouped, stageMutation, positionMutation])
-
-  const confirmMeeting = useCallback(() => {
-    const pending = pendingMeetingRef.current
-    if (!pending) return
-
-    const { lead, targetStage } = pending
-    const fechaReunion = meetingDate ? new Date(meetingDate).toISOString() : null
-
-    const updated = displayLeads.map((l) =>
-      l.id === lead.id ? { ...l, estado_pipeline: targetStage, fecha_reunion: fechaReunion ?? undefined } : l
-    )
-    setOptimisticLeads(updated)
-    stageMutation.mutate({ id: lead.id, stage: targetStage, fechaReunion }, {
-      onSettled: () => setOptimisticLeads(null),
-    })
-    pendingMeetingRef.current = null
-    setMeetingModal(null)
-  }, [displayLeads, meetingDate, stageMutation])
-
-  const cancelMeeting = useCallback(() => {
-    pendingMeetingRef.current = null
-    setMeetingModal(null)
-  }, [])
 
   if (isLoading) {
     return (
@@ -297,50 +261,6 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
         )}
       </DragOverlay>
 
-      {/* Meeting date modal */}
-      {meetingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <Calendar size={16} className="text-blue-600" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-900">¿Cuándo es la reunión?</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">{meetingModal.leadName}</p>
-                </div>
-              </div>
-              <button onClick={cancelMeeting} className="text-slate-400 hover:text-slate-600 p-1">
-                <X size={16} />
-              </button>
-            </div>
-
-            <input
-              type="datetime-local"
-              value={meetingDate}
-              onChange={(e) => setMeetingDate(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              autoFocus
-            />
-
-            <div className="flex gap-2 mt-4">
-              <button
-                onClick={cancelMeeting}
-                className="flex-1 px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={confirmMeeting}
-                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                {meetingDate ? 'Confirmar' : 'Sin fecha'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </DndContext>
   )
 }
