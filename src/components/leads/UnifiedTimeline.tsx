@@ -277,6 +277,8 @@ export function UnifiedTimeline({ leadId, leadEmail }: UnifiedTimelineProps) {
   })
   const [editorKey, setEditorKey] = useState(0)
   const [showDone, setShowDone] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const hasSyncedRef = useRef(false)
 
   const handleFromEmailChange = (email: SenderEmail) => {
     setFromEmail(email)
@@ -329,6 +331,34 @@ export function UnifiedTimeline({ leadId, leadEmail }: UnifiedTimelineProps) {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [leadId])
+
+  // ── Gmail sync ───────────────────────────────────────────────────────────────
+  const syncEmails = async (silent = false) => {
+    if (!leadEmail) return
+    if (!silent) setIsSyncing(true)
+    try {
+      const res = await fetch(`/api/leads/${leadId}/sync-emails`, { method: 'POST' })
+      const json = await res.json()
+      if (json.synced > 0) {
+        qcRef.current.invalidateQueries({ queryKey: ['activities', leadId] })
+        if (!silent) toast.success(`${json.synced} email${json.synced > 1 ? 's' : ''} sincronizado${json.synced > 1 ? 's' : ''}`)
+      } else if (!silent) {
+        toast('Sin emails nuevos', { icon: '📭' })
+      }
+    } catch {
+      if (!silent) toast.error('Error al sincronizar emails')
+    } finally {
+      if (!silent) setIsSyncing(false)
+    }
+  }
+
+  // Auto-sync once on mount (silent)
+  useEffect(() => {
+    if (hasSyncedRef.current || !leadEmail) return
+    hasSyncedRef.current = true
+    syncEmails(true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leadId, leadEmail])
 
   // ── Activity mutations ───────────────────────────────────────────────────────
   const addActivity = useMutation({
@@ -516,6 +546,20 @@ export function UnifiedTimeline({ leadId, leadEmail }: UnifiedTimelineProps) {
               </button>
             )
           })}
+          {/* Sync button — visible when email tab is active and lead has email */}
+          {inputType === 'email' && leadEmail && (
+            <button
+              type="button"
+              onClick={() => syncEmails(false)}
+              disabled={isSyncing}
+              className="ml-auto flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium border border-slate-200 bg-white text-slate-500 hover:border-purple-300 hover:text-purple-600 transition-all disabled:opacity-50"
+            >
+              {isSyncing
+                ? <Loader2 size={11} className="animate-spin" />
+                : <Mail size={11} />}
+              Sincronizar
+            </button>
+          )}
         </div>
 
         {/* Email fields */}
