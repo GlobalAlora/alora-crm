@@ -522,13 +522,27 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                     <input
                       type="checkbox"
                       checked={skipCalendar}
-                      onChange={(e) => setSkipCalendar(e.target.checked)}
+                      onChange={(e) => {
+                        const checked = e.target.checked
+                        setSkipCalendar(checked)
+                        // Fire immediately if fecha_reunion is already set —
+                        // this writes calendar_event_id='external' to DB right away
+                        if (checked && lead.fecha_reunion) {
+                          patch({ fecha_reunion: lead.fecha_reunion, skip_calendar: true })
+                        }
+                      }}
                       className="rounded border-slate-300 text-violet-600 focus:ring-violet-500"
                     />
                     <span className="text-[10px] text-slate-500 leading-tight">Ya agendado en Tidycal<br/>
                       <span className="text-slate-400">(no crear evento en Calendar)</span>
                     </span>
                   </label>
+                )}
+                {lead.calendar_event_id === 'external' && (
+                  <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                    <Check size={10} className="text-emerald-500" />
+                    Agendado externamente (Tidycal)
+                  </p>
                 )}
                 <EditableField
                   label="Hora reunión"
@@ -736,13 +750,27 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                     <input
                       type="checkbox"
                       checked={skipCalendar}
-                      onChange={(e) => setSkipCalendar(e.target.checked)}
+                      onChange={(e) => {
+                        const checked = e.target.checked
+                        setSkipCalendar(checked)
+                        // Fire immediately if fecha_reunion is already set —
+                        // this writes calendar_event_id='external' to DB right away
+                        if (checked && lead.fecha_reunion) {
+                          patch({ fecha_reunion: lead.fecha_reunion, skip_calendar: true })
+                        }
+                      }}
                       className="rounded border-slate-300 text-violet-600 focus:ring-violet-500"
                     />
                     <span className="text-[10px] text-slate-500 leading-tight">Ya agendado en Tidycal<br/>
                       <span className="text-slate-400">(no crear evento en Calendar)</span>
                     </span>
                   </label>
+                )}
+                {lead.calendar_event_id === 'external' && (
+                  <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                    <Check size={10} className="text-emerald-500" />
+                    Agendado externamente (Tidycal)
+                  </p>
                 )}
                 <EditableField
                   label="Hora reunión"

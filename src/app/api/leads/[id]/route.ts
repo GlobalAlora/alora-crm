@@ -97,6 +97,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     responsable_id: string | null
   } | null = null
 
+  // When skip_calendar=true, mark the lead as externally booked (e.g. Tidycal).
+  // Sentinel 'external' in calendar_event_id prevents future auto-creation.
+  if (skipCalendar) {
+    body.calendar_event_id = 'external'
+    body.calendar_event_url = null
+  }
+
   if ('fecha_reunion' in body && body.fecha_reunion && process.env.GOOGLE_CALENDAR_SUBJECT && !skipCalendar) {
     const { data: snap } = await supabase
       .from('leads')
@@ -104,7 +111,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       .eq('id', id)
       .is('deleted_at', null)
       .single()
-    if (snap?.estado_pipeline === 'reunion_reservada') {
+    // Only trigger Calendar if lead is reunion_reservada and NOT already marked external
+    if (snap?.estado_pipeline === 'reunion_reservada' && snap.calendar_event_id !== 'external') {
       calendarLeadSnapshot = snap
     }
   }
@@ -204,7 +212,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         responsable_email: responsableEmail,
       }
 
-      const result = snap.calendar_event_id
+      const result = snap.calendar_event_id && snap.calendar_event_id !== 'external'
         ? await updateCalendarEvent(snap.calendar_event_id, eventInput)
         : await createCalendarEvent(eventInput)
 
