@@ -96,7 +96,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // Idempotent: if drive_folder_id is already set, ensureLeadDriveFolder
   // returns immediately without touching the Drive API.
   if (
-    estado_pipeline === 'reunion_realizada' &&
+    estado_pipeline === 'reunion_reservada' &&
     process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
   ) {
     try {
