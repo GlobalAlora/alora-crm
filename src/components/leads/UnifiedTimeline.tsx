@@ -34,7 +34,15 @@ const TIPO_CONFIG: Record<string, { icon: React.ElementType; color: string; labe
   whatsapp:         { icon: MessageCircle, color: 'bg-green-50 text-green-600',   label: 'WhatsApp'    },
 }
 
-const SENDER_NAME_KEY = 'alora_email_sender_name'
+const SENDER_EMAIL_KEY = 'alora_email_sender'
+
+const SENDERS = [
+  { name: 'Bruno',      email: 'bruno@globalalora.com' },
+  { name: 'Walo',       email: 'walo@globalalora.com'  },
+  { name: 'Info Alora', email: 'info@globalalora.com'  },
+] as const
+
+type SenderEmail = typeof SENDERS[number]['email']
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -263,15 +271,16 @@ export function UnifiedTimeline({ leadId, leadEmail }: UnifiedTimelineProps) {
   const [emailSubject, setEmailSubject] = useState('')
   const [taskTitulo, setTaskTitulo] = useState('')
   const [taskVencimiento, setTaskVencimiento] = useState('')
-  const [fromName, setFromName] = useState(() =>
-    (typeof window !== 'undefined' ? localStorage.getItem(SENDER_NAME_KEY) : null) ?? 'Alora CRM'
-  )
+  const [fromEmail, setFromEmail] = useState<SenderEmail>(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem(SENDER_EMAIL_KEY) : null
+    return (SENDERS.find(s => s.email === saved)?.email ?? SENDERS[0].email) as SenderEmail
+  })
   const [editorKey, setEditorKey] = useState(0)
   const [showDone, setShowDone] = useState(false)
 
-  const handleFromNameChange = (v: string) => {
-    setFromName(v)
-    if (typeof window !== 'undefined') localStorage.setItem(SENDER_NAME_KEY, v)
+  const handleFromEmailChange = (email: SenderEmail) => {
+    setFromEmail(email)
+    if (typeof window !== 'undefined') localStorage.setItem(SENDER_EMAIL_KEY, email)
   }
 
   // ── Queries ──────────────────────────────────────────────────────────────────
@@ -345,7 +354,12 @@ export function UnifiedTimeline({ leadId, leadEmail }: UnifiedTimelineProps) {
       fetch(`/api/leads/${leadId}/send-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject: emailSubject, html: text, fromName }),
+        body: JSON.stringify({
+          subject: emailSubject,
+          html: text,
+          fromEmail,
+          fromName: SENDERS.find(s => s.email === fromEmail)?.name ?? 'Alora',
+        }),
       }).then(async r => { const j = await r.json(); if (!r.ok || j.error) throw new Error(j.error ?? 'Error al enviar'); return j }),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['activities', leadId] })
@@ -509,7 +523,17 @@ export function UnifiedTimeline({ leadId, leadEmail }: UnifiedTimelineProps) {
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-400 w-12 shrink-0">De:</span>
-              <input type="text" value={fromName} onChange={e => handleFromNameChange(e.target.value)} placeholder="Tu nombre" className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white" />
+              <select
+                value={fromEmail}
+                onChange={e => handleFromEmailChange(e.target.value as SenderEmail)}
+                className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white text-slate-700"
+              >
+                {SENDERS.map(s => (
+                  <option key={s.email} value={s.email}>
+                    {s.name} — {s.email}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-400 w-12 shrink-0">Asunto:</span>

@@ -44,8 +44,14 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Este lead no tiene email cargado' }, { status: 400 })
   }
 
-  const senderName = fromName?.trim() || 'Alora CRM'
-  const senderEmail = fromEmail?.trim() || 'hola@reply.globalalora.com'
+  const KNOWN_SENDERS: Record<string, string> = {
+    'bruno@globalalora.com': 'Bruno',
+    'walo@globalalora.com':  'Walo',
+    'info@globalalora.com':  'Info Alora',
+  }
+  const resolvedEmail = fromEmail?.trim() || 'info@globalalora.com'
+  const senderName  = fromName?.trim() || KNOWN_SENDERS[resolvedEmail] || 'Alora CRM'
+  const senderEmail = resolvedEmail
   // Replies go to a globalalora.com address so Resend inbound can capture them
   const replyTo = 'reply@reply.globalalora.com'
 
@@ -75,6 +81,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       subject: subject.trim(),
       to: lead.email,
       to_name: nombre,
+      from: senderEmail,
+      from_name: senderName,
     },
   })
 
