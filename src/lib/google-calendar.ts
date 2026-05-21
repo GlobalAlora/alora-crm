@@ -61,6 +61,19 @@ function buildDateTime(fecha: string, hora: string | null): string {
   return `${fecha.slice(0, 10)}T${time}:00`
 }
 
+/**
+ * Build the end datetime 30 minutes after the start.
+ * Falls back to 09:30 when hora is missing.
+ */
+function buildEndDateTime(fecha: string, hora: string | null): string {
+  if (!hora) return `${fecha.slice(0, 10)}T09:30:00`
+  const [hStr, mStr] = hora.slice(0, 5).split(':')
+  const total = parseInt(hStr, 10) * 60 + parseInt(mStr, 10) + 30
+  const h = String(Math.floor(total / 60) % 24).padStart(2, '0')
+  const m = String(total % 60).padStart(2, '0')
+  return `${fecha.slice(0, 10)}T${h}:${m}:00`
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export interface CalendarEventResult {
@@ -89,12 +102,8 @@ export async function createCalendarEvent(
   const calendar = getCalendarClient()
 
   const startLocal = buildDateTime(input.fecha_reunion, input.reunion_hora)
-  // Default duration: 1 hour
-  const endHour = input.reunion_hora
-    ? String(parseInt(input.reunion_hora.slice(0, 2), 10) + 1).padStart(2, '0') +
-      input.reunion_hora.slice(2, 5)
-    : '10:00'
-  const endLocal = buildDateTime(input.fecha_reunion, endHour)
+  // Duration: 30 minutes
+  const endLocal = buildEndDateTime(input.fecha_reunion, input.reunion_hora)
 
   const attendees: { email: string }[] = []
   if (input.email) attendees.push({ email: input.email })
@@ -143,11 +152,8 @@ export async function updateCalendarEvent(
   const calendar = getCalendarClient()
 
   const startLocal = buildDateTime(input.fecha_reunion, input.reunion_hora)
-  const endHour = input.reunion_hora
-    ? String(parseInt(input.reunion_hora.slice(0, 2), 10) + 1).padStart(2, '0') +
-      input.reunion_hora.slice(2, 5)
-    : '10:00'
-  const endLocal = buildDateTime(input.fecha_reunion, endHour)
+  // Duration: 30 minutes
+  const endLocal = buildEndDateTime(input.fecha_reunion, input.reunion_hora)
 
   const attendees: { email: string }[] = []
   if (input.email) attendees.push({ email: input.email })
@@ -156,6 +162,7 @@ export async function updateCalendarEvent(
   const { data: event } = await calendar.events.patch({
     calendarId: 'primary',
     eventId,
+    sendUpdates: 'all', // sends email notification on updates
     requestBody: {
       summary:  buildEventTitle(input),
       location: input.reunion_link ?? undefined,
