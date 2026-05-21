@@ -120,6 +120,8 @@ export interface Lead {
   form_data: Record<string, string> | null      // all fields submitted from embed form
   drive_folder_id: string | null               // Google Drive folder created on reunion_realizada
   drive_folder_url: string | null
+  calendar_event_id: string | null             // Google Calendar event created on reunion_reservada
+  calendar_event_url: string | null
   stage_updated_at: string
   last_activity_at: string
   deleted_at: string | null

@@ -529,6 +529,19 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                   type="url"
                   placeholder="https://..."
                 />
+                {lead.calendar_event_url && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Evento en Calendar</p>
+                    <a
+                      href={lead.calendar_event_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                    >
+                      <ExternalLink size={11} /> Abrir evento
+                    </a>
+                  </div>
+                )}
                 {lead.drive_folder_url && (
                   <div>
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Carpeta Drive</p>
@@ -717,6 +730,19 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                   type="url"
                   placeholder="https://..."
                 />
+                {lead.calendar_event_url && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Evento en Calendar</p>
+                    <a
+                      href={lead.calendar_event_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                    >
+                      <ExternalLink size={11} /> Abrir evento
+                    </a>
+                  </div>
+                )}
                 {lead.drive_folder_url && (
                   <div>
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Carpeta Drive</p>

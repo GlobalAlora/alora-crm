@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createCalendarEvent, updateCalendarEvent } from '@/lib/google-calendar'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -79,6 +80,31 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     body.valor_propuesta_ars = null
   }
 
+  // Detect if fecha_reunion is being set on a reunion_reservada lead (calendar trigger)
+  let calendarLeadSnapshot: {
+    estado_pipeline: string
+    nombre: string
+    apellido: string | null
+    empresa: string | null
+    email: string | null
+    reunion_hora: string | null
+    reunion_link: string | null
+    calendar_event_id: string | null
+    responsable_id: string | null
+  } | null = null
+
+  if ('fecha_reunion' in body && body.fecha_reunion && process.env.GOOGLE_CALENDAR_SUBJECT) {
+    const { data: snap } = await supabase
+      .from('leads')
+      .select('estado_pipeline, nombre, apellido, empresa, email, reunion_hora, reunion_link, calendar_event_id, responsable_id')
+      .eq('id', id)
+      .is('deleted_at', null)
+      .single()
+    if (snap?.estado_pipeline === 'reunion_reservada') {
+      calendarLeadSnapshot = snap
+    }
+  }
+
   // Detect responsable_id change BEFORE updating so we can log the activity
   let responsableActivityPayload: {
     prev: { id: string; full_name: string | null } | null
@@ -139,6 +165,55 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         next_responsable_name: next?.full_name ?? null,
       },
     })
+  }
+
+  // ── Google Calendar event ────────────────────────────────────────────────────
+  // Triggered when fecha_reunion is set/updated on a reunion_reservada lead.
+  // Creates a new event or patches the existing one. Non-fatal.
+  if (calendarLeadSnapshot && data) {
+    try {
+      const snap = calendarLeadSnapshot
+      // Merge updated fields from body into snapshot for the event payload
+      const hora   = ('reunion_hora' in body  ? body.reunion_hora  : snap.reunion_hora)  as string | null
+      const link   = ('reunion_link' in body  ? body.reunion_link  : snap.reunion_link)  as string | null
+
+      // Get responsable email for the attendee list
+      let responsableEmail: string | null = null
+      if (snap.responsable_id) {
+        const { data: ru } = await supabase
+          .from('users')
+          .select('email')
+          .eq('id', snap.responsable_id)
+          .maybeSingle()
+        responsableEmail = ru?.email ?? null
+      }
+
+      const eventInput = {
+        leadId:            id,
+        nombre:            snap.nombre,
+        apellido:          snap.apellido,
+        empresa:           snap.empresa,
+        email:             snap.email,
+        fecha_reunion:     body.fecha_reunion as string,
+        reunion_hora:      hora,
+        reunion_link:      link,
+        responsable_email: responsableEmail,
+      }
+
+      const result = snap.calendar_event_id
+        ? await updateCalendarEvent(snap.calendar_event_id, eventInput)
+        : await createCalendarEvent(eventInput)
+
+      await supabase
+        .from('leads')
+        .update({ calendar_event_id: result.eventId, calendar_event_url: result.eventUrl })
+        .eq('id', id)
+
+      ;(data as Record<string, unknown>).calendar_event_id  = result.eventId
+      ;(data as Record<string, unknown>).calendar_event_url = result.eventUrl
+    } catch (calErr) {
+      console.error('[Calendar] Failed to create/update event for lead', id, calErr)
+    }
   }
 
   return NextResponse.json({ data })
