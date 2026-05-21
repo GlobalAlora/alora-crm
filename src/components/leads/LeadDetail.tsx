@@ -180,6 +180,8 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
   const [editNombre, setEditNombre] = useState(lead.nombre || '')
   const [editApellido, setEditApellido] = useState(lead.apellido || '')
   const [servicios, setServicios] = useState<string[]>(lead.servicios_interesados ?? [])
+  // Tidycal / external booking: skip Google Calendar event creation when saving fecha_reunion
+  const [skipCalendar, setSkipCalendar] = useState(false)
 
   const patchMutation = useMutation({
     mutationFn: (data: Partial<Lead>) => leadsApi.update(lead.id, data),
@@ -202,7 +204,7 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
     onError: () => toast.error('Error al actualizar nombre'),
   })
 
-  const patch = (data: Partial<Lead>) => patchMutation.mutate(data)
+  const patch = (data: Partial<Lead> & { skip_calendar?: boolean }) => patchMutation.mutate(data as Partial<Lead>)
 
   const startEditName = () => {
     setEditNombre(lead.nombre || '')
@@ -511,10 +513,23 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                 <EditableField
                   label="Fecha reunión"
                   value={lead.fecha_reunion ? lead.fecha_reunion.slice(0, 10) : ''}
-                  onSave={(v) => patch({ fecha_reunion: v || null })}
+                  onSave={(v) => patch({ fecha_reunion: v || null, ...(skipCalendar ? { skip_calendar: true } : {}) })}
                   type="date"
                   placeholder="Sin fecha"
                 />
+                {lead.estado_pipeline === 'reunion_reservada' && !lead.calendar_event_id && (
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={skipCalendar}
+                      onChange={(e) => setSkipCalendar(e.target.checked)}
+                      className="rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                    />
+                    <span className="text-[10px] text-slate-500 leading-tight">Ya agendado en Tidycal<br/>
+                      <span className="text-slate-400">(no crear evento en Calendar)</span>
+                    </span>
+                  </label>
+                )}
                 <EditableField
                   label="Hora reunión"
                   value={lead.reunion_hora ?? ''}
@@ -712,10 +727,23 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                 <EditableField
                   label="Fecha reunión"
                   value={lead.fecha_reunion ? lead.fecha_reunion.slice(0, 10) : ''}
-                  onSave={(v) => patch({ fecha_reunion: v || null })}
+                  onSave={(v) => patch({ fecha_reunion: v || null, ...(skipCalendar ? { skip_calendar: true } : {}) })}
                   type="date"
                   placeholder="Sin fecha"
                 />
+                {lead.estado_pipeline === 'reunion_reservada' && !lead.calendar_event_id && (
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={skipCalendar}
+                      onChange={(e) => setSkipCalendar(e.target.checked)}
+                      className="rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                    />
+                    <span className="text-[10px] text-slate-500 leading-tight">Ya agendado en Tidycal<br/>
+                      <span className="text-slate-400">(no crear evento en Calendar)</span>
+                    </span>
+                  </label>
+                )}
                 <EditableField
                   label="Hora reunión"
                   value={lead.reunion_hora ?? ''}

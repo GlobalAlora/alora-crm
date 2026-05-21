@@ -58,6 +58,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const body = await req.json()
 
+  // Capture and strip non-DB flags before touching anything else
+  const skipCalendar = body.skip_calendar === true
+  delete body.skip_calendar
+
   // Block protected fields
   const blocked = ['id', 'estado_pipeline', 'kanban_position', 'deleted_at', 'created_at', 'created_by']
   for (const key of blocked) {
@@ -93,7 +97,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     responsable_id: string | null
   } | null = null
 
-  if ('fecha_reunion' in body && body.fecha_reunion && process.env.GOOGLE_CALENDAR_SUBJECT) {
+  if ('fecha_reunion' in body && body.fecha_reunion && process.env.GOOGLE_CALENDAR_SUBJECT && !skipCalendar) {
     const { data: snap } = await supabase
       .from('leads')
       .select('estado_pipeline, nombre, apellido, empresa, email, reunion_hora, reunion_link, calendar_event_id, responsable_id')
