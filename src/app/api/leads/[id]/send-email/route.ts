@@ -51,18 +51,28 @@ export async function POST(req: NextRequest, { params }: Params) {
   const toName = [lead.nombre, lead.apellido].filter(Boolean).join(' ')
 
   // Send via Gmail API
-  const result = await sendGmail({
-    from:       resolvedFrom,
-    to:         lead.email,
-    toName,
-    subject:    subject.trim(),
-    html:       html.trim(),
-    threadId:   threadId  ?? null,
-    inReplyTo:  inReplyTo ?? null,
-    references: references ?? null,
-  })
+  let result: Awaited<ReturnType<typeof sendGmail>>
+  try {
+    result = await sendGmail({
+      from:       resolvedFrom,
+      to:         lead.email,
+      toName,
+      subject:    subject.trim(),
+      html:       html.trim(),
+      threadId:   threadId  ?? null,
+      inReplyTo:  inReplyTo ?? null,
+      references: references ?? null,
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[send-email] Gmail error:', msg)
+    return NextResponse.json(
+      { error: `Error al enviar por Gmail: ${msg}` },
+      { status: 500 }
+    )
+  }
 
-  // Log activity
+  // Log activity (best-effort)
   await adminSupabase.from('activities').insert({
     lead_id:  leadId,
     user_id:  user.id,
@@ -82,9 +92,9 @@ export async function POST(req: NextRequest, { params }: Params) {
   })
 
   return NextResponse.json({
-    success:  true,
-    message:  `Email enviado a ${lead.email}`,
-    threadId: result.threadId,
+    success:   true,
+    message:   `Email enviado a ${lead.email}`,
+    threadId:  result.threadId,
     messageId: result.messageId,
   })
 }
