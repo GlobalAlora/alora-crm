@@ -36,8 +36,17 @@ export async function POST(_req: NextRequest, { params }: Params) {
   if (!lead?.email) return NextResponse.json({ synced: 0, message: 'Lead sin email' })
 
   // List all gmail IDs for this lead across all inboxes
-  const gmailRefs = await listEmailIdsForLead(lead.email)
-  if (!gmailRefs.length) return NextResponse.json({ synced: 0 })
+  let gmailRefs: Awaited<ReturnType<typeof listEmailIdsForLead>>
+  try {
+    gmailRefs = await listEmailIdsForLead(lead.email)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[sync-emails] listEmailIds error:', msg)
+    return NextResponse.json({ synced: 0, error: msg }, { status: 500 })
+  }
+
+  console.log(`[sync-emails] Found ${gmailRefs.length} gmail refs for ${lead.email}`)
+  if (!gmailRefs.length) return NextResponse.json({ synced: 0, found: 0 })
 
   // Find which gmail_ids are already stored as activities
   const { data: existing } = await adminSupabase
@@ -52,42 +61,51 @@ export async function POST(_req: NextRequest, { params }: Params) {
       .filter(Boolean) as string[]
   )
 
+  const newRefs = gmailRefs.filter(r => !storedGmailIds.has(r.gmailId))
+  console.log(`[sync-emails] ${newRefs.length} new messages to fetch (${storedGmailIds.size} already stored)`)
+
   // Fetch and store only new messages
   let synced = 0
-  for (const ref of gmailRefs) {
-    if (storedGmailIds.has(ref.gmailId)) continue
-
-    const email = await fetchGmailMessage(ref.inboxAccount, ref.gmailId)
+  for (const ref of newRefs) {
+    let email: Awaited<ReturnType<typeof fetchGmailMessage>>
+    try {
+      email = await fetchGmailMessage(ref.inboxAccount, ref.gmailId)
+    } catch (err) {
+      console.error('[sync-emails] fetchGmailMessage error:', err)
+      continue
+    }
     if (!email) continue
 
-    const preview = email.bodyHtml.replace(/<[^>]+>/g, ' ').trim().slice(0, 300)
-
-    await adminSupabase.from('activities').insert({
+    const { error: insertError } = await adminSupabase.from('activities').insert({
       lead_id:  leadId,
-      user_id:  null, // inbound — no CRM user
+      user_id:  null,
       tipo:     'email',
       descripcion: [
         `<strong>${email.direction === 'inbound' ? 'De' : 'Para'}:</strong> ${email.direction === 'inbound' ? email.from : email.to}`,
         `<strong>Asunto:</strong> ${email.subject}`,
         '',
-        email.bodyHtml || `<p>${preview}</p>`,
+        email.bodyHtml || `<p>${email.subject}</p>`,
       ].join('<br>'),
       metadata: {
-        direction:    email.direction,
-        subject:      email.subject,
-        from:         email.from,
-        from_name:    email.fromName,
-        to:           email.to,
-        gmail_id:     email.gmailId,
-        thread_id:    email.threadId,
-        message_id:   email.messageId,
-        inbox:        email.inboxAccount,
-        received_at:  email.date.toISOString(),
+        direction:   email.direction,
+        subject:     email.subject,
+        from:        email.from,
+        from_name:   email.fromName,
+        to:          email.to,
+        gmail_id:    email.gmailId,
+        thread_id:   email.threadId,
+        message_id:  email.messageId,
+        inbox:       email.inboxAccount,
+        received_at: email.date.toISOString(),
       },
-      created_at: email.date.toISOString(),
     })
-    synced++
+
+    if (insertError) {
+      console.error('[sync-emails] insert error:', insertError.message)
+    } else {
+      synced++
+    }
   }
 
-  return NextResponse.json({ synced, total: gmailRefs.length })
+  return NextResponse.json({ synced, found: gmailRefs.length, new: newRefs.length })
 }

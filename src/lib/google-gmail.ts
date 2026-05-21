@@ -143,8 +143,9 @@ export async function listEmailIdsForLead(
       for (const msg of data.messages ?? []) {
         if (msg.id) results.push({ gmailId: msg.id, inboxAccount: sender.email })
       }
-    } catch {
-      // inbox not accessible or no messages — skip
+    } catch (err) {
+      // Log so we can diagnose scope/permission issues
+      console.error(`[gmail] listEmailIds failed for ${sender.email}:`, err instanceof Error ? err.message : err)
     }
   }
 
