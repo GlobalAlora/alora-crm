@@ -352,11 +352,19 @@ export function UnifiedTimeline({ leadId, leadEmail }: UnifiedTimelineProps) {
     }
   }
 
-  // Auto-sync once on mount (silent)
+  // Auto-sync on mount + every 30s while lead is open (silent background poll)
   useEffect(() => {
-    if (hasSyncedRef.current || !leadEmail) return
-    hasSyncedRef.current = true
-    syncEmails(true)
+    if (!leadEmail) return
+
+    // Immediate sync on open
+    if (!hasSyncedRef.current) {
+      hasSyncedRef.current = true
+      syncEmails(true)
+    }
+
+    // Poll every 30 seconds silently
+    const interval = setInterval(() => syncEmails(true), 30_000)
+    return () => clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadId, leadEmail])
 
@@ -395,6 +403,8 @@ export function UnifiedTimeline({ leadId, leadEmail }: UnifiedTimelineProps) {
       qc.invalidateQueries({ queryKey: ['activities', leadId] })
       setText(''); setEmailSubject(''); setEditorKey(k => k + 1)
       toast.success(res.message ?? 'Email enviado')
+      // Sync after 3s so the sent email appears in the timeline from Gmail
+      setTimeout(() => syncEmails(true), 3000)
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : 'Error al enviar'),
   })
