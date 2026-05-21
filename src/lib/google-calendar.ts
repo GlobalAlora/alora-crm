@@ -45,10 +45,9 @@ function getCalendarClient() {
 function buildEventTitle(lead: {
   nombre: string
   apellido: string | null
-  empresa: string | null
 }): string {
   const fullName = [lead.nombre, lead.apellido].filter(Boolean).join(' ')
-  return lead.empresa ? `Reunión - ${lead.empresa} | ${fullName}` : `Reunión - ${fullName}`
+  return `Reunión ${fullName} + Alora`
 }
 
 /**
@@ -103,6 +102,7 @@ export async function createCalendarEvent(
 
   const { data: event } = await calendar.events.insert({
     calendarId: 'primary',
+    sendUpdates: 'all', // sends email invitation to all attendees
     requestBody: {
       summary: buildEventTitle(input),
       description: [
