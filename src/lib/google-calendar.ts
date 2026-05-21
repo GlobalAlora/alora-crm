@@ -112,6 +112,7 @@ export async function createCalendarEvent(
   const { data: event } = await calendar.events.insert({
     calendarId: 'primary',
     sendUpdates: 'all', // sends email invitation to all attendees
+    conferenceDataVersion: 1, // enables automatic Google Meet creation
     requestBody: {
       summary: buildEventTitle(input),
       description: [
@@ -124,6 +125,12 @@ export async function createCalendarEvent(
       start: { dateTime: startLocal, timeZone: TZ },
       end:   { dateTime: endLocal,   timeZone: TZ },
       attendees: attendees.length ? attendees : undefined,
+      conferenceData: {
+        createRequest: {
+          requestId: `alora-${Date.now()}`,
+          conferenceSolutionKey: { type: 'hangoutsMeet' },
+        },
+      },
       reminders: {
         useDefault: false,
         overrides: [
@@ -163,6 +170,7 @@ export async function updateCalendarEvent(
     calendarId: 'primary',
     eventId,
     sendUpdates: 'all', // sends email notification on updates
+    conferenceDataVersion: 1,
     requestBody: {
       summary:  buildEventTitle(input),
       location: input.reunion_link ?? undefined,
