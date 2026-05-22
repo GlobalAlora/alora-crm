@@ -39,7 +39,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // Get current lead (include drive fields + name for idempotency check)
   const { data: current } = await supabase
     .from('leads')
-    .select('estado_pipeline, nombre, apellido, empresa, drive_folder_id')
+    .select('estado_pipeline, nombre, apellido, empresa, drive_folder_id, fecha_contacto, fecha_propuesta, fecha_followup, fecha_cierre')
     .eq('id', id)
     .is('deleted_at', null)
     .single()
@@ -53,9 +53,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     updated_at: now,
   }
 
-  // Set auto date fields for stages that stamp automatically
+  // Auto-stamp date fields — but ONLY if not already set in the ficha.
+  // This preserves manually-edited dates and prevents stage movements from
+  // overwriting the real business date (e.g. a deal closed in April should
+  // not get fecha_cierre = today just because the card was dragged in May).
   const dateField = STAGE_DATE_MAP[estado_pipeline as PipelineStage]
-  if (dateField) updates[dateField] = now
+  if (dateField && !(current as Record<string, unknown>)[dateField]) {
+    updates[dateField] = now
+  }
 
   // Accept explicitly provided meeting date (reunion_reservada only)
   if (estado_pipeline === 'reunion_reservada' && fecha_reunion) {
