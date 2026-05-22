@@ -24,6 +24,7 @@ interface AnalyticsData {
   resumen: {
     total_leads: number
     cierres_ganados: number
+    cierres_perdidos: number
     tasa_cierre_ganado: number
     tasa_conversion_propuesta: number
     ciclo_venta_promedio: number | null
@@ -301,7 +302,7 @@ export default function DashboardPage() {
         ) : (
           <div className="space-y-4">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard label="Leads ingresados" value={a?.resumen.total_leads ?? 0} sub={`${a?.resumen.cierres_ganados ?? 0} cerrados ganados`} color="blue" large />
+              <StatCard label="Leads ingresados" value={a?.resumen.total_leads ?? 0} sub={`${a?.resumen.cierres_ganados ?? 0} cerrados ganados · ${a?.resumen.cierres_perdidos ?? 0} perdidos`} color="blue" large />
               <StatCard
                 label="Tasa de cierre ganado"
                 value={`${a?.resumen.tasa_cierre_ganado ?? 0}%`}

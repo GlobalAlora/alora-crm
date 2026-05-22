@@ -126,9 +126,25 @@ export async function GET(req: NextRequest) {
     if (paisFilter) leadsQuery = leadsQuery.eq('pais', paisFilter)
     if (fuenteFilter) leadsQuery = leadsQuery.eq('fuente', fuenteFilter)
 
+    // Closed leads in period: filtered by fecha_cierre (not fecha_ingreso)
+    // This captures leads that closed THIS period regardless of when they entered
+    const cierresQuery = adminSupabase
+      .from('leads')
+      .select(`
+        id, nombre, apellido, pais, fuente, estado_pipeline,
+        fecha_ingreso, fecha_contacto, fecha_reunion, fecha_propuesta, fecha_cierre,
+        stage_updated_at, last_activity_at,
+        propuestas(id, valor_usd, valor_ars, moneda, estado, created_at, updated_at)
+      `)
+      .is('deleted_at', null)
+      .in('estado_pipeline', ['cliente_ganado', 'cliente_perdido'])
+      .gte('fecha_cierre', fechaDesde)
+      .lte('fecha_cierre', fechaHasta + 'T23:59:59')
+
     // Active leads for risk section (no date filter)
-    const [leadsResult, activeResult] = await Promise.all([
+    const [leadsResult, cierresResult, activeResult] = await Promise.all([
       leadsQuery,
+      cierresQuery,
       adminSupabase
         .from('leads')
         .select('id, nombre, apellido, pais, fuente, estado_pipeline, stage_updated_at, last_activity_at')
@@ -137,17 +153,23 @@ export async function GET(req: NextRequest) {
     ])
 
     const leads: LeadRow[] = (leadsResult.data ?? []) as unknown as LeadRow[]
+    // Leads closed in period (by fecha_cierre) — used for resumen KPIs
+    const cierresEnPeriodo: LeadRow[] = (cierresResult.data ?? []) as unknown as LeadRow[]
     const activeLeads: ActiveLead[] = (activeResult.data ?? []) as ActiveLead[]
 
-    // Flatten all propuestas for the period
+    // Flatten all propuestas for the period (leads ingresados)
     const allPropuestas = leads.flatMap(l => l.propuestas ?? [])
 
     // ── Section 1: Resumen Ejecutivo ─────────────────────────────────────────
 
     const totalLeads = leads.length
-    const ganados = leads.filter(l => l.estado_pipeline === 'cliente_ganado')
-    const perdidos = leads.filter(l => l.estado_pipeline === 'cliente_perdido')
 
+    // Cierres: uses fecha_cierre filter so leads closed this period are counted
+    // regardless of when they entered the pipeline
+    const ganados  = cierresEnPeriodo.filter(l => l.estado_pipeline === 'cliente_ganado')
+    const perdidos = cierresEnPeriodo.filter(l => l.estado_pipeline === 'cliente_perdido')
+
+    // tasa de cierre = cierres ganados en período / leads ingresados en período
     const tasaCierreGanado = totalLeads > 0
       ? Math.round((ganados.length / totalLeads) * 100 * 10) / 10
       : 0
@@ -191,20 +213,23 @@ export async function GET(req: NextRequest) {
     const propuestasGanadasUSD = propuestasAceptadas.filter(p => p.moneda === 'USD').reduce((s, p) => s + (p.valor_usd ?? 0), 0)
 
     // ── Section 2: Funnel ────────────────────────────────────────────────────
+    // Funnel uses fecha_ingreso cohort for conversion tracking
+    const ganadosCohort  = leads.filter(l => l.estado_pipeline === 'cliente_ganado')
+    const perdidosCohort = leads.filter(l => l.estado_pipeline === 'cliente_perdido')
 
     const funnelStages = [
       { key: 'ingreso',    label: 'Ingreso de lead',      count: leads.length },
       { key: 'contactado', label: 'Contactado',           count: leads.filter(l => !!l.fecha_contacto).length },
       { key: 'reunion',    label: 'Reunión realizada',    count: leads.filter(l => !!l.fecha_reunion).length },
       { key: 'propuesta',  label: 'Propuesta enviada',    count: leads.filter(l => !!l.fecha_propuesta || (l.propuestas ?? []).length > 0).length },
-      { key: 'ganado',     label: 'Cierre ganado',        count: ganados.length },
+      { key: 'ganado',     label: 'Cierre ganado',        count: ganadosCohort.length },
     ]
 
-    // Perdidos por etapa
+    // Perdidos por etapa (cohort)
     const perdidosPorEtapa: Record<string, number> = {
       ingreso: 0, contactado: 0, reunion: 0, propuesta: 0,
     }
-    for (const l of perdidos) {
+    for (const l of perdidosCohort) {
       perdidosPorEtapa[perdidoEnEtapa(l)]++
     }
 
@@ -411,6 +436,7 @@ export async function GET(req: NextRequest) {
       resumen: {
         total_leads: totalLeads,
         cierres_ganados: ganados.length,
+        cierres_perdidos: perdidos.length,
         tasa_cierre_ganado: tasaCierreGanado,
         tasa_conversion_propuesta: tasaConversionPropuesta,
         ciclo_venta_promedio: cicloVentaPromedio,
