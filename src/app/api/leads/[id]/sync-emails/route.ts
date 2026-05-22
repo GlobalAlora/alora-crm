@@ -77,9 +77,11 @@ export async function POST(_req: NextRequest, { params }: Params) {
     if (!email) continue
 
     const { error: insertError } = await adminSupabase.from('activities').insert({
-      lead_id:  leadId,
-      user_id:  null,
-      tipo:     'email',
+      lead_id:    leadId,
+      user_id:    null,
+      tipo:       'email',
+      // Store the actual email date so timeline order is chronological
+      created_at: email.date.toISOString(),
       descripcion: [
         `<strong>${email.direction === 'inbound' ? 'De' : 'Para'}:</strong> ${email.direction === 'inbound' ? email.from : email.to}`,
         `<strong>Asunto:</strong> ${email.subject}`,

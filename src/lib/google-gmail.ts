@@ -138,7 +138,7 @@ export async function listEmailIdsForLead(
       const { data } = await gmail.users.messages.list({
         userId: 'me',
         q: `from:${leadEmail} OR to:${leadEmail}`,
-        maxResults: 50,
+        maxResults: 100,
       })
       for (const msg of data.messages ?? []) {
         if (msg.id) results.push({ gmailId: msg.id, inboxAccount: sender.email })

@@ -101,7 +101,7 @@ export const leadsApi = {
 
 export const activitiesApi = {
   list(leadId: string): Promise<PaginatedResponse<Activity>> {
-    return requestPaginated(`${BASE}/leads/${leadId}/activities`)
+    return requestPaginated(`${BASE}/leads/${leadId}/activities?limit=100`)
   },
 
   create(leadId: string, data: { tipo: Activity['tipo']; descripcion: string; metadata?: Record<string, unknown> }): Promise<Activity> {
