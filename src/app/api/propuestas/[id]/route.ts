@@ -17,11 +17,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const updateData: Record<string, unknown> = {}
   if (estado !== undefined) updateData.estado = estado
   if (descripcion !== undefined) updateData.descripcion = descripcion
-  if (valor_usd !== undefined) updateData.valor_usd = valor_usd
-  if (valor_ars !== undefined) updateData.valor_ars = valor_ars
   if (moneda !== undefined) updateData.moneda = moneda
   if (tipo_pago !== undefined) updateData.tipo_pago = tipo_pago
   if (link !== undefined) updateData.link = link
+
+  // Enforce single-currency integrity when moneda is being set or when values change
+  if (moneda === 'USD') {
+    updateData.valor_usd = valor_usd ?? updateData.valor_usd
+    updateData.valor_ars = null
+  } else if (moneda === 'ARS') {
+    updateData.valor_ars = valor_ars ?? updateData.valor_ars
+    updateData.valor_usd = null
+  } else {
+    // moneda not changing — update whichever value was provided
+    if (valor_usd !== undefined) updateData.valor_usd = valor_usd
+    if (valor_ars !== undefined) updateData.valor_ars = valor_ars
+  }
 
   const { data, error } = await supabase
     .from('propuestas')

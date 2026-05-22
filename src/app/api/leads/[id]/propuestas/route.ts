@@ -36,14 +36,20 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'La descripción es requerida' }, { status: 400 })
   }
 
+  const resolvedMoneda: string = moneda || 'USD'
+
+  // Enforce single-currency integrity: clear the field that doesn't match moneda
+  const resolvedValorUsd = resolvedMoneda === 'USD' ? (valor_usd || null) : null
+  const resolvedValorArs = resolvedMoneda === 'ARS' ? (valor_ars || null) : null
+
   const { data, error } = await supabase
     .from('propuestas')
     .insert({
       lead_id: id,
       descripcion,
-      valor_usd: valor_usd || null,
-      valor_ars: valor_ars || null,
-      moneda: moneda || 'USD',
+      valor_usd: resolvedValorUsd,
+      valor_ars: resolvedValorArs,
+      moneda: resolvedMoneda,
       tipo_pago: tipo_pago || 'unica_vez',
       estado: 'pendiente',
       link: link || null,

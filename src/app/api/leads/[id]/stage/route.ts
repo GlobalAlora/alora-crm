@@ -9,6 +9,8 @@ const VALID_STAGES: PipelineStage[] = [
   'follow_up', 'cliente_ganado', 'cliente_perdido', 'no_cualificado',
 ]
 
+const CLOSING_STAGES: PipelineStage[] = ['cliente_ganado', 'cliente_perdido']
+
 // fecha_reunion is NOT auto-stamped here — it must be supplied explicitly by the
 // user (via the KanbanBoard meeting-date modal or the LeadDetail form) so the
 // card shows the actual meeting date, not the moment the card was dragged.
@@ -39,7 +41,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // Get current lead (include drive fields + name for idempotency check)
   const { data: current } = await supabase
     .from('leads')
-    .select('estado_pipeline, nombre, apellido, empresa, drive_folder_id, fecha_contacto, fecha_propuesta, fecha_followup, fecha_cierre')
+    .select('estado_pipeline, nombre, apellido, empresa, drive_folder_id, fecha_contacto, fecha_propuesta, fecha_followup, fecha_cierre, fecha_reunion')
     .eq('id', id)
     .is('deleted_at', null)
     .single()
@@ -65,6 +67,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // Accept explicitly provided meeting date (reunion_reservada only)
   if (estado_pipeline === 'reunion_reservada' && fecha_reunion) {
     updates['fecha_reunion'] = fecha_reunion
+  }
+
+  // If moving AWAY from a closing stage back to an active stage, clear fecha_cierre
+  // so a future close stamps the correct date instead of reusing the old one.
+  if (
+    !CLOSING_STAGES.includes(estado_pipeline) &&
+    CLOSING_STAGES.includes(current.estado_pipeline as PipelineStage)
+  ) {
+    updates['fecha_cierre'] = null
   }
 
   const { data, error } = await supabase
@@ -94,6 +105,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     })
   } catch {
     // table may not exist yet
+  }
+
+  // ── Auto-reject pending proposals when lead is lost ───────────────────────
+  // When a lead moves to cliente_perdido, all pendiente proposals become rechazada
+  // automatically. This keeps proposal stats honest without manual cleanup.
+  if (estado_pipeline === 'cliente_perdido') {
+    await supabase
+      .from('propuestas')
+      .update({ estado: 'rechazada' })
+      .eq('lead_id', id)
+      .eq('estado', 'pendiente')
   }
 
   // ── Google Drive folder creation ───────────────────────────────────────────
