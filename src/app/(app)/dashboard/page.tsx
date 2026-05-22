@@ -3,25 +3,22 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import {
-  TrendingUp, Users, DollarSign, AlertTriangle,
+  TrendingUp, Users, DollarSign,
   Zap, Clock, Activity, Target,
   FileText, Phone, Mail, Calendar, CheckSquare, Globe,
   Plus, MessageSquare, ListTodo, FolderKanban,
 } from 'lucide-react'
 import { dashboardApi } from '@/lib/api'
 import { formatUSD, formatARS } from '@/lib/utils'
-import { PIPELINE_STAGE_MAP, PIPELINE_STAGES, FUENTES } from '@/types'
-import type { PipelineStage } from '@/types'
+import { FUENTES } from '@/types'
 import { DashboardFilters } from '@/components/dashboard/DashboardFilters'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { cn } from '@/lib/utils'
 import { useLeadFormStore } from '@/hooks/useLeadFormStore'
-import { LeadsBySourceChart } from '@/components/dashboard/charts/LeadsBySourceChart'
-import { LeadsByCountryChart } from '@/components/dashboard/charts/LeadsByCountryChart'
-import { TopOpportunitiesChart } from '@/components/dashboard/charts/TopOpportunitiesChart'
 import { MonthlyEvolutionChart } from '@/components/dashboard/charts/MonthlyEvolutionChart'
+import type { PipelineStage } from '@/types'
+import { PIPELINE_STAGE_MAP } from '@/types'
 
 function getDefaultFechaDesde(): string {
   const date = new Date()
@@ -78,12 +75,6 @@ export default function DashboardPage() {
 
   const d = data
 
-  const totalAlertas = (d?.alertas.sin_respuesta_24h ?? 0) +
-    (d?.alertas.tareas_vencidas ?? 0) +
-    (d?.alertas.leads_inactivos ?? 0) +
-    (d?.alertas.leads_estancados ?? 0) +
-    (d?.alertas.leads_calientes ?? 0)
-
   return (
     <div className="space-y-6">
 
@@ -105,7 +96,7 @@ export default function DashboardPage() {
             <button
               onClick={() => router.push('/leads/tareas')}
               className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
-              title="Crear tarea"
+              title="Tareas"
             >
               <ListTodo size={16} />
               <span className="hidden sm:inline">Tareas</span>
@@ -129,107 +120,6 @@ export default function DashboardPage() {
           onResponsableChange={setResponsableId}
         />
       </div>
-
-      {/* Alertas */}
-      {!isLoading && totalAlertas > 0 && (
-        <div className="space-y-3">
-          {(d?.alertas.sin_respuesta_24h ?? 0) > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
-              <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-amber-800">
-                  {d!.alertas.sin_respuesta_24h} lead{d!.alertas.sin_respuesta_24h !== 1 ? 's' : ''} sin respuesta +24h
-                </p>
-                <div className="flex flex-wrap gap-x-2 gap-y-1 mt-1">
-                  {d!.alertas.sin_respuesta_leads.map((l) => (
-                    <button
-                      key={l.id}
-                      onClick={() => router.push(`/leads/${l.id}`)}
-                      className="text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded hover:bg-amber-200 transition-colors"
-                    >
-                      {l.nombre}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-          {(d?.alertas.leads_estancados ?? 0) > 0 && (
-            <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 flex items-start gap-3">
-              <AlertTriangle size={16} className="text-orange-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-orange-800">
-                  {d!.alertas.leads_estancados} lead{d!.alertas.leads_estancados !== 1 ? 's' : ''} estancado{d!.alertas.leads_estancados !== 1 ? 's' : ''} (+3d)
-                </p>
-                <div className="flex flex-wrap gap-x-2 gap-y-1 mt-1">
-                  {d!.alertas.leads_estancados_leads.map((l) => (
-                    <button
-                      key={l.id}
-                      onClick={() => router.push(`/leads/${l.id}`)}
-                      className="text-xs bg-orange-100 text-orange-900 px-2 py-0.5 rounded hover:bg-orange-200 transition-colors"
-                    >
-                      {l.nombre}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-          {(d?.alertas.leads_calientes ?? 0) > 0 && (
-            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-start gap-3">
-              <Zap size={16} className="text-green-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-green-800">
-                  {d!.alertas.leads_calientes} lead{d!.alertas.leads_calientes !== 1 ? 's' : ''} caliente{d!.alertas.leads_calientes !== 1 ? 's' : ''} (&lt;1h)
-                </p>
-                <div className="flex flex-wrap gap-x-2 gap-y-1 mt-1">
-                  {d!.alertas.leads_calientes_leads.map((l) => (
-                    <button
-                      key={l.id}
-                      onClick={() => router.push(`/leads/${l.id}`)}
-                      className="text-xs bg-green-100 text-green-900 px-2 py-0.5 rounded hover:bg-green-200 transition-colors"
-                    >
-                      {l.nombre}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-          {(d?.alertas.tareas_vencidas ?? 0) > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-3">
-              <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
-              <p className="text-sm font-medium text-red-800">
-                <strong>{d!.alertas.tareas_vencidas}</strong> tarea{d!.alertas.tareas_vencidas !== 1 ? 's' : ''} vencida{d!.alertas.tareas_vencidas !== 1 ? 's' : ''}
-                <button onClick={() => router.push('/leads/tareas')} className="ml-2 text-xs bg-red-100 text-red-900 px-2 py-0.5 rounded hover:bg-red-200 transition-colors">
-                  Ver tareas
-                </button>
-              </p>
-            </div>
-          )}
-          {(d?.alertas.leads_inactivos ?? 0) > 0 && (
-            <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 flex items-start gap-3">
-              <Clock size={16} className="text-slate-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-slate-700">
-                  {d!.alertas.leads_inactivos} lead{d!.alertas.leads_inactivos !== 1 ? 's' : ''} inactivo{d!.alertas.leads_inactivos !== 1 ? 's' : ''} (sin movimiento &gt;7d)
-                </p>
-                <div className="flex flex-wrap gap-x-2 gap-y-1 mt-1">
-                  {d!.alertas.leads_inactivos_leads.map((l) => (
-                    <button
-                      key={l.id}
-                      onClick={() => router.push(`/leads/${l.id}`)}
-                      className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded hover:bg-slate-200 transition-colors"
-                    >
-                      {l.nombre}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* KPI cards */}
       {isLoading ? (
@@ -275,7 +165,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Proyectos — only visible when there are won clients */}
+      {/* Proyectos en curso */}
       {!isLoading && (d?.proyectos?.en_tiempo ?? 0) + (d?.proyectos?.proximo_a_vencer ?? 0) + (d?.proyectos?.atrasado ?? 0) > 0 && (
         <div className="bg-white rounded-xl border p-6 space-y-4">
           <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
@@ -341,131 +231,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Revenue Intelligence + Funnel */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-        {/* Revenue Intelligence */}
-        <div className="bg-white rounded-xl border p-6 space-y-6">
-          <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-            <DollarSign size={15} className="text-slate-400" />
-            Revenue Intelligence
-          </h2>
-
-          {/* Forecast */}
-          <div>
-            <p className="text-xs text-slate-500 mb-3">Forecast por horizonte</p>
-            <div className="grid grid-cols-3 gap-3">
-              {(['d7', 'd30', 'd90'] as const).map((horizon) => (
-                <div key={horizon} className="bg-slate-50 rounded-lg p-3 text-center">
-                  <p className="text-xs text-slate-500 mb-1">
-                    {horizon === 'd7' ? '7 días' : horizon === 'd30' ? '30 días' : '90 días'}
-                  </p>
-                  <p className="text-base font-semibold text-slate-900">
-                    {isLoading ? '—' : formatUSD(d?.revenue.forecast[horizon] ?? 0)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Pipeline value por etapa */}
-          <div>
-            <p className="text-xs text-slate-500 mb-3">Pipeline value por etapa (USD / ARS)</p>
-            <div className="space-y-2">
-              {PIPELINE_STAGES.filter(s => s.zone !== 'cierre' || s.value === 'cliente_ganado').map(({ value }) => {
-                const valUsd = d?.revenue.pipeline_value_usd?.[value] ?? 0
-                const valArs = d?.revenue.pipeline_value_ars?.[value] ?? 0
-                const maxVal = Math.max(...PIPELINE_STAGES.map(s => (d?.revenue.pipeline_value_usd?.[s.value] ?? 0) + (d?.revenue.pipeline_value_ars?.[s.value] ?? 0)), 1)
-                const pct = Math.round(((valUsd + valArs) / maxVal) * 100)
-                const config = PIPELINE_STAGE_MAP[value]
-                if (!isLoading && valUsd === 0 && valArs === 0) return null
-                return (
-                  <div
-                    key={value}
-                    className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 rounded px-1 py-1 -mx-1 -my-1 transition-colors"
-                    onClick={() => router.push(`/leads?view=kanban&estado_pipeline=${value}`)}
-                  >
-                    <span className="text-xs text-slate-500 w-32 flex-shrink-0 truncate">{config.label}</span>
-                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{ width: isLoading ? '0%' : `${pct}%`, backgroundColor: config.color }}
-                      />
-                    </div>
-                    <span className="text-xs font-medium text-slate-700 w-28 text-right">
-                      {isLoading ? '—' : `${formatUSD(valUsd)} / ${formatARS(valArs)}`}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Pipeline funnel */}
-        <div className="bg-white rounded-xl border p-6 space-y-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <Activity size={15} className="text-slate-400" />
-              Pipeline por etapa
-            </h2>
-            {d?.conversion.bottleneck && (
-              <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
-                Cuello de botella: {PIPELINE_STAGE_MAP[d.conversion.bottleneck].label}
-              </span>
-            )}
-          </div>
-          <div className="space-y-2">
-            {PIPELINE_STAGES.map(({ value }, idx) => {
-              const count = d?.leads.por_etapa[value] ?? 0
-              const total = d?.leads.total ?? 1
-              const pct = total > 0 ? Math.round((count / total) * 100) : 0
-              const config = PIPELINE_STAGE_MAP[value]
-              const isBottleneck = d?.conversion.bottleneck === value
-
-              // Calcular tasa de conversión desde etapa anterior
-              let conversionRate: number | null = null
-              if (idx > 0) {
-                const prevStage = PIPELINE_STAGES[idx - 1].value
-                const prevCount = d?.leads.por_etapa[prevStage] ?? 0
-                if (prevCount > 0) {
-                  conversionRate = Math.round((count / prevCount) * 100)
-                }
-              }
-
-              return (
-                <div
-                  key={value}
-                  className={cn(
-                    'flex items-center gap-3 cursor-pointer hover:bg-slate-50 rounded px-1 py-1 -mx-1 -my-1 transition-colors',
-                    isBottleneck && 'bg-amber-50'
-                  )}
-                  onClick={() => router.push(`/leads?view=kanban&estado_pipeline=${value}`)}
-                >
-                  <span className="text-xs text-slate-500 w-36 flex-shrink-0 truncate">{config.label}</span>
-                  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className={cn('h-full rounded-full transition-all duration-500', isBottleneck && 'bg-amber-400')}
-                      style={{ width: isLoading ? '0%' : `${pct}%`, backgroundColor: isBottleneck ? undefined : config.color }}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 w-16 text-right">
-                    <span className="text-xs font-medium text-slate-700">
-                      {isLoading ? '—' : count}
-                    </span>
-                    {conversionRate !== null && (
-                      <span className={cn('text-xs', conversionRate < 50 ? 'text-red-500' : conversionRate < 70 ? 'text-amber-500' : 'text-green-500')}>
-                        {conversionRate}%
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </div>
-
       {/* Top responsables + Live feed */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
@@ -495,10 +260,7 @@ export default function DashboardPage() {
                     <p className="text-sm font-medium text-slate-800 truncate">{u.full_name}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-400 rounded-full"
-                          style={{ width: `${u.tasa_conversion}%` }}
-                        />
+                        <div className="h-full bg-blue-400 rounded-full" style={{ width: `${u.tasa_conversion}%` }} />
                       </div>
                       <span className="text-xs text-slate-500">{u.tasa_conversion}%</span>
                     </div>
@@ -541,9 +303,8 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="space-y-1 max-h-72 overflow-y-auto">
-              {/* Últimos leads */}
               {(d?.ultimos_leads ?? []).slice(0, 4).map((lead) => {
-                const stageConfig = PIPELINE_STAGE_MAP[lead.estado_pipeline]
+                const stageConfig = PIPELINE_STAGE_MAP[lead.estado_pipeline as PipelineStage]
                 return (
                   <div
                     key={`lead-${lead.id}`}
@@ -561,13 +322,14 @@ export default function DashboardPage() {
                         <span className="font-medium">{lead.nombre}</span>
                         <span className="text-slate-400"> · nuevo lead</span>
                       </p>
-                      <p className="text-xs text-slate-400">{lead.fuente ? (FUENTES.find((f) => f.value === lead.fuente)?.label ?? lead.fuente) : '—'} · {timeAgo(lead.created_at)}</p>
+                      <p className="text-xs text-slate-400">
+                        {lead.fuente ? (FUENTES.find((f) => f.value === lead.fuente)?.label ?? lead.fuente) : '—'} · {timeAgo(lead.created_at)}
+                      </p>
                     </div>
                   </div>
                 )
               })}
 
-              {/* Actividades */}
               {(d?.actividad_reciente ?? []).map((act) => {
                 const Icon = ACTIVITY_ICON[act.tipo] ?? Activity
                 return (
@@ -581,9 +343,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-slate-800 truncate">
-                        {act.lead_nombre && (
-                          <span className="font-medium">{act.lead_nombre} · </span>
-                        )}
+                        {act.lead_nombre && <span className="font-medium">{act.lead_nombre} · </span>}
                         <span className="text-slate-600">{act.descripcion}</span>
                       </p>
                       <p className="text-xs text-slate-400">
@@ -602,29 +362,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Leads por fuente */}
-      <LeadsBySourceChart 
-        data={d?.leads.por_fuente || {}} 
-        isLoading={isLoading} 
-      />
-
-      {/* Leads por país */}
-      <LeadsByCountryChart 
-        data={d?.leads.por_pais || {}} 
-        isLoading={isLoading} 
-      />
-
-      {/* Top oportunidades */}
-      <TopOpportunitiesChart
-        data={d?.top_oportunidades || []}
-        isLoading={isLoading}
-      />
-
       {/* Evolución mensual */}
       <MonthlyEvolutionChart
         responsableId={responsableId}
         months={6}
       />
+
     </div>
   )
 }
