@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
-import { LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, List, MessageCircle, Smartphone, ContactRound, X, Menu, UserCog, BarChart3 } from 'lucide-react'
+import { LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, List, MessageCircle, Smartphone, ContactRound, X, Menu, UserCog } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import type { WhatsAppConversation } from '@/types'
@@ -160,7 +160,6 @@ export function Sidebar() {
 
   const nav = [
     { href: '/dashboard',    label: 'Dashboard',       icon: LayoutDashboard, badge: null, sub: undefined },
-    { href: '/analytics',   label: 'Analíticas',      icon: BarChart3,       badge: null, sub: undefined },
     { href: '/contactos',    label: 'Leads',            icon: ContactRound,    badge: null, sub: undefined },
     {
       href: '/leads',
