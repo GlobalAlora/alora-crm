@@ -209,8 +209,12 @@ export async function GET(req: NextRequest) {
     // Valores por moneda
     const propuestasEnviadasARS = propuestasEnviadas.filter(p => p.moneda === 'ARS').reduce((s, p) => s + (p.valor_ars ?? 0), 0)
     const propuestasEnviadasUSD = propuestasEnviadas.filter(p => p.moneda === 'USD').reduce((s, p) => s + (p.valor_usd ?? 0), 0)
-    const propuestasGanadasARS = propuestasAceptadas.filter(p => p.moneda === 'ARS').reduce((s, p) => s + (p.valor_ars ?? 0), 0)
-    const propuestasGanadasUSD = propuestasAceptadas.filter(p => p.moneda === 'USD').reduce((s, p) => s + (p.valor_usd ?? 0), 0)
+
+    // "Ganadas" = propuestas aceptadas de los leads cerrados-ganados en el período
+    // Usamos cierresEnPeriodo (por fecha_cierre) para no perder leads que entraron antes del período
+    const propuestasDeGanados = ganados.flatMap(l => (l.propuestas ?? []).filter(p => p.estado === 'aceptada'))
+    const propuestasGanadasARS = propuestasDeGanados.filter(p => p.moneda === 'ARS').reduce((s, p) => s + (p.valor_ars ?? 0), 0)
+    const propuestasGanadasUSD = propuestasDeGanados.filter(p => p.moneda === 'USD').reduce((s, p) => s + (p.valor_usd ?? 0), 0)
 
     // ── Section 2: Funnel ────────────────────────────────────────────────────
     // Funnel uses fecha_ingreso cohort for conversion tracking
