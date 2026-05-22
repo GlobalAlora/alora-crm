@@ -1,6 +1,6 @@
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { CheckCheck } from 'lucide-react'
+import { Check, CheckCheck, Clock, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { WhatsAppMessage } from '@/types'
 
@@ -8,10 +8,30 @@ interface Props {
   message: WhatsAppMessage
 }
 
+function StatusIcon({ status, isOutbound }: { status: WhatsAppMessage['status']; isOutbound: boolean }) {
+  if (!isOutbound) return null
+
+  const base = 'flex-shrink-0'
+
+  if (status === 'sending') {
+    return <Clock size={11} className={cn(base, 'text-blue-300')} />
+  }
+  if (status === 'failed') {
+    return <AlertCircle size={11} className={cn(base, 'text-red-400')} />
+  }
+  if (status === 'read') {
+    return <CheckCheck size={11} className={cn(base, 'text-sky-300')} />
+  }
+  if (status === 'delivered') {
+    return <CheckCheck size={11} className={cn(base, 'text-blue-300')} />
+  }
+  // sent
+  return <Check size={11} className={cn(base, 'text-blue-300')} />
+}
+
 export function MessageBubble({ message }: Props) {
-  const direction = message.metadata?.direction ?? 'inbound'
-  const isOutbound = direction === 'outbound'
-  const text = message.metadata?.text ?? message.descripcion
+  const isOutbound = message.direction === 'outbound'
+  const text = message.body
 
   let time = ''
   try {
@@ -25,23 +45,33 @@ export function MessageBubble({ message }: Props) {
           'max-w-[72%] rounded-2xl px-3.5 py-2 shadow-sm',
           isOutbound
             ? 'bg-blue-600 text-white rounded-br-sm'
-            : 'bg-white border border-slate-200 text-slate-900 rounded-bl-sm'
+            : 'bg-white border border-slate-200 text-slate-900 rounded-bl-sm',
+          message.status === 'failed' && 'bg-red-100 border border-red-300 text-red-800'
         )}
       >
-        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{text}</p>
-        <div className={cn(
-          'flex items-center gap-1 mt-1',
-          isOutbound ? 'justify-end' : 'justify-end'
-        )}>
-          <span className={cn(
-            'text-[10px]',
+        {/* Media placeholder */}
+        {message.media_type && (
+          <p className={cn(
+            'text-xs italic mb-1',
             isOutbound ? 'text-blue-200' : 'text-slate-400'
           )}>
-            {time}
+            [{message.media_type}]
+          </p>
+        )}
+
+        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+          {text ?? ''}
+        </p>
+
+        <div className="flex items-center justify-end gap-1 mt-1">
+          <span className={cn(
+            'text-[10px]',
+            isOutbound ? 'text-blue-200' : 'text-slate-400',
+            message.status === 'failed' && 'text-red-400'
+          )}>
+            {message.status === 'failed' ? 'Error al enviar' : time}
           </span>
-          {isOutbound && (
-            <CheckCheck size={11} className="text-blue-200" />
-          )}
+          <StatusIcon status={message.status} isOutbound={isOutbound} />
         </div>
       </div>
     </div>

@@ -191,19 +191,18 @@ export interface WhatsAppConversation {
 
 export interface WhatsAppMessage {
   id: string
+  conversation_id: string
   lead_id: string | null
+  direction: 'inbound' | 'outbound'
+  body: string | null
+  wa_message_id: string | null
+  status: 'sending' | 'sent' | 'delivered' | 'read' | 'failed'
+  media_type: string | null
+  media_url: string | null
+  error_message: string | null
+  agent_id: string | null
   created_at: string
-  descripcion: string
-  metadata: {
-    direction?: 'inbound' | 'outbound'
-    phone?: string
-    message_id?: string
-    message_type?: string
-    source?: string
-    text?: string
-    phone_number_id?: string
-    raw_message?: unknown
-  } | null
+  status_updated_at: string
 }
 
 // ── Email Marketing ─────────────────────────────────────────

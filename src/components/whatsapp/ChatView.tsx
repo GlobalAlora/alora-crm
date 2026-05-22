@@ -5,7 +5,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { Send, User, X, MessageCircle } from 'lucide-react'
-import { format, isSameDay } from 'date-fns'
+import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils'
@@ -18,19 +18,27 @@ interface Props {
   onClose?: () => void
 }
 
+interface MessagesResponse {
+  data: WhatsAppMessage[]
+  conversation_id: string | null
+}
+
 export function ChatView({ phone, conversation, onClose }: Props) {
   const queryClient = useQueryClient()
   const bottomRef = useRef<HTMLDivElement>(null)
   const [text, setText] = useState('')
 
-  // Fetch messages
-  const { data, isLoading } = useQuery<{ data: WhatsAppMessage[] }>({
+  // Fetch messages from wa_messages via conversation
+  const { data, isLoading } = useQuery<MessagesResponse>({
     queryKey: ['whatsapp-messages', phone],
-    queryFn: () => fetch(`/api/whatsapp/conversations/${phone}`).then(r => r.json()),
+    queryFn: () =>
+      fetch(`/api/whatsapp/conversations/${phone}`)
+        .then(r => r.json()) as Promise<MessagesResponse>,
     enabled: !!phone,
   })
 
   const messages = data?.data ?? []
+  const conversationId = data?.conversation_id ?? conversation?.id ?? null
 
   // Mark as read when conversation opens
   useEffect(() => {
@@ -41,7 +49,7 @@ export function ChatView({ phone, conversation, onClose }: Props) {
       body: JSON.stringify({ unread_count: 0 }),
     }).then(() => {
       queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] })
-    }).catch(() => {/* noop */})
+    }).catch(() => { /* noop */ })
   }, [phone, conversation?.unread_count, queryClient])
 
   // Scroll to bottom on new messages
@@ -49,23 +57,29 @@ export function ChatView({ phone, conversation, onClose }: Props) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages.length])
 
-  // Realtime: new activities for this phone
+  // Realtime: new messages or status updates for this conversation
   useEffect(() => {
     if (!phone) return
     const supabase = createClient()
+
     const channel = supabase
-      .channel(`wa-messages-${phone}`)
+      .channel(`wa-chat-${phone}`)
+      // New inbound messages
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
-        table: 'activities',
-        filter: 'tipo=eq.whatsapp',
-      }, (payload) => {
-        const meta = payload.new.metadata as Record<string, unknown> | null
-        if (meta?.phone === phone) {
-          queryClient.invalidateQueries({ queryKey: ['whatsapp-messages', phone] })
-          queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] })
-        }
+        table: 'wa_messages',
+      }, () => {
+        queryClient.invalidateQueries({ queryKey: ['whatsapp-messages', phone] })
+        queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] })
+      })
+      // Status updates (sent → delivered → read)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'wa_messages',
+      }, () => {
+        queryClient.invalidateQueries({ queryKey: ['whatsapp-messages', phone] })
       })
       .subscribe()
 
@@ -75,13 +89,17 @@ export function ChatView({ phone, conversation, onClose }: Props) {
   // Send message mutation
   const sendMutation = useMutation({
     mutationFn: async (message: string) => {
+      if (!conversationId) {
+        // First message to this number — need to create conversation first via sending
+        // The backend will handle it
+      }
       const res = await fetch('/api/whatsapp/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           phone,
           message,
-          lead_id: conversation?.lead_id ?? null,
+          conversation_id: conversationId,
         }),
       })
       if (!res.ok) {
@@ -122,7 +140,7 @@ export function ChatView({ phone, conversation, onClose }: Props) {
   for (const msg of messages) {
     const dateKey = format(new Date(msg.created_at), 'yyyy-MM-dd')
     const last = groupedMessages[groupedMessages.length - 1]
-    if (last?.date === dateKey) {
+    if (last && format(new Date(last.date), 'yyyy-MM-dd') === dateKey) {
       last.msgs.push(msg)
     } else {
       groupedMessages.push({ date: msg.created_at, msgs: [msg] })
@@ -133,7 +151,7 @@ export function ChatView({ phone, conversation, onClose }: Props) {
     <div className="flex-1 flex flex-col bg-slate-50 min-w-0">
       {/* Chat Header */}
       <div className="flex items-center gap-3 px-5 py-3.5 bg-white border-b border-slate-200 shadow-sm flex-shrink-0">
-        <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 text-slate-600 font-semibold text-sm">
+        <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 text-green-700 font-semibold text-sm">
           {conversation?.lead?.nombre
             ? conversation.lead.nombre[0].toUpperCase()
             : phone.slice(-2)}
@@ -172,7 +190,7 @@ export function ChatView({ phone, conversation, onClose }: Props) {
               <div key={i} className={cn('flex', i % 2 === 0 ? 'justify-start' : 'justify-end')}>
                 <div className={cn(
                   'h-10 rounded-2xl animate-pulse',
-                  i % 2 === 0 ? 'w-48 bg-slate-200' : 'w-36 bg-blue-200'
+                  i % 2 === 0 ? 'w-48 bg-slate-200' : 'w-36 bg-green-200'
                 )} />
               </div>
             ))}
@@ -211,7 +229,7 @@ export function ChatView({ phone, conversation, onClose }: Props) {
             rows={1}
             className={cn(
               'flex-1 resize-none rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm',
-              'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
+              'focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent',
               'max-h-32 overflow-y-auto leading-relaxed'
             )}
             style={{ minHeight: '42px' }}
@@ -227,7 +245,7 @@ export function ChatView({ phone, conversation, onClose }: Props) {
             className={cn(
               'w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all',
               text.trim() && !sendMutation.isPending
-                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                ? 'bg-green-600 text-white hover:bg-green-700 shadow-sm'
                 : 'bg-slate-100 text-slate-400 cursor-not-allowed'
             )}
           >

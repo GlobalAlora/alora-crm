@@ -6,12 +6,10 @@ import { extractMessages, normalizePhone, type WhatsAppPayload } from '@/lib/wha
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-
   const mode      = searchParams.get('hub.mode')
   const token     = searchParams.get('hub.verify_token')
   const challenge = searchParams.get('hub.challenge')
 
-  // Prefer DB config; fall back to env var
   const admin = createAdminClient()
   const { data: cfg } = await admin
     .from('channel_configs')
@@ -47,7 +45,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  // Meta expects a 200 immediately — process async
+  // Meta expects 200 immediately — process async
   processPayload(body).catch((err) => {
     console.error('[WhatsApp] Error processing payload:', err)
   })
@@ -58,167 +56,211 @@ export async function POST(req: NextRequest) {
 // ── Core processing ───────────────────────────────────────────────────────────
 
 async function processPayload(payload: WhatsAppPayload) {
-  if (payload.object !== 'whatsapp_business_account') {
-    console.log('[WhatsApp] Ignoring non-WhatsApp event:', payload.object)
-    return
-  }
+  if (payload.object !== 'whatsapp_business_account') return
 
-  const supabase = createAdminClient()
-  const messages = extractMessages(payload)
+  const admin = createAdminClient()
 
-  if (messages.length === 0) {
-    console.log('[WhatsApp] No incoming messages in payload (status update or empty)')
-    return
-  }
+  for (const entry of payload.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      if (change.field !== 'messages') continue
 
-  for (const { phone, name, text, rawMessage, rawValue } of messages) {
-    console.log(`[WhatsApp] Message from ${phone} (${name ?? 'unknown'}): ${text ?? '[non-text]'}`)
+      const value = change.value
 
-    try {
-      await upsertLeadAndActivity({ supabase, phone, name, text, rawMessage, rawValue })
-    } catch (err) {
-      console.error(`[WhatsApp] Failed to process message from ${phone}:`, err)
+      // ── Handle status updates (delivered / read) ──────────────────────────
+      for (const statusUpdate of (value.statuses as Record<string, unknown>[] | undefined) ?? []) {
+        await handleStatusUpdate(admin, statusUpdate)
+      }
+
+      // ── Handle incoming messages ──────────────────────────────────────────
+      const incoming = extractMessages(payload)
+      for (const { phone, name, text, rawMessage } of incoming) {
+        await handleIncomingMessage({ admin, phone, name, text, rawMessage })
+      }
     }
   }
 
   // Update last_message_at in channel config
-  await supabase
+  await admin
     .from('channel_configs')
     .update({ last_message_at: new Date().toISOString(), last_error: null })
     .eq('channel_type', 'whatsapp')
     .eq('label', 'Principal')
 }
 
-interface UpsertParams {
-  supabase: ReturnType<typeof createAdminClient>
+// ── Status update handler ─────────────────────────────────────────────────────
+
+async function handleStatusUpdate(
+  admin: ReturnType<typeof createAdminClient>,
+  statusUpdate: Record<string, unknown>,
+) {
+  const waMessageId = statusUpdate.id as string | undefined
+  const status      = statusUpdate.status as string | undefined
+
+  if (!waMessageId || !status) return
+
+  // Only track meaningful transitions
+  const validStatuses = ['sent', 'delivered', 'read', 'failed']
+  if (!validStatuses.includes(status)) return
+
+  const { error } = await admin
+    .from('wa_messages')
+    .update({ status, status_updated_at: new Date().toISOString() })
+    .eq('wa_message_id', waMessageId)
+
+  if (error) {
+    console.error(`[WhatsApp] Failed to update status for ${waMessageId}:`, error.message)
+  } else {
+    console.log(`[WhatsApp] Status updated: ${waMessageId} → ${status}`)
+  }
+}
+
+// ── Incoming message handler ──────────────────────────────────────────────────
+
+interface IncomingParams {
+  admin: ReturnType<typeof createAdminClient>
   phone: string
   name: string | null
   text: string | null
   rawMessage: unknown
-  rawValue: unknown
 }
 
-async function upsertLeadAndActivity({ supabase, phone, name, text, rawMessage, rawValue }: UpsertParams) {
-  // ── 1. Look up existing lead by phone ──────────────────────────────────────
+async function handleIncomingMessage({ admin, phone, name, text, rawMessage }: IncomingParams) {
   const normalizedPhone = normalizePhone(phone)
+  const raw = rawMessage as Record<string, unknown>
+  const waMessageId = raw?.id as string | undefined
 
-  const { data: existing } = await supabase
-    .from('leads')
-    .select('id, nombre, estado_pipeline')
-    .or(`telefono.eq.${normalizedPhone},telefono.eq.+${normalizedPhone}`)
-    .is('deleted_at', null)
-    .limit(1)
-    .maybeSingle()
-
-  let leadId: string
-
-  if (existing) {
-    // ── 2a. Lead exists — just use it ──────────────────────────────────────
-    leadId = existing.id
-    console.log(`[WhatsApp] Existing lead found: ${existing.id} (${existing.nombre})`)
-  } else {
-    // ── 2b. Create new lead ────────────────────────────────────────────────
-    const { data: maxPos } = await supabase
-      .from('leads')
-      .select('kanban_position')
-      .eq('estado_pipeline', 'lead_entrante')
-      .is('deleted_at', null)
-      .order('kanban_position', { ascending: false })
-      .limit(1)
+  // ── Deduplication: skip if already stored ────────────────────────────────
+  if (waMessageId) {
+    const { data: existing } = await admin
+      .from('wa_messages')
+      .select('id')
+      .eq('wa_message_id', waMessageId)
       .maybeSingle()
 
-    // Round-robin: pick sales user with fewest active leads
-    const { data: salesUsers } = await supabase
-      .from('users')
-      .select('id')
-      .in('role', ['admin', 'sales'])
-
-    let responsableId: string | null = null
-    if (salesUsers && salesUsers.length > 0) {
-      const counts = await Promise.all(
-        salesUsers.map(async (u) => {
-          const { count } = await supabase
-            .from('leads')
-            .select('id', { count: 'exact', head: true })
-            .eq('responsable_id', u.id)
-            .is('deleted_at', null)
-            .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado)')
-          return { id: u.id, count: count ?? 0 }
-        })
-      )
-      counts.sort((a, b) => a.count - b.count)
-      responsableId = counts[0].id
+    if (existing) {
+      console.log(`[WhatsApp] Duplicate message ignored: ${waMessageId}`)
+      return
     }
-
-    const { data: newLead, error } = await supabase
-      .from('leads')
-      .insert({
-        nombre: name || 'Contacto WhatsApp',
-        telefono: normalizedPhone,
-        fuente: 'whatsapp',
-        estado_pipeline: 'lead_entrante',
-        kanban_position: (maxPos?.kanban_position ?? 0) + 1,
-        responsable_id: responsableId,
-        created_by: responsableId,
-        notas: text ? `Primer mensaje: ${text}` : null,
-      })
-      .select('id, nombre')
-      .single()
-
-    if (error || !newLead) {
-      throw new Error(`Failed to create lead: ${error?.message ?? 'unknown'}`)
-    }
-
-    leadId = newLead.id
-    console.log(`[WhatsApp] New lead created: ${newLead.id} (${newLead.nombre})`)
   }
 
-  // ── 3. Create activity ─────────────────────────────────────────────────────
-  const description = text
-    ? text.length > 200 ? text.slice(0, 200) + '…' : text
-    : '[Mensaje no-texto recibido por WhatsApp]'
+  // ── 1. Find or create lead ────────────────────────────────────────────────
+  const leadId = await findOrCreateLead({ admin, phone: normalizedPhone, name, text })
 
-  const { error: actError } = await supabase
-    .from('activities')
-    .insert({
-      lead_id: leadId,
-      user_id: null,
-      tipo: 'whatsapp',
-      descripcion: description,
-      metadata: {
-        source: 'whatsapp_webhook',
-        direction: 'inbound',
-        phone: normalizedPhone,
-        text: text ?? null,
-        message_id: (rawMessage as Record<string, unknown>)?.id ?? null,
-        message_type: (rawMessage as Record<string, unknown>)?.type ?? null,
-        phone_number_id: (rawValue as Record<string, unknown>)?.metadata
-          ? ((rawValue as Record<string, unknown>).metadata as Record<string, unknown>)?.phone_number_id
-          : null,
-        raw_message: rawMessage,
-      },
-    })
-
-  if (actError) {
-    console.error(`[WhatsApp] Failed to create activity for lead ${leadId}:`, actError.message)
-  } else {
-    console.log(`[WhatsApp] Activity created for lead ${leadId}`)
-  }
-
-  // ── 4. Upsert conversation record (atomic: insert or increment unread) ───────
+  // ── 2. Upsert conversation, get conversation_id ───────────────────────────
   const previewText = text
     ? (text.length > 100 ? text.slice(0, 100) + '…' : text)
     : '[Mensaje de WhatsApp]'
 
-  const { error: convError } = await supabase.rpc('upsert_wa_conversation', {
-    p_phone: normalizedPhone,
-    p_lead_id: leadId,
-    p_last_text: previewText,
-  })
+  const { data: convId, error: convError } = await admin
+    .rpc('upsert_wa_conversation', {
+      p_phone:     normalizedPhone,
+      p_lead_id:   leadId,
+      p_last_text: previewText,
+    })
 
-  if (convError) {
-    console.error(`[WhatsApp] Failed to upsert conversation for ${normalizedPhone}:`, convError.message)
-  } else {
-    console.log(`[WhatsApp] Conversation updated for ${normalizedPhone}`)
+  if (convError || !convId) {
+    console.error(`[WhatsApp] upsert_wa_conversation failed:`, convError?.message)
+    return
   }
+
+  // ── 3. Save message to wa_messages ────────────────────────────────────────
+  const { error: msgError } = await admin
+    .from('wa_messages')
+    .insert({
+      conversation_id: convId,
+      lead_id:         leadId,
+      direction:       'inbound',
+      body:            text,
+      wa_message_id:   waMessageId ?? null,
+      status:          'read',   // inbound messages are already "read" by the sender
+      media_type:      (raw?.type as string) !== 'text' ? (raw?.type as string) : null,
+    })
+
+  if (msgError) {
+    console.error(`[WhatsApp] Failed to save message from ${normalizedPhone}:`, msgError.message)
+  } else {
+    console.log(`[WhatsApp] Message saved from ${normalizedPhone}`)
+  }
+}
+
+// ── Find or create lead ───────────────────────────────────────────────────────
+
+async function findOrCreateLead({
+  admin,
+  phone,
+  name,
+  text,
+}: {
+  admin: ReturnType<typeof createAdminClient>
+  phone: string
+  name: string | null
+  text: string | null
+}): Promise<string> {
+  // Search by phone (with or without leading +)
+  const { data: existing } = await admin
+    .from('leads')
+    .select('id, nombre')
+    .or(`telefono.eq.${phone},telefono.eq.+${phone}`)
+    .is('deleted_at', null)
+    .limit(1)
+    .maybeSingle()
+
+  if (existing) {
+    console.log(`[WhatsApp] Existing lead: ${existing.id} (${existing.nombre})`)
+    return existing.id
+  }
+
+  // Round-robin assignment to agent with fewest active leads
+  const { data: salesUsers } = await admin
+    .from('users')
+    .select('id')
+    .in('role', ['admin', 'sales'])
+
+  let responsableId: string | null = null
+  if (salesUsers && salesUsers.length > 0) {
+    const counts = await Promise.all(
+      salesUsers.map(async (u) => {
+        const { count } = await admin
+          .from('leads')
+          .select('id', { count: 'exact', head: true })
+          .eq('responsable_id', u.id)
+          .is('deleted_at', null)
+          .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado)')
+        return { id: u.id, count: count ?? 0 }
+      })
+    )
+    counts.sort((a, b) => a.count - b.count)
+    responsableId = counts[0].id
+  }
+
+  const { data: maxPos } = await admin
+    .from('leads')
+    .select('kanban_position')
+    .eq('estado_pipeline', 'lead_entrante')
+    .is('deleted_at', null)
+    .order('kanban_position', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const { data: newLead, error } = await admin
+    .from('leads')
+    .insert({
+      nombre:          name || 'Contacto WhatsApp',
+      telefono:        phone,
+      fuente:          'whatsapp',
+      estado_pipeline: 'lead_entrante',
+      kanban_position: (maxPos?.kanban_position ?? 0) + 1,
+      responsable_id:  responsableId,
+      created_by:      responsableId,
+      notas:           text ? `Primer mensaje: ${text}` : null,
+    })
+    .select('id, nombre')
+    .single()
+
+  if (error || !newLead) {
+    throw new Error(`Failed to create lead: ${error?.message ?? 'unknown'}`)
+  }
+
+  console.log(`[WhatsApp] New lead created: ${newLead.id} (${newLead.nombre})`)
+  return newLead.id
 }

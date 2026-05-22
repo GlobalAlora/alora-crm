@@ -6,7 +6,7 @@ import { normalizePhone } from '@/lib/whatsapp'
 type Params = { params: Promise<{ phone: string }> }
 
 // GET /api/whatsapp/conversations/[phone]
-// Returns all WhatsApp activities for this phone number, ordered ascending (chat timeline)
+// Returns all wa_messages for this conversation, ordered ascending (chat timeline)
 export async function GET(_req: NextRequest, { params }: Params) {
   const { phone } = await params
   const supabase = await createClient()
@@ -16,16 +16,27 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const admin = createAdminClient()
   const normalized = normalizePhone(phone)
 
+  // Get conversation by phone
+  const { data: conv } = await admin
+    .from('whatsapp_conversations')
+    .select('id')
+    .eq('phone_number', normalized)
+    .maybeSingle()
+
+  if (!conv) {
+    // No conversation yet — return empty (new chat initiated from CRM)
+    return NextResponse.json({ data: [] })
+  }
+
   const { data, error } = await admin
-    .from('activities')
+    .from('wa_messages')
     .select('*')
-    .eq('tipo', 'whatsapp')
-    .filter('metadata->>phone', 'eq', normalized)
+    .eq('conversation_id', conv.id)
     .order('created_at', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ data })
+  return NextResponse.json({ data, conversation_id: conv.id })
 }
 
 // PATCH /api/whatsapp/conversations/[phone]

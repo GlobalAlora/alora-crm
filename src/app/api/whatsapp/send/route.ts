@@ -4,23 +4,24 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sendWhatsAppText, normalizePhone } from '@/lib/whatsapp'
 
 export async function POST(req: NextRequest) {
-  // Auth check
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { phone, message, lead_id } = await req.json() as {
+  const { phone, message, conversation_id: rawConvId } = await req.json() as {
     phone: string
     message: string
-    lead_id?: string | null
+    conversation_id?: string | null
   }
 
   if (!phone?.trim() || !message?.trim()) {
     return NextResponse.json({ error: 'phone y message son requeridos' }, { status: 400 })
   }
 
-  // Resolve credentials: DB config first, env vars as fallback
   const admin = createAdminClient()
+  const normalizedPhone = normalizePhone(phone)
+
+  // Resolve credentials: DB first, env vars as fallback
   const { data: cfg } = await admin
     .from('channel_configs')
     .select('access_token, phone_number_id')
@@ -35,50 +36,92 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'WhatsApp no configurado' }, { status: 500 })
   }
 
-  const normalizedPhone = normalizePhone(phone)
+  // Resolve or create conversation for this phone number
+  let conversation_id = rawConvId ?? null
+  let leadId: string | null = null
 
-  // ── 1. Send via Meta Cloud API ────────────────────────────────────────────
+  if (conversation_id) {
+    const { data: conv } = await admin
+      .from('whatsapp_conversations')
+      .select('lead_id')
+      .eq('id', conversation_id)
+      .single()
+    leadId = conv?.lead_id ?? null
+  } else {
+    // First outbound message — create conversation (no lead yet, user can link later)
+    const preview = message.length > 100 ? message.slice(0, 100) + '…' : message
+    const { data: newConvId } = await admin
+      .rpc('upsert_wa_conversation', {
+        p_phone:     normalizedPhone,
+        p_lead_id:   null,
+        p_last_text: preview,
+      })
+    conversation_id = newConvId as string
+  }
+
+  // ── 1. Insert message with status 'sending' (optimistic) ─────────────────
+  const { data: savedMsg, error: insertError } = await admin
+    .from('wa_messages')
+    .insert({
+      conversation_id,
+      lead_id:   leadId,
+      direction: 'outbound',
+      body:      message,
+      status:    'sending',
+      agent_id:  user.id,
+    })
+    .select('id')
+    .single()
+
+  if (insertError || !savedMsg) {
+    console.error('[WhatsApp Send] Failed to save message:', insertError?.message)
+    return NextResponse.json({ error: 'Error al guardar mensaje' }, { status: 500 })
+  }
+
+  // ── 2. Send via Meta Cloud API ────────────────────────────────────────────
+  let waMessageId: string | null = null
   try {
-    await sendWhatsAppText({
+    const result = await sendWhatsAppText({
       phoneNumberId,
       to: normalizedPhone,
       body: message,
       accessToken,
-    })
+    }) as { messages?: { id: string }[] }
+
+    waMessageId = result?.messages?.[0]?.id ?? null
+
+    // Update to 'sent' with Meta's message ID
+    await admin
+      .from('wa_messages')
+      .update({
+        status:           'sent',
+        wa_message_id:    waMessageId,
+        status_updated_at: new Date().toISOString(),
+      })
+      .eq('id', savedMsg.id)
+
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Error al enviar mensaje'
     console.error('[WhatsApp Send]', msg)
+
+    // Mark as failed
+    await admin
+      .from('wa_messages')
+      .update({ status: 'failed', error_message: msg, status_updated_at: new Date().toISOString() })
+      .eq('id', savedMsg.id)
+
     return NextResponse.json({ error: msg }, { status: 502 })
   }
 
-  // ── 2. Save outbound activity ─────────────────────────────────────────────
-  const preview = message.length > 200 ? message.slice(0, 200) + '…' : message
-
-  await admin
-    .from('activities')
-    .insert({
-      lead_id:    lead_id ?? null,
-      user_id:    user.id,
-      tipo:       'whatsapp',
-      descripcion: preview,
-      metadata: {
-        source:         'whatsapp_send',
-        direction:      'outbound',
-        phone:          normalizedPhone,
-        text:           message,
-        message_type:   'text',
-        phone_number_id: phoneNumberId,
-      },
-    })
-
   // ── 3. Update conversation last message ───────────────────────────────────
+  const preview = message.length > 100 ? message.slice(0, 100) + '…' : message
   await admin
     .from('whatsapp_conversations')
     .update({
       last_message_at:   new Date().toISOString(),
-      last_message_text: message.length > 100 ? message.slice(0, 100) + '…' : message,
+      last_message_text: preview,
     })
-    .eq('phone_number', normalizedPhone)
+    .eq('id', conversation_id)
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, message_id: savedMsg.id })
 }
