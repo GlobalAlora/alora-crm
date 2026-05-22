@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   MessageSquare, Phone, Mail, Users, ArrowRight, CheckSquare,
   Globe, MessageCircle, Plus, Loader2, Trash2, Pencil, Check, X,
-  Clock, AlertCircle, Reply, CalendarCheck,
+  Clock, AlertCircle, CalendarCheck,
 } from 'lucide-react'
 import { format, isPast, isToday, isTomorrow } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -20,7 +20,7 @@ import type { Activity, Task } from '@/types'
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 
-const ACTIVITY_TYPES = ['nota', 'llamada', 'email', 'reunion'] as const
+const ACTIVITY_TYPES = ['nota', 'llamada', 'reunion'] as const
 type ActivityInputType = typeof ACTIVITY_TYPES[number]
 
 const TIPO_CONFIG: Record<string, { icon: React.ElementType; color: string; label: string }> = {
@@ -33,16 +33,6 @@ const TIPO_CONFIG: Record<string, { icon: React.ElementType; color: string; labe
   webhook:          { icon: Globe,         color: 'bg-slate-50 text-slate-500',   label: 'Webhook'     },
   whatsapp:         { icon: MessageCircle, color: 'bg-green-50 text-green-600',   label: 'WhatsApp'    },
 }
-
-const SENDER_EMAIL_KEY = 'alora_email_sender'
-
-const SENDERS = [
-  { name: 'Bruno',      email: 'bruno@globalalora.com' },
-  { name: 'Walo',       email: 'walo@globalalora.com'  },
-  { name: 'Info Alora', email: 'info@globalalora.com'  },
-] as const
-
-type SenderEmail = typeof SENDERS[number]['email']
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -201,9 +191,7 @@ function ActivityItem({
   const [draft, setDraft] = useState(activity.descripcion)
   const [editorKey, setEditorKey] = useState(0)
 
-  const isEditable = ['nota', 'llamada', 'email', 'reunion'].includes(activity.tipo)
-  const isInbound = activity.tipo === 'email' && activity.metadata?.direction === 'inbound'
-  const inboundSubject = (activity.metadata?.subject as string | undefined) ?? ''
+  const isEditable = ['nota', 'llamada', 'reunion'].includes(activity.tipo)
 
   const handleSave = () => { if (draft) { onEdit(activity.id, draft); setEditing(false) } }
   const handleCancel = () => { setDraft(activity.descripcion); setEditorKey(k => k + 1); setEditing(false) }
@@ -242,11 +230,6 @@ function ActivityItem({
         <div className="flex items-center gap-2 mt-1 flex-wrap">
           {activity.user && <UserAvatar user={activity.user} size="xs" showName />}
           <span className="text-xs text-slate-400">{timeAgoWithFullDate(activity.created_at)}</span>
-          {isInbound && onReply && (
-            <button onClick={() => onReply(`Re: ${inboundSubject}`)} className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 font-medium ml-1">
-              <Reply size={11} /> Responder
-            </button>
-          )}
         </div>
       </div>
     </div>
@@ -268,22 +251,12 @@ export function UnifiedTimeline({ leadId, leadEmail }: UnifiedTimelineProps) {
   // ── Compose state ────────────────────────────────────────────────────────────
   const [inputType, setInputType] = useState<ActivityInputType | 'tarea'>('nota')
   const [text, setText] = useState('')
-  const [emailSubject, setEmailSubject] = useState('')
   const [taskTitulo, setTaskTitulo] = useState('')
   const [taskVencimiento, setTaskVencimiento] = useState('')
-  const [fromEmail, setFromEmail] = useState<SenderEmail>(() => {
-    const saved = typeof window !== 'undefined' ? localStorage.getItem(SENDER_EMAIL_KEY) : null
-    return (SENDERS.find(s => s.email === saved)?.email ?? SENDERS[0].email) as SenderEmail
-  })
   const [editorKey, setEditorKey] = useState(0)
   const [showDone, setShowDone] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
   const hasSyncedRef = useRef(false)
-
-  const handleFromEmailChange = (email: SenderEmail) => {
-    setFromEmail(email)
-    if (typeof window !== 'undefined') localStorage.setItem(SENDER_EMAIL_KEY, email)
-  }
 
   // ── Queries ──────────────────────────────────────────────────────────────────
   const { data: activitiesData, isLoading: loadingActivities } = useQuery({
@@ -303,7 +276,8 @@ export function UnifiedTimeline({ leadId, leadEmail }: UnifiedTimelineProps) {
     staleTime: 0,
   })
 
-  const activities: Activity[] = activitiesData?.data ?? []
+  // Filter out emails — they live in the Emails tab
+  const activities: Activity[] = (activitiesData?.data ?? []).filter(a => a.tipo !== 'email')
   const pendingTasks = tasksData.filter(t => !t.completada)
   const doneTasks = tasksData.filter(t => t.completada)
 
@@ -387,27 +361,6 @@ export function UnifiedTimeline({ leadId, leadEmail }: UnifiedTimelineProps) {
     onError: () => toast.error('Error al guardar'),
   })
 
-  const sendEmail = useMutation({
-    mutationFn: () =>
-      fetch(`/api/leads/${leadId}/send-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subject: emailSubject,
-          html: text,
-          fromEmail,
-          fromName: SENDERS.find(s => s.email === fromEmail)?.name ?? 'Alora',
-        }),
-      }).then(async r => { const j = await r.json(); if (!r.ok || j.error) throw new Error(j.error ?? 'Error al enviar'); return j }),
-    onSuccess: (res) => {
-      qc.invalidateQueries({ queryKey: ['activities', leadId] })
-      setText(''); setEmailSubject(''); setEditorKey(k => k + 1)
-      toast.success(res.message ?? 'Email enviado')
-      // Sync after 3s so the sent email appears in the timeline from Gmail
-      setTimeout(() => syncEmails(true), 3000)
-    },
-    onError: (err) => toast.error(err instanceof Error ? err.message : 'Error al enviar'),
-  })
 
   // ── Task mutations ───────────────────────────────────────────────────────────
   const createTask = useMutation({
@@ -458,28 +411,18 @@ export function UnifiedTimeline({ leadId, leadEmail }: UnifiedTimelineProps) {
   })
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
-  const handleReply = (subject: string) => {
-    setInputType('email')
-    setEmailSubject(subject)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (inputType === 'tarea') {
       if (!taskTitulo.trim()) return
       createTask.mutate()
-    } else if (inputType === 'email') {
-      if (!emailSubject.trim()) { toast.error('Escribí el asunto del email'); return }
-      if (!text) { toast.error('El cuerpo del email no puede estar vacío'); return }
-      sendEmail.mutate()
     } else {
       if (!text) return
       addActivity.mutate()
     }
   }
 
-  const isSubmitting = addActivity.isPending || sendEmail.isPending || createTask.isPending
+  const isSubmitting = addActivity.isPending || createTask.isPending
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
@@ -556,45 +499,7 @@ export function UnifiedTimeline({ leadId, leadEmail }: UnifiedTimelineProps) {
               </button>
             )
           })}
-          {/* Sync button — visible when email tab is active and lead has email */}
-          {inputType === 'email' && leadEmail && (
-            <button
-              type="button"
-              onClick={() => syncEmails(false)}
-              disabled={isSyncing}
-              className="ml-auto flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium border border-slate-200 bg-white text-slate-500 hover:border-purple-300 hover:text-purple-600 transition-all disabled:opacity-50"
-            >
-              {isSyncing
-                ? <Loader2 size={11} className="animate-spin" />
-                : <Mail size={11} />}
-              Sincronizar
-            </button>
-          )}
         </div>
-
-        {/* Email fields */}
-        {inputType === 'email' && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400 w-12 shrink-0">De:</span>
-              <select
-                value={fromEmail}
-                onChange={e => handleFromEmailChange(e.target.value as SenderEmail)}
-                className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white text-slate-700"
-              >
-                {SENDERS.map(s => (
-                  <option key={s.email} value={s.email}>
-                    {s.name} — {s.email}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400 w-12 shrink-0">Asunto:</span>
-              <input type="text" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} placeholder="Asunto del email" className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white" />
-            </div>
-          </div>
-        )}
 
         {/* Task form */}
         {inputType === 'tarea' ? (
@@ -623,30 +528,14 @@ export function UnifiedTimeline({ leadId, leadEmail }: UnifiedTimelineProps) {
             key={editorKey}
             content=""
             onChange={setText}
-            placeholder={inputType === 'email' ? 'Cuerpo del email...' : `Agregar ${TIPO_CONFIG[inputType]?.label?.toLowerCase() ?? 'nota'}...`}
+            placeholder={`Agregar ${TIPO_CONFIG[inputType]?.label?.toLowerCase() ?? 'nota'}...`}
             minimal
           />
         )}
 
         {/* Actions */}
-        <div className="flex items-center justify-between gap-2">
-          {inputType === 'email' && leadEmail ? (
-            <span className="text-xs text-slate-400 flex items-center gap-1"><Mail size={11} /> Para: {leadEmail}</span>
-          ) : (
-            <span />
-          )}
+        <div className="flex items-center justify-end gap-2">
           <div className="flex gap-2">
-            {inputType === 'email' && leadEmail && (
-              <button
-                type="button"
-                onClick={() => sendEmail.mutate()}
-                disabled={isSubmitting || !text || !emailSubject}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors"
-              >
-                {sendEmail.isPending ? <Loader2 size={13} className="animate-spin" /> : <Mail size={13} />}
-                Enviar email
-              </button>
-            )}
             <button
               type="submit"
               disabled={isSubmitting || (inputType === 'tarea' ? !taskTitulo.trim() : !text)}
@@ -656,7 +545,7 @@ export function UnifiedTimeline({ leadId, leadEmail }: UnifiedTimelineProps) {
               )}
             >
               {isSubmitting ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
-              {inputType === 'email' ? 'Solo registrar' : inputType === 'tarea' ? 'Crear tarea' : 'Registrar'}
+              {inputType === 'tarea' ? 'Crear tarea' : 'Registrar'}
             </button>
           </div>
         </div>
@@ -678,7 +567,7 @@ export function UnifiedTimeline({ leadId, leadEmail }: UnifiedTimelineProps) {
               activity={a}
               onDelete={id => deleteActivity.mutate(id)}
               onEdit={(id, descripcion) => editActivity.mutate({ id, descripcion })}
-              onReply={leadEmail ? handleReply : undefined}
+              onReply={undefined}
             />
           ))}
 

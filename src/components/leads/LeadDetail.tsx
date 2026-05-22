@@ -15,6 +15,7 @@ import type { Lead, PipelineStage, TeamMember, User } from '@/types'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { UnifiedTimeline } from './UnifiedTimeline'
+import { EmailsSection } from './EmailsSection'
 import { PropuestasSection } from './PropuestasSection'
 import { TagsSection } from './TagsSection'
 import { StageHistorySection } from './StageHistorySection'
@@ -32,14 +33,15 @@ interface LeadDetailProps {
   fullPage?: boolean
 }
 
-type Tab = 'actividad' | 'propuestas' | 'tags' | 'historial' | 'formulario'
+type Tab = 'actividad' | 'emails' | 'propuestas' | 'tags' | 'historial' | 'formulario'
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'actividad',   label: 'Actividad',   icon: MessageSquare },
-  { id: 'propuestas',  label: 'Propuestas',   icon: FileText      },
-  { id: 'tags',        label: 'Etiquetas',    icon: TagIcon       },
-  { id: 'historial',   label: 'Historial',    icon: History       },
-  { id: 'formulario',  label: 'Formulario',   icon: Globe         },
+  { id: 'emails',      label: 'Emails',      icon: Mail          },
+  { id: 'propuestas',  label: 'Propuestas',  icon: FileText      },
+  { id: 'tags',        label: 'Etiquetas',   icon: TagIcon       },
+  { id: 'historial',   label: 'Historial',   icon: History       },
+  { id: 'formulario',  label: 'Formulario',  icon: Globe         },
 ]
 
 // ── Inline editable field ─────────────────────────────────────────────────────
@@ -709,6 +711,7 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
           {/* Tab content */}
           <div className="flex-1 overflow-y-auto p-5">
             {activeTab === 'actividad'  && <UnifiedTimeline leadId={lead.id} leadEmail={lead.email} />}
+            {activeTab === 'emails'     && <EmailsSection leadId={lead.id} leadEmail={lead.email} />}
             {activeTab === 'propuestas' && <PropuestasSection leadId={lead.id} propuestas={lead.propuestas} />}
             {activeTab === 'tags'       && <TagsSection leadId={lead.id} />}
             {activeTab === 'historial'  && <StageHistorySection history={lead.stage_history} />}
