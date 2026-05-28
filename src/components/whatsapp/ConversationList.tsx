@@ -58,7 +58,7 @@ export function ConversationList({ selectedPhone, onSelect }: Props) {
   const conversations = data?.data ?? []
 
   return (
-    <div className="w-80 flex-shrink-0 border-r border-slate-200 flex flex-col bg-white">
+    <div className="w-full flex-shrink-0 border-r border-slate-200 flex flex-col bg-white">
       {/* Header */}
       <div className="px-4 py-4 border-b border-slate-200">
         <div className="flex items-center gap-2 mb-3">

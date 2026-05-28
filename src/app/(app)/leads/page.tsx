@@ -23,9 +23,9 @@ export default function LeadsPage() {
   }
 
   return (
-    <div className="flex flex-col h-full -m-6">
+    <div className="flex flex-col h-full -m-3 md:-m-6">
       {/* Toolbar */}
-      <div className="flex items-center gap-3 px-6 py-3 border-b bg-white flex-shrink-0">
+      <div className="flex items-center gap-3 px-3 md:px-6 py-3 border-b bg-white flex-shrink-0">
         <div className="flex items-center border rounded-md overflow-hidden">
           <button
             onClick={() => setView('kanban')}
@@ -55,7 +55,7 @@ export default function LeadsPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-hidden px-6 py-4">
+      <div className="flex-1 overflow-hidden px-3 md:px-6 py-3 md:py-4">
         {view === 'kanban' && (
           <KanbanBoard onLeadClick={handleLeadClick} />
         )}

@@ -81,22 +81,22 @@ export function GlobalLeadSearch() {
   }
 
   return (
-    <div ref={searchRef} className="relative">
+    <div ref={searchRef} className="relative flex-1 min-w-0 max-w-xs md:max-w-sm">
       <button
         onClick={() => {
           setOpen(true)
           setTimeout(() => inputRef.current?.focus(), 0)
         }}
         className={cn(
-          'flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all',
+          'w-full flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all',
           open
             ? 'border-blue-400 ring-2 ring-blue-100 bg-white'
             : 'border-slate-200 hover:border-slate-300 bg-white'
         )}
       >
-        <Search size={14} className="text-slate-400" />
-        <span className="text-sm text-slate-500">Buscar lead...</span>
-        <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 bg-slate-100 rounded border border-slate-200">
+        <Search size={14} className="text-slate-400 flex-shrink-0" />
+        <span className="text-sm text-slate-500 truncate">Buscar lead...</span>
+        <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 bg-slate-100 rounded border border-slate-200 flex-shrink-0">
           <span>⌘</span>K
         </kbd>
       </button>
@@ -104,7 +104,7 @@ export function GlobalLeadSearch() {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute top-full left-0 mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
+          <div className="absolute top-full left-0 mt-2 w-[min(320px,90vw)] bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
             <div className="p-2 border-b border-slate-100">
               <input
                 ref={inputRef}

@@ -6,6 +6,7 @@ import { MessageCircle } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import { ConversationList } from '@/components/whatsapp/ConversationList'
 import { ChatView } from '@/components/whatsapp/ChatView'
+import { cn } from '@/lib/utils'
 import type { WhatsAppConversation } from '@/types'
 
 function WhatsAppInboxContent() {
@@ -33,22 +34,32 @@ function WhatsAppInboxContent() {
 
   return (
     <div className="flex h-full overflow-hidden">
-      {/* Left: conversation list */}
-      <ConversationList
-        selectedPhone={selectedPhone}
-        onSelect={setSelectedPhone}
-      />
-
-      {/* Right: chat or empty state */}
-      {selectedPhone ? (
-        <ChatView
-          phone={selectedPhone}
-          conversation={selectedConv}
-          onClose={() => setSelectedPhone(null)}
+      {/* Conversation list: full screen on mobile when no chat open */}
+      <div className={cn(
+        'flex-shrink-0 w-full md:w-80',
+        selectedPhone ? 'hidden md:flex' : 'flex'
+      )}>
+        <ConversationList
+          selectedPhone={selectedPhone}
+          onSelect={setSelectedPhone}
         />
-      ) : (
-        <EmptyState />
-      )}
+      </div>
+
+      {/* Chat or empty state: full screen on mobile when chat open */}
+      <div className={cn(
+        'flex-1 min-w-0',
+        selectedPhone ? 'flex' : 'hidden md:flex'
+      )}>
+        {selectedPhone ? (
+          <ChatView
+            phone={selectedPhone}
+            conversation={selectedConv}
+            onClose={() => setSelectedPhone(null)}
+          />
+        ) : (
+          <EmptyState />
+        )}
+      </div>
     </div>
   )
 }

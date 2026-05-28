@@ -295,7 +295,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── S1: Resumen ejecutivo ──────────────────────────────────────────── */}
-      <section className="bg-white rounded-xl border border-slate-200 p-6">
+      <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
         <SectionHeader icon={Target} title="Resumen ejecutivo" subtitle="Métricas clave del período seleccionado" />
         {loadingAnalytics ? (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{[...Array(8)].map((_, i) => <Skel key={i} />)}</div>
@@ -334,7 +334,7 @@ export default function DashboardPage() {
       </section>
 
       {/* ── S2: Embudo ────────────────────────────────────────────────────────── */}
-      <section className="bg-white rounded-xl border border-slate-200 p-6">
+      <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
         <SectionHeader icon={BarChart3} title="Embudo de conversión" subtitle="Cuántos leads pasan de una etapa a la siguiente" />
         {loadingAnalytics ? <Skel h="h-48" /> : !a?.funnel.length ? (
           <p className="text-sm text-slate-400 text-center py-8">Sin datos para el período</p>
@@ -346,31 +346,31 @@ export default function DashboardPage() {
               const colors = ['#3b82f6', '#8b5cf6', '#06b6d4', '#0ea5e9', '#22c55e']
               return (
                 <div key={stage.key} className="space-y-1.5">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-medium text-slate-600 w-36 flex-shrink-0">{stage.label}</span>
+                  <div className="flex items-center gap-2 md:gap-3">
+                    <span className="text-xs font-medium text-slate-600 w-24 md:w-36 flex-shrink-0 truncate">{stage.label}</span>
                     <div className="flex-1 h-7 bg-slate-100 rounded-md overflow-hidden relative">
                       <div className="h-full rounded-md flex items-center px-3 transition-all duration-700" style={{ width: `${barPct}%`, backgroundColor: colors[idx] }}>
                         {barPct > 15 && <span className="text-white text-xs font-semibold">{stage.cantidad}</span>}
                       </div>
                       {barPct <= 15 && <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-700 text-xs font-semibold">{stage.cantidad}</span>}
                     </div>
-                    <div className="flex gap-3 items-center flex-shrink-0 w-40 text-right justify-end">
+                    <div className="flex gap-1.5 md:gap-3 items-center flex-shrink-0 text-right justify-end">
                       {stage.tasa_vs_anterior !== null && (
-                        <span className={cn('text-xs font-medium px-2 py-0.5 rounded', stage.tasa_vs_anterior >= 70 ? 'bg-green-100 text-green-700' : stage.tasa_vs_anterior >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700')}>
+                        <span className={cn('text-xs font-medium px-1.5 md:px-2 py-0.5 rounded', stage.tasa_vs_anterior >= 70 ? 'bg-green-100 text-green-700' : stage.tasa_vs_anterior >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700')}>
                           {stage.tasa_vs_anterior}%
                         </span>
                       )}
-                      <span className="text-xs text-slate-400">{stage.tasa_acumulada}% total</span>
+                      <span className="text-xs text-slate-400 hidden md:inline">{stage.tasa_acumulada}% total</span>
                     </div>
                   </div>
                   {stage.perdidos > 0 && (
-                    <div className="ml-36 flex items-center gap-1.5">
+                    <div className="ml-24 md:ml-36 flex items-center gap-1.5">
                       <ArrowDown size={10} className="text-red-400" />
                       <span className="text-xs text-red-500">{stage.perdidos} perdido{stage.perdidos !== 1 ? 's' : ''} en esta etapa</span>
                     </div>
                   )}
                   {idx < a.funnel.length - 1 && (
-                    <div className="ml-36 pl-1"><ChevronRight size={12} className="text-slate-300 rotate-90" /></div>
+                    <div className="ml-24 md:ml-36 pl-1"><ChevronRight size={12} className="text-slate-300 rotate-90" /></div>
                   )}
                 </div>
               )
@@ -392,7 +392,7 @@ export default function DashboardPage() {
       </section>
 
       {/* ── S3: Tiempos ───────────────────────────────────────────────────────── */}
-      <section className="bg-white rounded-xl border border-slate-200 p-6">
+      <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
         <SectionHeader icon={Clock} title="Tiempos entre etapas" subtitle="Días promedio para avanzar de una etapa a la siguiente" />
         {loadingAnalytics ? <Skel h="h-36" /> : (
           <div className="space-y-3">
@@ -426,7 +426,7 @@ export default function DashboardPage() {
       </section>
 
       {/* ── S4: Propuestas ────────────────────────────────────────────────────── */}
-      <section className="bg-white rounded-xl border border-slate-200 p-6">
+      <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
         <SectionHeader icon={DollarSign} title="Análisis de propuestas" subtitle="ARS y USD no se mezclan ni convierten" />
         {loadingAnalytics ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><Skel h="h-48" /><Skel h="h-48" /></div>
@@ -486,7 +486,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
 
         {/* País */}
-        <section className="bg-white rounded-xl border border-slate-200 p-6">
+        <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
           <SectionHeader icon={Globe} title="Por país" subtitle="Qué mercado convierte mejor" />
           {loadingAnalytics ? <Skel h="h-40" /> : !a?.por_pais.length ? (
             <p className="text-sm text-slate-400 text-center py-6">Sin datos</p>
@@ -525,7 +525,7 @@ export default function DashboardPage() {
         </section>
 
         {/* Fuente */}
-        <section className="bg-white rounded-xl border border-slate-200 p-6">
+        <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
           <SectionHeader icon={TrendingUp} title="Por fuente" subtitle="El canal con más leads no es el mejor si el cierre es bajo" />
           {loadingAnalytics ? <Skel h="h-40" /> : !a?.por_fuente.length ? (
             <p className="text-sm text-slate-400 text-center py-6">Sin datos</p>
@@ -562,7 +562,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── S7: Leads en riesgo ───────────────────────────────────────────────── */}
-      <section className="bg-white rounded-xl border border-slate-200 p-6">
+      <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
         <SectionHeader icon={AlertTriangle} title="Leads activos en riesgo" subtitle="Sin filtro de período — leads estancados más allá del umbral" />
         {loadingAnalytics ? <Skel h="h-32" /> : !a?.leads_en_riesgo.length ? (
           <div className="flex items-center gap-3 py-4 text-sm text-emerald-600">
