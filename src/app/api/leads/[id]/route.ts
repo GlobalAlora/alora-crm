@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createCalendarEvent, updateCalendarEvent } from '@/lib/google-calendar'
 
 type Params = { params: Promise<{ id: string }> }
@@ -238,10 +239,15 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { data, error } = await supabase
+  // Use admin client to bypass RLS for soft delete.
+  // The leads_update policy restricts UPDATE to admin or own leads only,
+  // which blocks soft-delete for users without those permissions.
+  const admin = createAdminClient()
+  const { data, error } = await admin
     .from('leads')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', id)
+    .is('deleted_at', null)
     .select('id, deleted_at')
     .single()
 
