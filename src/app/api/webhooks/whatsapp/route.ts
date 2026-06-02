@@ -210,28 +210,14 @@ async function findOrCreateLead({
     return existing.id
   }
 
-  // Round-robin assignment to agent with fewest active leads
-  const { data: salesUsers } = await admin
+  // Assign all incoming leads to Walo
+  const { data: walo } = await admin
     .from('users')
     .select('id')
-    .in('role', ['admin', 'sales'])
+    .eq('email', 'somosglobalalora@gmail.com')
+    .maybeSingle()
 
-  let responsableId: string | null = null
-  if (salesUsers && salesUsers.length > 0) {
-    const counts = await Promise.all(
-      salesUsers.map(async (u) => {
-        const { count } = await admin
-          .from('leads')
-          .select('id', { count: 'exact', head: true })
-          .eq('responsable_id', u.id)
-          .is('deleted_at', null)
-          .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado)')
-        return { id: u.id, count: count ?? 0 }
-      })
-    )
-    counts.sort((a, b) => a.count - b.count)
-    responsableId = counts[0].id
-  }
+  const responsableId: string | null = walo?.id ?? null
 
   const { data: maxPos } = await admin
     .from('leads')
