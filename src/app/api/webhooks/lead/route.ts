@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
       empresa: body.empresa ?? null,
       servicio_interesado: body.servicio_interesado ?? null,
       presupuesto_estimado: body.presupuesto_estimado ?? null,
-      fuente: 'formulario',
+      fuente: body.fuente ?? 'formulario',
       responsable_id: responsableId,
       created_by: responsableId,
       estado_pipeline: 'lead_entrante',
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
     lead_id: lead.id,
     user_id: null,
     tipo: 'webhook',
-    descripcion: 'Lead recibido desde formulario web',
+    descripcion: `Lead recibido desde ${body.fuente === 'chatbot' ? 'chatbot' : 'formulario web'}`,
     metadata: body,
   })
 
