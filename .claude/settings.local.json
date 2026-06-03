@@ -4,5 +4,8 @@
       "Bash(kill 76412)",
       "Bash(rm -f \"/Users/bruno/Desktop/Cosas/Alora/crm-alora/.git/index.lock\")"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
 }
