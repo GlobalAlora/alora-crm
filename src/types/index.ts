@@ -108,6 +108,7 @@ export interface Lead {
   fecha_reunion: string | null
   reunion_hora: string | null
   reunion_link: string | null
+  reunion_asistencia: 'se_presento' | 'no_se_presento' | 'reagendo' | null
   fecha_propuesta: string | null
   fecha_followup: string | null
   fecha_cierre: string | null

@@ -180,6 +180,29 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     })
   }
 
+  // Log reunion_asistencia change (best-effort)
+  if ('reunion_asistencia' in body && body.reunion_asistencia) {
+    const labels: Record<string, string> = {
+      se_presento:    '✅ Se presentó a la reunión',
+      no_se_presento: '❌ No se presentó a la reunión',
+      reagendo:       '🔄 Reagendó la reunión',
+    }
+    const descripcion = labels[body.reunion_asistencia as string] ?? 'Estado de reunión actualizado'
+    await supabase.from('activities').insert({
+      lead_id: id,
+      user_id: user.id,
+      tipo: 'reunion',
+      descripcion,
+      metadata: {
+        kind: 'reunion_asistencia',
+        asistencia: body.reunion_asistencia,
+        ...(body.fecha_reunion  ? { nueva_fecha:  body.fecha_reunion  } : {}),
+        ...(body.reunion_hora   ? { nueva_hora:   body.reunion_hora   } : {}),
+        ...(body.reunion_link   ? { nuevo_link:   body.reunion_link   } : {}),
+      },
+    })
+  }
+
   // ── Google Calendar event ────────────────────────────────────────────────────
   // Triggered when fecha_reunion is set/updated on a reunion_reservada lead.
   // Creates a new event or patches the existing one. Non-fatal.

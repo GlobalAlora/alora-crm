@@ -21,6 +21,7 @@ import { TagsSection } from './TagsSection'
 import { StageHistorySection } from './StageHistorySection'
 import { ServiciosEdit } from './ServiciosEdit'
 import { FormDataSection } from './FormDataSection'
+import { MeetingStatusCheck } from './MeetingStatusCheck'
 import { RichTextEditor } from '@/components/shared/RichTextEditor'
 import toast from 'react-hot-toast'
 
@@ -207,6 +208,19 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
   })
 
   const patch = (data: Partial<Lead> & { skip_calendar?: boolean }) => patchMutation.mutate(data as Partial<Lead>)
+
+  const handleMeetingStatus = (
+    asistencia: 'se_presento' | 'no_se_presento' | 'reagendo',
+    reschedule?: { fecha_reunion: string; reunion_hora: string; reunion_link: string }
+  ) => {
+    const updates: Partial<Lead> = { reunion_asistencia: asistencia }
+    if (asistencia === 'reagendo' && reschedule) {
+      if (reschedule.fecha_reunion) updates.fecha_reunion = reschedule.fecha_reunion
+      if (reschedule.reunion_hora) updates.reunion_hora = reschedule.reunion_hora
+      if (reschedule.reunion_link) updates.reunion_link = reschedule.reunion_link
+    }
+    patch(updates)
+  }
 
   const startEditName = () => {
     setEditNombre(lead.nombre || '')
@@ -560,6 +574,16 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                   type="url"
                   placeholder="https://..."
                 />
+                {(lead.estado_pipeline === 'reunion_reservada' || lead.estado_pipeline === 'reunion_realizada') && lead.fecha_reunion && (
+                  <MeetingStatusCheck
+                    leadId={lead.id}
+                    current={lead.reunion_asistencia ?? null}
+                    currentFecha={lead.fecha_reunion}
+                    currentHora={lead.reunion_hora}
+                    currentLink={lead.reunion_link}
+                    onSave={handleMeetingStatus}
+                  />
+                )}
                 {lead.calendar_event_url && (
                   <div>
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Evento en Calendar</p>
@@ -789,6 +813,16 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                   type="url"
                   placeholder="https://..."
                 />
+                {(lead.estado_pipeline === 'reunion_reservada' || lead.estado_pipeline === 'reunion_realizada') && lead.fecha_reunion && (
+                  <MeetingStatusCheck
+                    leadId={lead.id}
+                    current={lead.reunion_asistencia ?? null}
+                    currentFecha={lead.fecha_reunion}
+                    currentHora={lead.reunion_hora}
+                    currentLink={lead.reunion_link}
+                    onSave={handleMeetingStatus}
+                  />
+                )}
                 {lead.calendar_event_url && (
                   <div>
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Evento en Calendar</p>
