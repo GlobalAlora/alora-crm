@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
       pais: body.pais || null,
       servicio_interesado: body.servicio_interesado || null,
       notas: body.notas || body.mensaje || null,
-      fuente: 'formulario',
+      fuente: body.fuente ?? 'formulario',
       form_id: body.formId || null,
       form_data: Object.keys(form_data).length > 0 ? form_data : null,
       responsable_id: responsableId,
