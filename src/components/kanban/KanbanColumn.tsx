@@ -15,7 +15,7 @@ interface KanbanColumnProps {
 }
 
 export function KanbanColumn({ stage, leads, onLeadClick, isOver }: KanbanColumnProps) {
-  const config = PIPELINE_STAGE_MAP[stage]
+  const config = PIPELINE_STAGE_MAP[stage] ?? { color: '#64748b', bgColor: '#f1f5f9', label: stage }
   const { setNodeRef } = useDroppable({ id: stage })
 
   // valor_propuesta_* is kept in sync by propuestas-sync and reflects accepted proposals only.

@@ -34,6 +34,9 @@ function groupByStage(leads: Lead[]): LeadsByStage {
   ) as unknown as LeadsByStage
 
   return leads.reduce((acc, lead) => {
+    if (!acc[lead.estado_pipeline]) {
+      acc[lead.estado_pipeline] = []
+    }
     acc[lead.estado_pipeline].push(lead)
     return acc
   }, initial)
