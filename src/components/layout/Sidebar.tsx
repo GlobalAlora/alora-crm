@@ -9,11 +9,12 @@ import { useQuery } from '@tanstack/react-query'
 import type { WhatsAppConversation } from '@/types'
 
 const settingsNav = [
-  { href: '/settings/equipo',    label: 'Equipo',      icon: UserCog     },
-  { href: '/settings/forms',     label: 'Formularios', icon: FileCode2   },
-  { href: '/settings/tags',      label: 'Etiquetas',   icon: Tag         },
-  { href: '/settings/lists',     label: 'Listas',      icon: List        },
-  { href: '/settings/whatsapp',  label: 'WhatsApp',    icon: Smartphone  },
+  { href: '/settings/equipo',    label: 'Equipo',      icon: UserCog        },
+  { href: '/settings/pipeline',  label: 'Pipeline',    icon: LayoutDashboard },
+  { href: '/settings/forms',     label: 'Formularios', icon: FileCode2      },
+  { href: '/settings/tags',      label: 'Etiquetas',   icon: Tag            },
+  { href: '/settings/lists',     label: 'Listas',      icon: List           },
+  { href: '/settings/whatsapp',  label: 'WhatsApp',    icon: Smartphone     },
 ]
 
 // Componente separado para evitar error de render

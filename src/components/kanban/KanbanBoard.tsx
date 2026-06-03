@@ -20,6 +20,7 @@ import { leadsApi } from '@/lib/api'
 import { midpoint } from '@/lib/utils'
 import { KanbanColumn } from './KanbanColumn'
 import { LeadCard } from './LeadCard'
+import { usePipelineStages } from '@/hooks/usePipelineStages'
 
 interface KanbanBoardProps {
   onLeadClick: (lead: Lead) => void
@@ -42,6 +43,11 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
   const queryClient = useQueryClient()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [overColumnId, setOverColumnId] = useState<PipelineStage | null>(null)
+  const { data: dbStages } = usePipelineStages()
+  // Use DB stages if available, fall back to hardcoded constant
+  const activeStages = dbStages && dbStages.length > 0
+    ? dbStages.map(s => ({ value: s.key as PipelineStage, label: s.label, color: s.color, bgColor: s.bg_color, zone: s.zone }))
+    : PIPELINE_STAGES
   const scrollRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [startX, setStartX] = useState(0)
@@ -151,7 +157,7 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
   const handleDragOver = useCallback(({ over }: DragOverEvent) => {
     if (!over) { setOverColumnId(null); return }
     const overId = over.id as string
-    const isColumn = PIPELINE_STAGES.some((s) => s.value === overId)
+    const isColumn = activeStages.some((s) => s.value === overId)
     if (isColumn) {
       setOverColumnId(overId as PipelineStage)
     } else {
@@ -170,7 +176,7 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
     if (!draggedLead) return
 
     const overId = over.id as string
-    const isColumn = PIPELINE_STAGES.some((s) => s.value === overId)
+    const isColumn = activeStages.some((s) => s.value === overId)
     const targetStage = isColumn
       ? (overId as PipelineStage)
       : displayLeads.find((l) => l.id === overId)?.estado_pipeline
@@ -219,7 +225,7 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
   if (isLoading) {
     return (
       <div className="kanban-board">
-        {PIPELINE_STAGES.map((s) => (
+        {activeStages.map((s) => (
           <div key={s.value} className="kanban-column rounded-xl border bg-slate-50 animate-pulse" />
         ))}
       </div>
@@ -242,11 +248,11 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
         onMouseLeave={handleMouseLeave}
         style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
       >
-        {PIPELINE_STAGES.map((stage) => (
+        {activeStages.map((stage) => (
           <KanbanColumn
             key={stage.value}
             stage={stage.value}
-            leads={grouped[stage.value]}
+            leads={grouped[stage.value] ?? []}
             onLeadClick={onLeadClick}
             isOver={overColumnId === stage.value}
           />
