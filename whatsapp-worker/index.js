@@ -199,7 +199,21 @@ app.post('/send', requireSecret, async (req, res) => {
       return res.status(503).json({ error: 'WhatsApp no está conectado' })
     }
 
-    const jid = `${phone}@s.whatsapp.net`
+    // Resolve the canonical jid to address this contact with (WhatsApp may
+    // require addressing some contacts by their LID instead of phone number).
+    const fallbackJid = `${phone}@s.whatsapp.net`
+    let jid = fallbackJid
+    try {
+      const results = await sock.onWhatsApp(fallbackJid)
+      if (results?.[0]?.exists && results[0].jid) {
+        jid = results[0].jid
+      } else {
+        logger.warn({ phone }, '/send: onWhatsApp no encontró el contacto, se intenta con el jid de teléfono')
+      }
+    } catch (lookupErr) {
+      logger.warn({ lookupErr, phone }, '/send: falló onWhatsApp, se intenta con el jid de teléfono')
+    }
+
     const result = await sock.sendMessage(jid, { text: message })
     logger.info({ jid, waMessageId: result?.key?.id }, '/send: sendMessage devolvió ok')
     res.json({ id: result?.key?.id ?? null })
