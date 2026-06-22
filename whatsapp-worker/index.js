@@ -146,6 +146,7 @@ app.use(express.json())
 function requireSecret(req, res, next) {
   const secret = req.headers['x-webhook-secret']
   if (!secret || secret !== BAILEYS_WORKER_SECRET) {
+    logger.warn({ path: req.path, gotSecret: secret ? `${secret.slice(0, 4)}…` : null }, 'Petición rechazada: secreto inválido o ausente')
     return res.status(401).json({ error: 'No autorizado' })
   }
   next()
