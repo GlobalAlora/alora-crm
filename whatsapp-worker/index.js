@@ -137,6 +137,18 @@ app.get('/health', (req, res) => {
   res.json({ status: connectionStatus })
 })
 
+// JSON variant for server-to-server callers (e.g. the CRM's own API route)
+app.get('/qr-data', requireSecret, async (req, res) => {
+  if (connectionStatus === 'connected') {
+    return res.json({ status: 'connected', qr: null })
+  }
+  if (!latestQr) {
+    return res.json({ status: connectionStatus, qr: null })
+  }
+  const dataUrl = await qrcode.toDataURL(latestQr)
+  res.json({ status: connectionStatus, qr: dataUrl })
+})
+
 app.get('/qr', async (req, res) => {
   if (req.query.secret !== BAILEYS_WORKER_SECRET) {
     return res.status(401).send('No autorizado')
