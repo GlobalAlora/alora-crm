@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "crm-alora",
-      "runtimeExecutable": "/Users/bruno/.nvm/versions/node/v20.18.3/bin/node",
-      "runtimeArgs": ["node_modules/.bin/next", "dev"],
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "dev"],
       "port": 3000,
       "autoPort": false
     }

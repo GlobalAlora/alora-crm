@@ -1,6 +1,6 @@
 'use client'
 
-import { Search, X } from 'lucide-react'
+import { Search, X, Download } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { usersApi } from '@/lib/api'
 import { PIPELINE_STAGES, FUENTES, PAISES, SERVICIOS } from '@/types'
@@ -11,11 +11,12 @@ interface LeadFiltersProps {
   filters: LeadFilterState
   onFilter: (key: string, value: unknown) => void
   onReset: () => void
+  onExport: () => void
   hasActiveFilters: string | boolean | PipelineStage[] | undefined
   total?: number
 }
 
-export function LeadFilters({ filters, onFilter, onReset, hasActiveFilters, total }: LeadFiltersProps) {
+export function LeadFilters({ filters, onFilter, onReset, onExport, hasActiveFilters, total }: LeadFiltersProps) {
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
     queryFn: () => usersApi.list(),
@@ -98,11 +99,18 @@ export function LeadFilters({ filters, onFilter, onReset, hasActiveFilters, tota
         ))}
       </select>
 
-      {/* Total + clear */}
+      {/* Total + export + clear */}
       <div className="flex items-center gap-2 ml-auto">
         {total != null && (
           <span className="text-xs text-slate-400">{total} leads</span>
         )}
+        <button
+          onClick={onExport}
+          className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 px-2 py-1.5 rounded-lg hover:bg-slate-100 transition-colors border border-slate-200"
+        >
+          <Download size={12} />
+          Exportar CSV
+        </button>
         {hasActiveFilters && (
           <button
             onClick={onReset}

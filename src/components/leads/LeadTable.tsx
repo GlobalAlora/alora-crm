@@ -86,6 +86,16 @@ export function LeadTable({ onLeadClick }: LeadTableProps) {
     clearAll()
   }
 
+  const handleExport = () => {
+    const params = new URLSearchParams()
+    Object.entries(queryFilters).forEach(([k, v]) => {
+      if (v === undefined || v === '') return
+      if (Array.isArray(v)) v.forEach((val) => params.append(k, String(val)))
+      else params.set(k, String(v))
+    })
+    window.location.href = `/api/leads/export?${params}`
+  }
+
   const [sortBy, setSortBy]       = useState<SortColumn>('created_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [selected, setSelected]   = useState<Set<string>>(new Set())
@@ -133,6 +143,7 @@ export function LeadTable({ onLeadClick }: LeadTableProps) {
         filters={filters}
         onFilter={setFilter}
         onReset={resetFilters}
+        onExport={handleExport}
         hasActiveFilters={hasActiveFilters}
         total={total}
       />
