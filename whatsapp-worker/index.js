@@ -186,9 +186,22 @@ app.get('/qr', async (req, res) => {
   )
 })
 
+// Argentine mobiles are addressed on WhatsApp as 549<area><number>, but
+// numbers are very commonly stored/typed as 54<area><number> (missing the
+// "9"). Since WhatsApp only runs on mobiles, any 54-prefixed contact here is
+// safe to treat as a mobile and gets the 9 inserted if it's missing.
+function normalizeArgentinaMobile(rawPhone) {
+  const digits = (rawPhone || '').replace(/\D/g, '')
+  if (digits.startsWith('54') && !digits.startsWith('549')) {
+    return '549' + digits.slice(2)
+  }
+  return digits
+}
+
 app.post('/send', requireSecret, async (req, res) => {
-  const { phone, message } = req.body || {}
-  logger.info({ phone, len: message?.length }, '/send recibido')
+  const phone = normalizeArgentinaMobile(req.body?.phone)
+  const { message } = req.body || {}
+  logger.info({ rawPhone: req.body?.phone, phone, len: message?.length }, '/send recibido')
 
   try {
     if (!phone || !message) {
