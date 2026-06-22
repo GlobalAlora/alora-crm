@@ -39,6 +39,15 @@ async function startSock() {
     version,
     auth: state,
     logger,
+    browser: ['Alora CRM', 'Chrome', '120.0.0'],
+    connectTimeoutMs: 30000,
+    defaultQueryTimeoutMs: 20000,
+    keepAliveIntervalMs: 15000,
+    // Marking online on connect makes Baileys fetch full chat/contact props
+    // right away ("init queries"), which was timing out repeatedly on this
+    // connection. Skipping it keeps the socket stable; we don't need presence.
+    markOnlineOnConnect: false,
+    syncFullHistory: false,
   })
 
   sock.ev.on('creds.update', saveCreds)
