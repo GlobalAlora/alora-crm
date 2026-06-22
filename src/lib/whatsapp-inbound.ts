@@ -68,6 +68,33 @@ export async function recordInboundWhatsAppMessage(admin: AdminClient, msg: Inbo
   }
 }
 
+/**
+ * Called when the Baileys worker resolves a contact's opaque "LID" to their
+ * real phone number (via WhatsApp's contacts sync). Fixes up any lead/
+ * conversation that was created using the LID as a stand-in phone number.
+ */
+export async function resolveLidPhone(admin: AdminClient, oldPhone: string, newPhone: string): Promise<void> {
+  const { error: leadError } = await admin
+    .from('leads')
+    .update({ telefono: newPhone })
+    .or(`telefono.eq.${oldPhone},telefono.eq.+${oldPhone}`)
+
+  if (leadError) {
+    console.error('[WhatsApp] Failed to migrate lead phone from LID:', leadError.message)
+  }
+
+  const { error: convError } = await admin
+    .from('whatsapp_conversations')
+    .update({ phone_number: newPhone })
+    .eq('phone_number', oldPhone)
+
+  if (convError) {
+    console.error('[WhatsApp] Failed to migrate conversation phone from LID:', convError.message)
+  }
+
+  console.log(`[WhatsApp] Migrated phone ${oldPhone} -> ${newPhone}`)
+}
+
 async function findOrCreateLeadByPhone(
   admin: AdminClient,
   { phone, name, text }: { phone: string; name: string | null; text: string | null },

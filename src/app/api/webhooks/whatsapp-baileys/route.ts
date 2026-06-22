@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { recordInboundWhatsAppMessage } from '@/lib/whatsapp-inbound'
+import { recordInboundWhatsAppMessage, resolveLidPhone } from '@/lib/whatsapp-inbound'
 
 // ── POST /api/webhooks/whatsapp-baileys ────────────────────────────────────────
 // Called by the Baileys worker (a separate always-on Node process) for every
-// inbound WhatsApp message it receives.
+// inbound WhatsApp message it receives, and whenever it resolves a contact's
+// LID to their real phone number.
 export async function POST(req: NextRequest) {
   const secret = req.headers.get('x-webhook-secret')
   if (!secret || secret !== process.env.BAILEYS_WEBHOOK_SECRET) {
@@ -17,13 +18,29 @@ export async function POST(req: NextRequest) {
     text?: string | null
     waMessageId?: string | null
     mediaType?: string | null
+    lidResolved?: { oldPhone: string; newPhone: string }
   } | null
 
-  if (!body?.phone) {
-    return NextResponse.json({ error: 'phone es requerido' }, { status: 400 })
+  if (!body) {
+    return NextResponse.json({ error: 'Body inválido' }, { status: 400 })
   }
 
   const admin = createAdminClient()
+
+  if (body.lidResolved) {
+    try {
+      await resolveLidPhone(admin, body.lidResolved.oldPhone, body.lidResolved.newPhone)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error desconocido'
+      console.error('[WhatsApp Baileys] Failed to resolve LID phone:', message)
+      return NextResponse.json({ error: message }, { status: 500 })
+    }
+    return NextResponse.json({ status: 'ok' })
+  }
+
+  if (!body.phone) {
+    return NextResponse.json({ error: 'phone es requerido' }, { status: 400 })
+  }
 
   try {
     await recordInboundWhatsAppMessage(admin, {

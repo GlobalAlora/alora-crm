@@ -21,6 +21,13 @@ let sock = null
 let latestQr = null
 let connectionStatus = 'disconnected' // 'disconnected' | 'connecting' | 'connected'
 
+// WhatsApp may address a contact by an opaque "LID" instead of their phone
+// number. These maps let us (a) reply using the exact jid a contact wrote to
+// us from, instead of guessing one, and (b) learn LID→phone mappings as
+// WhatsApp syncs contacts, so we can fix a lead's phone once it's known.
+const phoneToJid = new Map() // realPhone digits -> raw jid to use when sending
+const lidToPhone = new Map() // lid digits -> real phone digits
+
 // ── WhatsApp connection ─────────────────────────────────────────────────────
 
 async function startSock() {
@@ -75,6 +82,46 @@ async function startSock() {
       }
     }
   })
+
+  sock.ev.on('contacts.upsert', processContacts)
+  sock.ev.on('contacts.update', processContacts)
+}
+
+// ── LID ↔ phone mapping from WhatsApp's contact sync ────────────────────────
+
+function processContacts(contacts) {
+  for (const c of contacts) {
+    if (!c.id || !c.lid || !c.id.endsWith('@s.whatsapp.net')) continue
+
+    const realPhone = c.id.split('@')[0].split(':')[0].replace(/\D/g, '')
+    const lidDigits  = c.lid.split('@')[0].split(':')[0].replace(/\D/g, '')
+    if (!realPhone || !lidDigits) continue
+
+    lidToPhone.set(lidDigits, realPhone)
+
+    // If we'd cached a jid to reply to under the LID (because we hadn't
+    // resolved it yet), migrate that cache to the real phone number.
+    if (phoneToJid.has(lidDigits)) {
+      const rawJid = phoneToJid.get(lidDigits)
+      phoneToJid.set(realPhone, rawJid)
+      phoneToJid.delete(lidDigits)
+      logger.info({ lid: lidDigits, realPhone }, 'LID resuelto a teléfono real vía contacts.upsert')
+      notifyLidResolved(lidDigits, realPhone)
+    }
+  }
+}
+
+async function notifyLidResolved(oldPhone, newPhone) {
+  if (!CRM_WEBHOOK_URL || !BAILEYS_WEBHOOK_SECRET) return
+  try {
+    await fetch(CRM_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-webhook-secret': BAILEYS_WEBHOOK_SECRET },
+      body: JSON.stringify({ lidResolved: { oldPhone, newPhone } }),
+    })
+  } catch (err) {
+    logger.warn({ err, oldPhone, newPhone }, 'No se pudo avisar al CRM del LID resuelto')
+  }
 }
 
 // ── Inbound message → CRM webhook ───────────────────────────────────────────
@@ -93,29 +140,23 @@ function extractText(message) {
 async function handleIncomingMessage(m) {
   if (!m.message || m.key.fromMe) return
 
-  let jid = m.key.remoteJid || ''
+  const rawJid = m.key.remoteJid || ''
   // Ignore groups, broadcast lists and channels — only 1:1 chats become leads
-  if (jid.endsWith('@g.us') || jid === 'status@broadcast' || jid.endsWith('@newsletter')) return
+  if (rawJid.endsWith('@g.us') || rawJid === 'status@broadcast' || rawJid.endsWith('@newsletter')) return
 
-  // WhatsApp's privacy "LID" system hides the real phone number behind an opaque
-  // id (`<id>@lid`) for some contacts. Baileys resolves the real number either
-  // directly on the message (`remoteJidAlt`) or via its LID↔phone mapping store.
-  if (jid.endsWith('@lid')) {
-    const altJid = m.key.remoteJidAlt
-    if (altJid) {
-      jid = altJid
-    } else {
-      const pn = await sock.signalRepository.lidMapping.getPNForLID(jid).catch(() => null)
-      if (pn) {
-        jid = pn
-      } else {
-        logger.warn({ lid: jid }, 'No se pudo resolver el LID a un número real, se ignora el mensaje')
-        return
-      }
-    }
-  }
+  const isLid = rawJid.endsWith('@lid')
+  const jidDigits = rawJid.split('@')[0].split(':')[0].replace(/\D/g, '')
+  // WhatsApp's privacy "LID" system addresses some contacts by an opaque id
+  // instead of their phone number. We resolve it via the LID→phone map learnt
+  // from contacts.upsert; until that arrives we fall back to the LID digits
+  // (processContacts will migrate this lead's phone once it resolves).
+  const phone = isLid ? (lidToPhone.get(jidDigits) || jidDigits) : jidDigits
 
-  const phone = jid.split('@')[0]
+  // Cache the exact jid this contact writes from, so replies address the
+  // right chat instead of a hand-built (and possibly wrong) jid.
+  phoneToJid.set(phone, rawJid)
+  if (isLid) lidToPhone.set(jidDigits, phone)
+
   const name = m.pushName || null
   const { text, mediaType } = extractText(m.message)
 
@@ -212,21 +253,10 @@ app.post('/send', requireSecret, async (req, res) => {
       return res.status(503).json({ error: 'WhatsApp no está conectado' })
     }
 
-    // Resolve the canonical jid to address this contact with (WhatsApp may
-    // require addressing some contacts by their LID instead of phone number).
-    const fallbackJid = `${phone}@s.whatsapp.net`
-    let jid = fallbackJid
-    try {
-      const results = await sock.onWhatsApp(fallbackJid)
-      if (results?.[0]?.exists && results[0].jid) {
-        jid = results[0].jid
-      } else {
-        logger.warn({ phone }, '/send: onWhatsApp no encontró el contacto, se intenta con el jid de teléfono')
-      }
-    } catch (lookupErr) {
-      logger.warn({ lookupErr, phone }, '/send: falló onWhatsApp, se intenta con el jid de teléfono')
-    }
-
+    // Use the exact jid this contact wrote to us from, if we have it cached
+    // (handles LID-addressed contacts correctly). Otherwise fall back to the
+    // phone-based jid — works for contacts we haven't received a message from yet.
+    const jid = phoneToJid.get(phone) || `${phone}@s.whatsapp.net`
     const result = await sock.sendMessage(jid, { text: message })
     logger.info({ jid, waMessageId: result?.key?.id }, '/send: sendMessage devolvió ok')
     res.json({ id: result?.key?.id ?? null })
