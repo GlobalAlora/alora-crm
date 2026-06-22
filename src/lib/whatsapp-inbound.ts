@@ -1,4 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { extractLeadInfoFromConversation } from '@/lib/ai-lead-extract'
+import { PAISES, SERVICIOS } from '@/types'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -65,6 +67,67 @@ export async function recordInboundWhatsAppMessage(admin: AdminClient, msg: Inbo
     console.error(`[WhatsApp] Failed to save message from ${phone}:`, msgError.message)
   } else {
     console.log(`[WhatsApp] Message saved from ${phone}`)
+  }
+
+  await enrichLeadFromConversation(admin, leadId, convId).catch((err) => {
+    console.error('[WhatsApp] AI enrichment failed:', err instanceof Error ? err.message : err)
+  })
+}
+
+/**
+ * Reads the full conversation so far and fills in empty lead fields
+ * (empresa, sitio_web, pais, email, servicios_interesados) from anything
+ * the client explicitly mentioned. Never overwrites a field that's already
+ * set — only adds what's missing.
+ */
+async function enrichLeadFromConversation(admin: AdminClient, leadId: string, conversationId: string): Promise<void> {
+  const { data: lead } = await admin
+    .from('leads')
+    .select('empresa, sitio_web, pais, email, servicios_interesados')
+    .eq('id', leadId)
+    .single()
+
+  if (!lead) return
+
+  const { data: messages } = await admin
+    .from('wa_messages')
+    .select('direction, body')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true })
+    .limit(50)
+
+  if (!messages || messages.length === 0) return
+
+  const extracted = await extractLeadInfoFromConversation(messages)
+  if (!extracted) return
+
+  const updates: Record<string, unknown> = {}
+
+  if (!lead.empresa && extracted.empresa) updates.empresa = extracted.empresa
+  if (!lead.sitio_web && extracted.sitio_web) updates.sitio_web = extracted.sitio_web
+  if (!lead.email && extracted.email) updates.email = extracted.email
+  if (!lead.pais && extracted.pais && (PAISES as readonly string[]).includes(extracted.pais)) {
+    updates.pais = extracted.pais
+  }
+
+  if (extracted.servicios_interesados?.length) {
+    const existing = new Set<string>(lead.servicios_interesados ?? [])
+    for (const s of extracted.servicios_interesados) {
+      if ((SERVICIOS as readonly string[]).includes(s)) existing.add(s)
+    }
+    const merged = [...existing]
+    if (merged.length !== (lead.servicios_interesados ?? []).length) {
+      updates.servicios_interesados = merged
+    }
+  }
+
+  if (Object.keys(updates).length === 0) return
+
+  const { error } = await admin.from('leads').update(updates).eq('id', leadId)
+  if (error) {
+    console.error('[WhatsApp] Failed to save AI-enriched lead fields:', error.message)
+  } else {
+    console.log(`[WhatsApp] Lead ${leadId} enriched from conversation:`, updates)
   }
 }
 
