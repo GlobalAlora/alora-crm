@@ -93,9 +93,27 @@ function extractText(message) {
 async function handleIncomingMessage(m) {
   if (!m.message || m.key.fromMe) return
 
-  const jid = m.key.remoteJid || ''
+  let jid = m.key.remoteJid || ''
   // Ignore groups, broadcast lists and channels — only 1:1 chats become leads
   if (jid.endsWith('@g.us') || jid === 'status@broadcast' || jid.endsWith('@newsletter')) return
+
+  // WhatsApp's privacy "LID" system hides the real phone number behind an opaque
+  // id (`<id>@lid`) for some contacts. Baileys resolves the real number either
+  // directly on the message (`remoteJidAlt`) or via its LID↔phone mapping store.
+  if (jid.endsWith('@lid')) {
+    const altJid = m.key.remoteJidAlt
+    if (altJid) {
+      jid = altJid
+    } else {
+      const pn = await sock.signalRepository.lidMapping.getPNForLID(jid).catch(() => null)
+      if (pn) {
+        jid = pn
+      } else {
+        logger.warn({ lid: jid }, 'No se pudo resolver el LID a un número real, se ignora el mensaje')
+        return
+      }
+    }
+  }
 
   const phone = jid.split('@')[0]
   const name = m.pushName || null
