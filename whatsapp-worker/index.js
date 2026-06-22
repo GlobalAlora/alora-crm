@@ -156,11 +156,21 @@ async function handleIncomingMessage(m) {
 
   const isLid = rawJid.endsWith('@lid')
   const jidDigits = rawJid.split('@')[0].split(':')[0].replace(/\D/g, '')
+
   // WhatsApp's privacy "LID" system addresses some contacts by an opaque id
-  // instead of their phone number. We resolve it via the LID→phone map learnt
-  // from contacts.upsert; until that arrives we fall back to the LID digits
-  // (processContacts will migrate this lead's phone once it resolves).
-  const phone = isLid ? (lidToPhone.get(jidDigits) || jidDigits) : jidDigits
+  // instead of their phone number. Baileys 7 usually gives us the real phone
+  // directly on the message (key.remoteJidAlt) — use that first; fall back to
+  // the LID→phone map learnt from contacts.upsert, then to the LID digits.
+  const altJid = m.key.remoteJidAlt || ''
+  const altDigits = altJid ? altJid.split('@')[0].split(':')[0].replace(/\D/g, '') : ''
+  const phone = isLid ? (altDigits || lidToPhone.get(jidDigits) || jidDigits) : jidDigits
+
+  // If we just learned the real phone for this LID and it differs from what
+  // we (or an earlier run) might have stored as a placeholder, fix it up.
+  if (isLid && altDigits && altDigits !== jidDigits && !lidToPhone.has(jidDigits)) {
+    lidToPhone.set(jidDigits, altDigits)
+    notifyLidResolved(jidDigits, altDigits)
+  }
 
   // Cache the exact jid this contact writes from, so replies address the
   // right chat instead of a hand-built (and possibly wrong) jid.
