@@ -90,6 +90,7 @@ async function startSock() {
 // ── LID ↔ phone mapping from WhatsApp's contact sync ────────────────────────
 
 function processContacts(contacts) {
+  logger.info({ count: contacts?.length, sample: contacts?.slice(0, 3) }, 'contacts.upsert/update recibido')
   for (const c of contacts) {
     if (!c.id || !c.lid || !c.id.endsWith('@s.whatsapp.net')) continue
 
@@ -160,6 +161,8 @@ async function handleIncomingMessage(m) {
   const name = m.pushName || null
   const { text, mediaType } = extractText(m.message)
 
+  logger.info({ rawJid, isLid, jidDigits, phone, name, text }, 'Mensaje entrante procesado')
+
   if (!CRM_WEBHOOK_URL || !BAILEYS_WEBHOOK_SECRET) {
     logger.error('CRM_WEBHOOK_URL / BAILEYS_WEBHOOK_SECRET no configurados, no se pudo reenviar el mensaje')
     return
@@ -176,6 +179,8 @@ async function handleIncomingMessage(m) {
 
   if (!res.ok) {
     logger.error({ status: res.status, body: await res.text().catch(() => '') }, 'El CRM rechazó el mensaje')
+  } else {
+    logger.info({ phone }, 'Mensaje reenviado al CRM ok')
   }
 }
 
