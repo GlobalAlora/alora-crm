@@ -186,20 +186,24 @@ app.get('/qr', async (req, res) => {
 })
 
 app.post('/send', requireSecret, async (req, res) => {
+  const { phone, message } = req.body || {}
+  logger.info({ phone, len: message?.length }, '/send recibido')
+
   try {
-    const { phone, message } = req.body || {}
     if (!phone || !message) {
       return res.status(400).json({ error: 'phone y message son requeridos' })
     }
     if (connectionStatus !== 'connected' || !sock) {
+      logger.warn({ connectionStatus }, '/send rechazado: WhatsApp no conectado')
       return res.status(503).json({ error: 'WhatsApp no está conectado' })
     }
 
     const jid = `${phone}@s.whatsapp.net`
     const result = await sock.sendMessage(jid, { text: message })
+    logger.info({ jid, waMessageId: result?.key?.id }, '/send: sendMessage devolvió ok')
     res.json({ id: result?.key?.id ?? null })
   } catch (err) {
-    logger.error({ err }, 'Error enviando mensaje')
+    logger.error({ err, phone }, '/send: error enviando mensaje')
     res.status(500).json({ error: err.message })
   }
 })
