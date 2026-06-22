@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendWhatsAppText, normalizePhone } from '@/lib/whatsapp'
+import { normalizePhone } from '@/lib/whatsapp'
+import { sendViaBaileysWorker } from '@/lib/whatsapp-baileys-client'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -20,21 +21,6 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient()
   const normalizedPhone = normalizePhone(phone)
-
-  // Resolve credentials: DB first, env vars as fallback
-  const { data: cfg } = await admin
-    .from('channel_configs')
-    .select('access_token, phone_number_id')
-    .eq('channel_type', 'whatsapp')
-    .eq('label', 'Principal')
-    .single()
-
-  const accessToken   = cfg?.access_token   || process.env.WHATSAPP_ACCESS_TOKEN
-  const phoneNumberId = cfg?.phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID
-
-  if (!accessToken || !phoneNumberId) {
-    return NextResponse.json({ error: 'WhatsApp no configurado' }, { status: 500 })
-  }
 
   // Resolve or create conversation for this phone number
   let conversation_id = rawConvId ?? null
@@ -78,19 +64,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Error al guardar mensaje' }, { status: 500 })
   }
 
-  // ── 2. Send via Meta Cloud API ────────────────────────────────────────────
+  // ── 2. Send via the Baileys worker ────────────────────────────────────────
   let waMessageId: string | null = null
   try {
-    const result = await sendWhatsAppText({
-      phoneNumberId,
-      to: normalizedPhone,
-      body: message,
-      accessToken,
-    }) as { messages?: { id: string }[] }
+    const result = await sendViaBaileysWorker({ to: normalizedPhone, body: message })
+    waMessageId = result.id ?? null
 
-    waMessageId = result?.messages?.[0]?.id ?? null
-
-    // Update to 'sent' with Meta's message ID
+    // Update to 'sent' with Baileys' message ID
     await admin
       .from('wa_messages')
       .update({
