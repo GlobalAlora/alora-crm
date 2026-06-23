@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { extractLeadInfoFromConversation } from '@/lib/ai-lead-extract'
+import { advanceQualifyingBot } from '@/lib/whatsapp-bot'
 import { PAISES, SERVICIOS } from '@/types'
 
 type AdminClient = ReturnType<typeof createAdminClient>
@@ -33,7 +34,7 @@ export async function recordInboundWhatsAppMessage(admin: AdminClient, msg: Inbo
     }
   }
 
-  const leadId = await findOrCreateLeadByPhone(admin, { phone, name, text })
+  const { id: leadId, isNew: isNewLead } = await findOrCreateLeadByPhone(admin, { phone, name, text })
 
   const previewText = text
     ? (text.length > 100 ? text.slice(0, 100) + '…' : text)
@@ -71,6 +72,10 @@ export async function recordInboundWhatsAppMessage(admin: AdminClient, msg: Inbo
 
   await enrichLeadFromConversation(admin, leadId, convId).catch((err) => {
     console.error('[WhatsApp] AI enrichment failed:', err instanceof Error ? err.message : err)
+  })
+
+  await advanceQualifyingBot(admin, { leadId, conversationId: convId, phone, isNewConversation: isNewLead }).catch((err) => {
+    console.error('[WhatsApp] Qualifying bot failed:', err instanceof Error ? err.message : err)
   })
 }
 
@@ -161,7 +166,7 @@ export async function resolveLidPhone(admin: AdminClient, oldPhone: string, newP
 async function findOrCreateLeadByPhone(
   admin: AdminClient,
   { phone, name, text }: { phone: string; name: string | null; text: string | null },
-): Promise<string> {
+): Promise<{ id: string; isNew: boolean }> {
   const { data: existing } = await admin
     .from('leads')
     .select('id, nombre')
@@ -172,7 +177,7 @@ async function findOrCreateLeadByPhone(
 
   if (existing) {
     console.log(`[WhatsApp] Existing lead: ${existing.id} (${existing.nombre})`)
-    return existing.id
+    return { id: existing.id, isNew: false }
   }
 
   // Assign all incoming leads to Walo
@@ -213,5 +218,5 @@ async function findOrCreateLeadByPhone(
   }
 
   console.log(`[WhatsApp] New lead created: ${newLead.id} (${newLead.nombre})`)
-  return newLead.id
+  return { id: newLead.id, isNew: true }
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizePhone } from '@/lib/whatsapp'
-import { sendViaBaileysWorker } from '@/lib/whatsapp-baileys-client'
+import { sendOutboundWhatsAppMessage } from '@/lib/whatsapp-outbound'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -45,63 +45,23 @@ export async function POST(req: NextRequest) {
     conversation_id = newConvId as string
   }
 
-  // ── 1. Insert message with status 'sending' (optimistic) ─────────────────
-  const { data: savedMsg, error: insertError } = await admin
-    .from('wa_messages')
-    .insert({
-      conversation_id,
-      lead_id:   leadId,
-      direction: 'outbound',
-      body:      message,
-      status:    'sending',
-      agent_id:  user.id,
-    })
-    .select('id')
-    .single()
+  const sent = await sendOutboundWhatsAppMessage(admin, {
+    conversationId: conversation_id,
+    leadId,
+    phone: normalizedPhone,
+    body: message,
+    agentId: user.id,
+  })
 
-  if (insertError || !savedMsg) {
-    console.error('[WhatsApp Send] Failed to save message:', insertError?.message)
-    return NextResponse.json({ error: 'Error al guardar mensaje' }, { status: 500 })
+  if (!sent) {
+    return NextResponse.json({ error: 'Error al enviar mensaje' }, { status: 502 })
   }
 
-  // ── 2. Send via the Baileys worker ────────────────────────────────────────
-  let waMessageId: string | null = null
-  try {
-    const result = await sendViaBaileysWorker({ to: normalizedPhone, body: message })
-    waMessageId = result.id ?? null
-
-    // Update to 'sent' with Baileys' message ID
-    await admin
-      .from('wa_messages')
-      .update({
-        status:           'sent',
-        wa_message_id:    waMessageId,
-        status_updated_at: new Date().toISOString(),
-      })
-      .eq('id', savedMsg.id)
-
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Error al enviar mensaje'
-    console.error('[WhatsApp Send]', msg)
-
-    // Mark as failed
-    await admin
-      .from('wa_messages')
-      .update({ status: 'failed', error_message: msg, status_updated_at: new Date().toISOString() })
-      .eq('id', savedMsg.id)
-
-    return NextResponse.json({ error: msg }, { status: 502 })
-  }
-
-  // ── 3. Update conversation last message ───────────────────────────────────
-  const preview = message.length > 100 ? message.slice(0, 100) + '…' : message
+  // A human just replied — stop the qualifying bot from interjecting further.
   await admin
     .from('whatsapp_conversations')
-    .update({
-      last_message_at:   new Date().toISOString(),
-      last_message_text: preview,
-    })
+    .update({ bot_active: false })
     .eq('id', conversation_id)
 
-  return NextResponse.json({ success: true, message_id: savedMsg.id })
+  return NextResponse.json({ success: true, message_id: sent.id })
 }
