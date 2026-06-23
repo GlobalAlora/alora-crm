@@ -34,7 +34,7 @@ export async function recordInboundWhatsAppMessage(admin: AdminClient, msg: Inbo
     }
   }
 
-  const { id: leadId, isNew: isNewLead } = await findOrCreateLeadByPhone(admin, { phone, name, text })
+  const leadId = await findOrCreateLeadByPhone(admin, { phone, name, text })
 
   const previewText = text
     ? (text.length > 100 ? text.slice(0, 100) + '…' : text)
@@ -74,7 +74,7 @@ export async function recordInboundWhatsAppMessage(admin: AdminClient, msg: Inbo
     console.error('[WhatsApp] AI enrichment failed:', err instanceof Error ? err.message : err)
   })
 
-  await advanceQualifyingBot(admin, { leadId, conversationId: convId, phone, isNewConversation: isNewLead }).catch((err) => {
+  await advanceQualifyingBot(admin, { leadId, conversationId: convId, phone }).catch((err) => {
     console.error('[WhatsApp] Qualifying bot failed:', err instanceof Error ? err.message : err)
   })
 }
@@ -166,7 +166,7 @@ export async function resolveLidPhone(admin: AdminClient, oldPhone: string, newP
 async function findOrCreateLeadByPhone(
   admin: AdminClient,
   { phone, name, text }: { phone: string; name: string | null; text: string | null },
-): Promise<{ id: string; isNew: boolean }> {
+): Promise<string> {
   const { data: existing } = await admin
     .from('leads')
     .select('id, nombre')
@@ -177,7 +177,7 @@ async function findOrCreateLeadByPhone(
 
   if (existing) {
     console.log(`[WhatsApp] Existing lead: ${existing.id} (${existing.nombre})`)
-    return { id: existing.id, isNew: false }
+    return existing.id
   }
 
   // Assign all incoming leads to Walo
@@ -218,5 +218,5 @@ async function findOrCreateLeadByPhone(
   }
 
   console.log(`[WhatsApp] New lead created: ${newLead.id} (${newLead.nombre})`)
-  return { id: newLead.id, isNew: true }
+  return newLead.id
 }

@@ -8,15 +8,15 @@ const QUESTION_ORDER = ['email', 'empresa', 'sitio_web', 'pais', 'servicios_inte
 type QuestionField = typeof QUESTION_ORDER[number]
 
 const QUESTION_TEXT: Record<QuestionField, string> = {
-  email:                 '¿Cuál es tu email?',
-  empresa:               '¿Tenés una empresa o negocio? ¿Cómo se llama?',
-  sitio_web:             '¿Tenés sitio web? Si tenés, pasame el link (si no tenés, no hay drama).',
-  pais:                  '¿Desde qué país nos escribís?',
-  servicios_interesados: '¿En qué servicio estás interesado? (ej. diseño web, mantenimiento, redes sociales, branding, etc.)',
+  email:                 'Para arrancar, ¿me pasás tu email? 📧',
+  empresa:               '¿Tenés una empresa o negocio? Contame cómo se llama 😊',
+  sitio_web:             '¿Ya tenés un sitio web? Si tenés, pasame el link (si no tenés todavía, tranquilo, no es obligatorio)',
+  pais:                  '¿Desde qué país me escribís?',
+  servicios_interesados: 'Y por último, ¿en qué te podemos ayudar? (por ejemplo: diseño web, mantenimiento, redes sociales, branding, marketing, etc.) ✨',
 }
 
-const WELCOME = '¡Hola! 👋 Soy el asistente de Alora. Antes de pasarte con el equipo, te hago un par de preguntas rápidas para conocerte mejor.'
-const CLOSING = '¡Buenísimo, ya tengo todo! 🙌 En breve te responde alguien del equipo.'
+const WELCOME = '¡Hola! 👋 Soy Lidia, la asistente virtual de Alora. ¡Qué alegría que nos escribas! Antes de pasarte con alguien del equipo, te hago unas preguntitas rápidas para conocerte mejor 🙂'
+const CLOSING = '¡Listo, ya tengo todo lo que necesitaba! 🎉 Gracias por tu paciencia — en breve te escribe alguien del equipo de Alora para ayudarte. ¡Que tengas un lindo día! 💛'
 
 interface LeadSnapshot {
   email: string | null
@@ -35,15 +35,15 @@ function isFieldFilled(lead: LeadSnapshot, field: QuestionField): boolean {
  * Drives the qualifying bot for one inbound message: figures out which
  * question (if any) to ask next, sends it, and stores where we're up to.
  * Call this after the AI enrichment step so it sees the freshest lead data.
+ *
+ * Whether to show the welcome / how far along we are is driven entirely by
+ * `bot_next_question` on the conversation row — not by whether the lead
+ * itself is new — so resetting a conversation (e.g. bot_next_question set
+ * back to null) always restarts cleanly with the welcome message.
  */
 export async function advanceQualifyingBot(
   admin: AdminClient,
-  { leadId, conversationId, phone, isNewConversation }: {
-    leadId: string
-    conversationId: string
-    phone: string
-    isNewConversation: boolean
-  },
+  { leadId, conversationId, phone }: { leadId: string; conversationId: string; phone: string },
 ): Promise<void> {
   const { data: convo } = await admin
     .from('whatsapp_conversations')
@@ -66,14 +66,15 @@ export async function advanceQualifyingBot(
   const lastAskedIdx = convo.bot_next_question
     ? QUESTION_ORDER.indexOf(convo.bot_next_question as QuestionField)
     : -1
-  const startIdx = isNewConversation ? 0 : lastAskedIdx + 1
+  const isFreshStart = lastAskedIdx === -1
+  const startIdx = isFreshStart ? 0 : lastAskedIdx + 1
 
   const nextField = QUESTION_ORDER.slice(startIdx).find((f) => !isFieldFilled(lead, f))
 
   if (!nextField) {
-    // Nothing left to ask. Only announce completion if we'd actually asked
-    // at least one question before (skip a silent close on a fully-prefilled lead).
-    if (lastAskedIdx >= 0 || isNewConversation) {
+    // Nothing left to ask. Skip a silent close if the bot never actually
+    // got to ask anything (e.g. the lead arrived already fully filled in).
+    if (!isFreshStart) {
       await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: CLOSING })
     }
     await admin
@@ -83,7 +84,7 @@ export async function advanceQualifyingBot(
     return
   }
 
-  const prefix = isNewConversation ? `${WELCOME}\n\n` : ''
+  const prefix = isFreshStart ? `${WELCOME}\n\n` : ''
   await sendOutboundWhatsAppMessage(admin, {
     conversationId,
     leadId,
