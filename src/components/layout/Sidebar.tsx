@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
-import { LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, List, MessageCircle, Smartphone, ContactRound, X, Menu, UserCog } from 'lucide-react'
+import { LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, List, MessageCircle, Smartphone, ContactRound, X, Menu, UserCog, Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import type { WhatsAppConversation } from '@/types'
@@ -15,6 +15,7 @@ const settingsNav = [
   { href: '/settings/tags',      label: 'Etiquetas',   icon: Tag            },
   { href: '/settings/lists',     label: 'Listas',      icon: List           },
   { href: '/settings/whatsapp',  label: 'WhatsApp',    icon: Smartphone     },
+  { href: '/settings/whatsapp-faqs', label: 'FAQs de Lidia', icon: Bot      },
 ]
 
 // Componente separado para evitar error de render

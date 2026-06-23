@@ -179,6 +179,8 @@ export interface WhatsAppConversation {
   last_message_text: string | null
   unread_count: number
   status: 'open' | 'closed'
+  bot_active: boolean
+  bot_phase: 'qualifying' | 'faq'
   created_at: string
   updated_at: string
   // Joined from leads
@@ -188,6 +190,16 @@ export interface WhatsAppConversation {
     apellido: string | null
     email: string | null
   } | null
+}
+
+export interface WhatsAppFaq {
+  id: string
+  pregunta: string
+  respuesta: string
+  activo: boolean
+  orden: number
+  created_at: string
+  updated_at: string
 }
 
 export interface WhatsAppMessage {

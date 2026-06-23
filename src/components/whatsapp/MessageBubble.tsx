@@ -1,6 +1,6 @@
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Check, CheckCheck, Clock, AlertCircle } from 'lucide-react'
+import { Check, CheckCheck, Clock, AlertCircle, Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { WhatsAppMessage } from '@/types'
 
@@ -31,6 +31,7 @@ function StatusIcon({ status, isOutbound }: { status: WhatsAppMessage['status'];
 
 export function MessageBubble({ message }: Props) {
   const isOutbound = message.direction === 'outbound'
+  const isFromBot = isOutbound && !message.agent_id
   const text = message.body
 
   let time = ''
@@ -44,11 +45,18 @@ export function MessageBubble({ message }: Props) {
         className={cn(
           'max-w-[72%] rounded-2xl px-3.5 py-2 shadow-sm',
           isOutbound
-            ? 'bg-blue-600 text-white rounded-br-sm'
+            ? (isFromBot ? 'bg-violet-600 text-white rounded-br-sm' : 'bg-blue-600 text-white rounded-br-sm')
             : 'bg-white border border-slate-200 text-slate-900 rounded-bl-sm',
           message.status === 'failed' && 'bg-red-100 border border-red-300 text-red-800'
         )}
       >
+        {isFromBot && message.status !== 'failed' && (
+          <div className="flex items-center gap-1 mb-1 text-violet-200">
+            <Bot size={11} />
+            <span className="text-[10px] font-medium uppercase tracking-wide">Lidia</span>
+          </div>
+        )}
+
         {/* Media placeholder */}
         {message.media_type && (
           <p className={cn(

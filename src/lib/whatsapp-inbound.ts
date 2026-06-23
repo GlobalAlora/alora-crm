@@ -1,7 +1,10 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { extractLeadInfoFromConversation } from '@/lib/ai-lead-extract'
-import { advanceQualifyingBot } from '@/lib/whatsapp-bot'
+import { runBot } from '@/lib/whatsapp-bot'
 import { PAISES, SERVICIOS } from '@/types'
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const URL_RE = /^https?:\/\/[^\s]+\.[^\s]+$|^[^\s]+\.[a-z]{2,}([/?#][^\s]*)?$/i
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -74,8 +77,8 @@ export async function recordInboundWhatsAppMessage(admin: AdminClient, msg: Inbo
     console.error('[WhatsApp] AI enrichment failed:', err instanceof Error ? err.message : err)
   })
 
-  await advanceQualifyingBot(admin, { leadId, conversationId: convId, phone }).catch((err) => {
-    console.error('[WhatsApp] Qualifying bot failed:', err instanceof Error ? err.message : err)
+  await runBot(admin, { leadId, conversationId: convId, phone, text }).catch((err) => {
+    console.error('[WhatsApp] Bot failed:', err instanceof Error ? err.message : err)
   })
 }
 
@@ -109,8 +112,12 @@ async function enrichLeadFromConversation(admin: AdminClient, leadId: string, co
   const updates: Record<string, unknown> = {}
 
   if (!lead.empresa && extracted.empresa) updates.empresa = extracted.empresa
-  if (!lead.sitio_web && extracted.sitio_web) updates.sitio_web = extracted.sitio_web
-  if (!lead.email && extracted.email) updates.email = extracted.email
+  if (!lead.sitio_web && extracted.sitio_web && URL_RE.test(extracted.sitio_web.trim())) {
+    updates.sitio_web = extracted.sitio_web.trim()
+  }
+  if (!lead.email && extracted.email && EMAIL_RE.test(extracted.email.trim())) {
+    updates.email = extracted.email.trim()
+  }
   if (!lead.pais && extracted.pais && (PAISES as readonly string[]).includes(extracted.pais)) {
     updates.pais = extracted.pais
   }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { recordInboundWhatsAppMessage, resolveLidPhone } from '@/lib/whatsapp-inbound'
+import { sendWhatsAppDisconnectedAlert } from '@/lib/whatsapp-alerts'
 
 // ── POST /api/webhooks/whatsapp-baileys ────────────────────────────────────────
 // Called by the Baileys worker (a separate always-on Node process) for every
@@ -19,10 +20,16 @@ export async function POST(req: NextRequest) {
     waMessageId?: string | null
     mediaType?: string | null
     lidResolved?: { oldPhone: string; newPhone: string }
+    disconnected?: { reason: string }
   } | null
 
   if (!body) {
     return NextResponse.json({ error: 'Body inválido' }, { status: 400 })
+  }
+
+  if (body.disconnected) {
+    await sendWhatsAppDisconnectedAlert()
+    return NextResponse.json({ status: 'ok' })
   }
 
   const admin = createAdminClient()

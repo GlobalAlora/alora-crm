@@ -54,6 +54,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const updates: Record<string, unknown> = {}
   if ('unread_count' in body) updates.unread_count = body.unread_count
   if ('status' in body) updates.status = body.status
+  if ('bot_active' in body) {
+    updates.bot_active = body.bot_active
+    // Manually flipping the bot back on always restarts the qualifying flow.
+    if (body.bot_active) updates.bot_phase = 'qualifying'
+    updates.bot_next_question = null
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 })

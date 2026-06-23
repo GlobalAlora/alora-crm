@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { Send, User, X, MessageCircle } from 'lucide-react'
+import { Send, User, X, MessageCircle, Bot } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
@@ -118,6 +118,22 @@ export function ChatView({ phone, conversation, onClose }: Props) {
     },
   })
 
+  // Toggle the qualifying/FAQ bot on or off for this conversation
+  const toggleBotMutation = useMutation({
+    mutationFn: async (botActive: boolean) => {
+      const res = await fetch(`/api/whatsapp/conversations/${phone}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bot_active: botActive }),
+      })
+      if (!res.ok) throw new Error('Error al cambiar el estado de Lidia')
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
   const handleSend = () => {
     const trimmed = text.trim()
     if (!trimmed || sendMutation.isPending) return
@@ -161,6 +177,23 @@ export function ChatView({ phone, conversation, onClose }: Props) {
           <p className="font-semibold text-slate-900 text-sm truncate">{displayName}</p>
           <p className="text-xs text-slate-400">+{phone}</p>
         </div>
+
+        {conversation && (
+          <button
+            onClick={() => toggleBotMutation.mutate(!conversation.bot_active)}
+            disabled={toggleBotMutation.isPending}
+            title={conversation.bot_active ? 'Lidia está atendiendo esta conversación — click para pausarla' : 'Lidia está pausada — click para reactivarla'}
+            className={cn(
+              'flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md transition-colors disabled:opacity-50',
+              conversation.bot_active
+                ? 'text-green-700 bg-green-50 hover:bg-green-100'
+                : 'text-slate-500 bg-slate-100 hover:bg-slate-200'
+            )}
+          >
+            <Bot size={12} />
+            {conversation.bot_active ? 'Lidia activa' : 'Lidia pausada'}
+          </button>
+        )}
 
         {conversation?.lead_id && (
           <Link

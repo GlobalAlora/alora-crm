@@ -75,6 +75,7 @@ async function startSock() {
 
       if (loggedOut) {
         logger.warn(`Sesión cerrada desde el teléfono. Borrá ${AUTH_DIR} y reiniciá para escanear un QR nuevo.`)
+        notifyDisconnected()
       } else {
         logger.warn({ statusCode }, 'Conexión cerrada, reconectando…')
         startSock()
@@ -94,6 +95,21 @@ async function startSock() {
 
   sock.ev.on('contacts.upsert', processContacts)
   sock.ev.on('contacts.update', processContacts)
+}
+
+// ── Disconnect alert ─────────────────────────────────────────────────────────
+
+async function notifyDisconnected() {
+  if (!CRM_WEBHOOK_URL || !BAILEYS_WEBHOOK_SECRET) return
+  try {
+    await fetch(CRM_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-webhook-secret': BAILEYS_WEBHOOK_SECRET },
+      body: JSON.stringify({ disconnected: { reason: 'logged_out' } }),
+    })
+  } catch (err) {
+    logger.warn({ err }, 'No se pudo avisar al CRM de la desconexión')
+  }
 }
 
 // ── LID ↔ phone mapping from WhatsApp's contact sync ────────────────────────
