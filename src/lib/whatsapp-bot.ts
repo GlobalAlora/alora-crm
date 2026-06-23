@@ -16,7 +16,10 @@ const QUESTION_TEXT: Record<QuestionField, string> = {
 }
 
 const WELCOME = '¡Hola! 👋 Soy Lidia, la asistente virtual de Alora. ¡Qué alegría que nos escribas! Antes de pasarte con alguien del equipo, te hago unas preguntitas rápidas para conocerte mejor 🙂'
-const CLOSING = '¡Listo, ya tengo todo lo que necesitaba! 🎉 Gracias por tu paciencia — en breve te escribe alguien del equipo de Alora para ayudarte. ¡Que tengas un lindo día! 💛'
+const CLOSING = '¡Listo, ya tengo todo lo que necesitaba! 🎉 Gracias por tu paciencia.\n\n'
+  + 'Para avanzar, te propongo agendar una llamada de relevamiento rápida con Walo, así charlan tranquilos sobre lo que necesitás:\n'
+  + 'https://www.globalalora.com/es/llamada-de-relevamiento\n\n'
+  + 'Elegí el horario que más te quede cómodo y ahí se conectan 💛'
 
 interface LeadSnapshot {
   email: string | null
