@@ -5,7 +5,7 @@ import { matchFaqOrEscalate } from '@/lib/whatsapp-faq'
 type AdminClient = ReturnType<typeof createAdminClient>
 
 // Order in which the qualifying bot asks for missing info.
-const QUESTION_ORDER = ['email', 'empresa', 'sitio_web', 'pais', 'servicios_interesados'] as const
+const QUESTION_ORDER = ['servicios_interesados', 'email', 'empresa', 'sitio_web', 'pais'] as const
 type QuestionField = typeof QUESTION_ORDER[number]
 
 const QUESTION_TEXT: Record<QuestionField, string> = {
@@ -13,10 +13,10 @@ const QUESTION_TEXT: Record<QuestionField, string> = {
   empresa:               '¿Tenés una empresa o negocio? Contame cómo se llama 😊',
   sitio_web:             '¿Ya tenés un sitio web? Si tenés, pasame el link (si no tenés todavía, tranquilo, no es obligatorio)',
   pais:                  '¿Desde qué país me escribís?',
-  servicios_interesados: 'Y por último, ¿en qué te podemos ayudar? (por ejemplo: diseño web, mantenimiento, redes sociales, branding, marketing, etc.) ✨',
+  servicios_interesados: '¿En qué te podemos ayudar? Contame qué estás buscando (por ejemplo: diseño web, mantenimiento, redes sociales, branding, marketing, etc.) ✨',
 }
 
-const WELCOME = '¡Hola! 👋 Soy Lidia, la asistente virtual de Alora. ¡Qué alegría que nos escribas! Antes de pasarte con alguien del equipo, te hago unas preguntitas rápidas para conocerte mejor 🙂'
+const WELCOME = '¡Hola! 👋 Soy Lidia, de Alora. ¡Qué alegría que nos escribas! 🙂'
 const CLOSING = '¡Listo, ya tengo todo lo que necesitaba! 🎉 Gracias por tu paciencia.\n\n'
   + 'Para avanzar, te propongo agendar una llamada de relevamiento rápida con Walo, así charlan tranquilos sobre lo que necesitás:\n'
   + 'https://www.globalalora.com/es/llamada-de-relevamiento\n\n'
