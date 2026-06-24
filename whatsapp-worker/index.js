@@ -196,6 +196,15 @@ async function handleIncomingMessage(m) {
   const name = m.pushName || null
   const { text, mediaType } = extractText(m.message)
 
+  // Protocol-level noise (receipts, reactions, key-distribution messages,
+  // poll updates, etc.) still arrives via messages.upsert with m.message set,
+  // but extractText finds nothing displayable — skip it instead of saving an
+  // empty bubble in the CRM.
+  if (!text && !mediaType) {
+    logger.info({ rawJid, messageKeys: Object.keys(m.message) }, 'Mensaje sin contenido mostrable, se ignora')
+    return
+  }
+
   logger.info({ rawJid, isLid, jidDigits, phone, name, text }, 'Mensaje entrante procesado')
 
   if (!CRM_WEBHOOK_URL || !BAILEYS_WEBHOOK_SECRET) {
