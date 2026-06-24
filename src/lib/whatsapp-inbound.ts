@@ -24,19 +24,6 @@ export interface InboundWhatsAppMessage {
 export async function recordInboundWhatsAppMessage(admin: AdminClient, msg: InboundWhatsAppMessage): Promise<void> {
   const { phone, name, text, waMessageId, mediaType } = msg
 
-  if (waMessageId) {
-    const { data: existing } = await admin
-      .from('wa_messages')
-      .select('id')
-      .eq('wa_message_id', waMessageId)
-      .maybeSingle()
-
-    if (existing) {
-      console.log(`[WhatsApp] Duplicate message ignored: ${waMessageId}`)
-      return
-    }
-  }
-
   const leadId = await findOrCreateLeadByPhone(admin, { phone, name, text })
 
   const previewText = text
@@ -55,12 +42,10 @@ export async function recordInboundWhatsAppMessage(admin: AdminClient, msg: Inbo
     return
   }
 
-  // The lead replied — they're no longer silent, so reset the follow-up clock.
-  await admin
-    .from('whatsapp_conversations')
-    .update({ last_message_direction: 'inbound', followup_count: 0 })
-    .eq('id', convId)
-
+  // The actual dedup guard: a unique constraint on wa_message_id makes this
+  // INSERT the single source of truth, so two near-simultaneous deliveries
+  // of the same WhatsApp message (Baileys retries on decrypt failures) can
+  // never both proceed past this point, no matter how close together they run.
   const { error: msgError } = await admin
     .from('wa_messages')
     .insert({
@@ -74,10 +59,21 @@ export async function recordInboundWhatsAppMessage(admin: AdminClient, msg: Inbo
     })
 
   if (msgError) {
-    console.error(`[WhatsApp] Failed to save message from ${phone}:`, msgError.message)
-  } else {
-    console.log(`[WhatsApp] Message saved from ${phone}`)
+    if (msgError.code === '23505') {
+      console.log(`[WhatsApp] Duplicate message ignored: ${waMessageId}`)
+    } else {
+      console.error(`[WhatsApp] Failed to save message from ${phone}:`, msgError.message)
+    }
+    return
   }
+
+  console.log(`[WhatsApp] Message saved from ${phone}`)
+
+  // The lead replied — they're no longer silent, so reset the follow-up clock.
+  await admin
+    .from('whatsapp_conversations')
+    .update({ last_message_direction: 'inbound', followup_count: 0 })
+    .eq('id', convId)
 
   await enrichLeadFromConversation(admin, leadId, convId).catch((err) => {
     console.error('[WhatsApp] AI enrichment failed:', err instanceof Error ? err.message : err)
