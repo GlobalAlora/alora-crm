@@ -55,6 +55,12 @@ export async function recordInboundWhatsAppMessage(admin: AdminClient, msg: Inbo
     return
   }
 
+  // The lead replied — they're no longer silent, so reset the follow-up clock.
+  await admin
+    .from('whatsapp_conversations')
+    .update({ last_message_direction: 'inbound', followup_count: 0 })
+    .eq('id', convId)
+
   const { error: msgError } = await admin
     .from('wa_messages')
     .insert({

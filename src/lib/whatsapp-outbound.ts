@@ -57,7 +57,7 @@ export async function sendOutboundWhatsAppMessage(admin: AdminClient, { conversa
   const preview = body.length > 100 ? body.slice(0, 100) + '…' : body
   await admin
     .from('whatsapp_conversations')
-    .update({ last_message_at: new Date().toISOString(), last_message_text: preview })
+    .update({ last_message_at: new Date().toISOString(), last_message_text: preview, last_message_direction: 'outbound' })
     .eq('id', conversationId)
 
   return { id: savedMsg.id }
