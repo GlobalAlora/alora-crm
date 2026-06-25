@@ -4,6 +4,30 @@ import { matchFaqOrEscalate } from '@/lib/whatsapp-faq'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
+// Leads already in this list are existing clients — Lidia must never engage
+// them (they're usually writing about something unrelated to a new lead),
+// no matter what state their conversation is in.
+const CLIENT_LIST_NAME = 'CLIENTES ALORA'
+
+export async function isClientLead(admin: AdminClient, leadId: string): Promise<boolean> {
+  const { data: list } = await admin
+    .from('lists')
+    .select('id')
+    .eq('name', CLIENT_LIST_NAME)
+    .maybeSingle()
+
+  if (!list) return false
+
+  const { data } = await admin
+    .from('list_leads')
+    .select('lead_id')
+    .eq('list_id', list.id)
+    .eq('lead_id', leadId)
+    .maybeSingle()
+
+  return !!data
+}
+
 // Order in which the qualifying bot asks for missing info.
 const QUESTION_ORDER = ['servicios_interesados', 'email', 'empresa', 'sitio_web', 'pais'] as const
 type QuestionField = typeof QUESTION_ORDER[number]
@@ -46,6 +70,13 @@ export async function runBot(
   admin: AdminClient,
   { leadId, conversationId, phone, text }: { leadId: string; conversationId: string; phone: string; text: string | null },
 ): Promise<void> {
+  if (await isClientLead(admin, leadId)) {
+    // Existing clients: always straight to a human, never the bot — not even
+    // a welcome message. Force bot_active off in case it was somehow on.
+    await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
+    return
+  }
+
   const { data: convo } = await admin
     .from('whatsapp_conversations')
     .select('bot_active, bot_phase, bot_next_question')

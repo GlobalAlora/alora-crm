@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendOutboundWhatsAppMessage } from '@/lib/whatsapp-outbound'
+import { isClientLead } from '@/lib/whatsapp-bot'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -45,6 +46,12 @@ export async function runWhatsAppFollowUps(admin: AdminClient): Promise<{ sent: 
     const hoursSince = (now - new Date(conv.last_message_at).getTime()) / 3_600_000
     const threshold = FOLLOWUP_HOURS[conv.followup_count]
     if (hoursSince < threshold) continue
+
+    // Never chase up an existing client — they're not a lead going cold.
+    if (conv.lead_id && await isClientLead(admin, conv.lead_id)) {
+      await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conv.id)
+      continue
+    }
 
     const result = await sendOutboundWhatsAppMessage(admin, {
       conversationId: conv.id,
