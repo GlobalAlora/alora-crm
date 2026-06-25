@@ -46,23 +46,36 @@ export default function TagsSettingsPage() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['tags'] })
 
   const createMutation = useMutation({
-    mutationFn: (body: object) =>
-      fetch('/api/tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json()),
+    mutationFn: async (body: object) => {
+      const res = await fetch('/api/tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Error al crear etiqueta')
+      return json
+    },
     onSuccess: () => { invalidate(); setShowNew(false); setNewName(''); toast.success('Etiqueta creada') },
-    onError: () => toast.error('Error al crear etiqueta'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, ...body }: { id: string; name: string; color: string }) =>
-      fetch(`/api/tags/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json()),
+    mutationFn: async ({ id, ...body }: { id: string; name: string; color: string }) => {
+      const res = await fetch(`/api/tags/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Error al actualizar')
+      return json
+    },
     onSuccess: () => { invalidate(); setEditingId(null); toast.success('Etiqueta actualizada') },
-    onError: () => toast.error('Error al actualizar'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => fetch(`/api/tags/${id}`, { method: 'DELETE' }).then((r) => r.json()),
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/tags/${id}`, { method: 'DELETE' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Error al eliminar')
+      return json
+    },
     onSuccess: () => { invalidate(); toast.success('Etiqueta eliminada') },
-    onError: () => toast.error('Error al eliminar'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const startEdit = (tag: LeadTag) => {

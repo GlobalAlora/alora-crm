@@ -35,25 +35,33 @@ export function TagsSection({ leadId, readOnly = false }: TagsSectionProps) {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['lead-tags', leadId] })
 
   const addMutation = useMutation({
-    mutationFn: (tag_id: string) =>
-      fetch(`/api/leads/${leadId}/tags`, {
+    mutationFn: async (tag_id: string) => {
+      const res = await fetch(`/api/leads/${leadId}/tags`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tag_id }),
-      }).then((r) => r.json()),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Error al agregar etiqueta')
+      return json
+    },
     onSuccess: () => { invalidate(); toast.success('Etiqueta agregada') },
-    onError: () => toast.error('Error al agregar etiqueta'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const removeMutation = useMutation({
-    mutationFn: (tag_id: string) =>
-      fetch(`/api/leads/${leadId}/tags`, {
+    mutationFn: async (tag_id: string) => {
+      const res = await fetch(`/api/leads/${leadId}/tags`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tag_id }),
-      }).then((r) => r.json()),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Error al remover etiqueta')
+      return json
+    },
     onSuccess: () => { invalidate(); toast.success('Etiqueta removida') },
-    onError: () => toast.error('Error al remover etiqueta'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   return (

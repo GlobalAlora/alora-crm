@@ -79,16 +79,20 @@ export default function CampaignDetailPage() {
   }
 
   const sendMutation = useMutation({
-    mutationFn: () => fetch(`/api/campaigns/${id}/send`, { method: 'POST' }).then(r => r.json()),
+    mutationFn: async () => {
+      const res = await fetch(`/api/campaigns/${id}/send`, { method: 'POST' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Error al enviar')
+      return json
+    },
     onSuccess: (res) => {
-      if (res.error) { toast.error(res.error); return }
       toast.success(res.message ?? 'Enviando campaña...')
       setConfirmSend(false)
       queryClient.invalidateQueries({ queryKey: ['campaign', id] })
       queryClient.invalidateQueries({ queryKey: ['campaign-recipients', id] })
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
     },
-    onError: () => toast.error('Error al enviar'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const handleTestSend = async () => {

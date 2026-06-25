@@ -25,25 +25,36 @@ export default function WhatsAppFaqsSettingsPage() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['whatsapp-faqs'] })
 
   const createMutation = useMutation({
-    mutationFn: (body: { pregunta: string; respuesta: string }) =>
-      fetch('/api/whatsapp/faqs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-        .then((r) => r.json()),
+    mutationFn: async (body: { pregunta: string; respuesta: string }) => {
+      const res = await fetch('/api/whatsapp/faqs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Error al crear la FAQ')
+      return json
+    },
     onSuccess: () => { invalidate(); setShowNew(false); setNewPregunta(''); setNewRespuesta(''); toast.success('FAQ creada') },
-    onError: () => toast.error('Error al crear la FAQ'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, ...body }: { id: string; pregunta?: string; respuesta?: string; activo?: boolean }) =>
-      fetch(`/api/whatsapp/faqs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-        .then((r) => r.json()),
+    mutationFn: async ({ id, ...body }: { id: string; pregunta?: string; respuesta?: string; activo?: boolean }) => {
+      const res = await fetch(`/api/whatsapp/faqs/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Error al actualizar')
+      return json
+    },
     onSuccess: () => { invalidate(); setEditingId(null) },
-    onError: () => toast.error('Error al actualizar'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => fetch(`/api/whatsapp/faqs/${id}`, { method: 'DELETE' }).then((r) => r.json()),
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/whatsapp/faqs/${id}`, { method: 'DELETE' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Error al eliminar')
+      return json
+    },
     onSuccess: () => { invalidate(); toast.success('FAQ eliminada') },
-    onError: () => toast.error('Error al eliminar'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const startEdit = (faq: WhatsAppFaq) => {

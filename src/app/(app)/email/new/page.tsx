@@ -56,13 +56,17 @@ export default function NewCampaignPage() {
   }
 
   const createMutation = useMutation({
-    mutationFn: (data: object) =>
-      fetch('/api/campaigns', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()),
+    mutationFn: async (data: object) => {
+      const res = await fetch('/api/campaigns', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Error al crear campaña')
+      return json
+    },
     onSuccess: (res) => {
       toast.success('Campaña creada')
       router.push(`/email/${res.data.id}`)
     },
-    onError: () => toast.error('Error al crear campaña'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const handleSave = () => {

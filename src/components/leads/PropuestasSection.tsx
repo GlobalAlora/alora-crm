@@ -70,20 +70,29 @@ export function PropuestasSection({ leadId, propuestas: initialPropuestas }: Pro
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await fetch(`/api/leads/${leadId}/propuestas/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/leads/${leadId}/propuestas/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error ?? 'Error al eliminar propuesta')
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['propuestas', leadId] })
       qc.invalidateQueries({ queryKey: ['leads'] })
       toast.success('Propuesta eliminada')
     },
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const updateEstadoMutation = useMutation({
     mutationFn: async ({ id, estado }: { id: string; estado: string }) => {
-      await fetch(`/api/propuestas/${id}`, {
+      const res = await fetch(`/api/propuestas/${id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado }),
       })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error ?? 'Error al actualizar estado')
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['propuestas', leadId] })
@@ -91,7 +100,7 @@ export function PropuestasSection({ leadId, propuestas: initialPropuestas }: Pro
       qc.invalidateQueries({ queryKey: ['leads'] })
       toast.success('Estado actualizado')
     },
-    onError: () => toast.error('Error al actualizar estado'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const updateMutation = useMutation({
@@ -104,9 +113,13 @@ export function PropuestasSection({ leadId, propuestas: initialPropuestas }: Pro
         tipo_pago: form.tipo_pago,
         link: form.link || null,
       }
-      await fetch(`/api/propuestas/${id}`, {
+      const res = await fetch(`/api/propuestas/${id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error ?? 'Error al actualizar propuesta')
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['propuestas', leadId] })
@@ -116,7 +129,7 @@ export function PropuestasSection({ leadId, propuestas: initialPropuestas }: Pro
       setForm({ descripcion: '', valor: '', moneda: 'USD', tipo_pago: 'unica_vez', link: '' })
       toast.success('Propuesta actualizada')
     },
-    onError: () => toast.error('Error al actualizar propuesta'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const startEdit = (p: Propuesta) => {

@@ -32,9 +32,14 @@ export default function EmailPage() {
   const campaigns = data?.data ?? []
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => fetch(`/api/campaigns/${id}`, { method: 'DELETE' }).then((r) => r.json()),
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/campaigns/${id}`, { method: 'DELETE' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Error al eliminar')
+      return json
+    },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['campaigns'] }); toast.success('Campaña eliminada') },
-    onError: () => toast.error('Error al eliminar'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   return (
