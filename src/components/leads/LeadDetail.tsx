@@ -676,6 +676,16 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
               </div>
             )}
 
+            {/* Consulta detallada — only show in left panel when NOT fullPage */}
+            {!fullPage && (
+              <LongTextField
+                key={`consulta-${lead.id}`}
+                label="Consulta detallada (Lidia)"
+                value={lead.consulta_detallada ?? ''}
+                onSave={(v) => patch({ consulta_detallada: v || null })}
+              />
+            )}
+
             {/* Notes — only show in left panel when NOT fullPage */}
             {!fullPage && (
               <div className="space-y-2">
@@ -915,6 +925,14 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                 </div>
               )}
 
+              {/* Consulta detallada */}
+              <LongTextField
+                key={`right-consulta-${lead.id}`}
+                label="Consulta detallada (Lidia)"
+                value={lead.consulta_detallada ?? ''}
+                onSave={(v) => patch({ consulta_detallada: v || null })}
+              />
+
               {/* Notes */}
               <div className="space-y-2">
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Notas</p>
@@ -929,6 +947,55 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
         )}
       </div>
     </>
+  )
+}
+
+// ── Long plain-text field (e.g. consulta_detallada) ───────────────────────────
+
+function LongTextField({ label, value, onSave, placeholder = 'Sin datos' }: {
+  label: string
+  value: string
+  onSave: (v: string) => void
+  placeholder?: string
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+
+  useEffect(() => { setDraft(value) }, [value])
+
+  if (editing) {
+    return (
+      <div className="space-y-2">
+        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
+        <textarea
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={4}
+          className="w-full text-sm border border-blue-400 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+        />
+        <div className="flex gap-2 justify-end">
+          <button onClick={() => { setDraft(value); setEditing(false) }} className="text-xs px-3 py-1.5 text-slate-600 hover:bg-slate-100 rounded-md">
+            Cancelar
+          </button>
+          <button onClick={() => { onSave(draft); setEditing(false) }} className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+            Guardar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="group space-y-0.5">
+      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
+      <button
+        onClick={() => { setDraft(value); setEditing(true) }}
+        className="w-full text-left text-sm text-slate-700 hover:text-blue-600 group-hover:underline decoration-dashed underline-offset-2 transition-colors whitespace-pre-wrap"
+      >
+        {value || <span className="text-slate-300">{placeholder}</span>}
+      </button>
+    </div>
   )
 }
 
