@@ -38,25 +38,33 @@ export function ListsSection({ leadId, readOnly = false }: ListsSectionProps) {
   }
 
   const addMutation = useMutation({
-    mutationFn: (list_id: string) =>
-      fetch(`/api/lists/${list_id}/leads`, {
+    mutationFn: async (list_id: string) => {
+      const res = await fetch(`/api/lists/${list_id}/leads`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lead_id: leadId }),
-      }).then((r) => r.json()),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Error al agregar a la lista')
+      return json
+    },
     onSuccess: () => { invalidate(); toast.success('Agregado a la lista') },
-    onError: () => toast.error('Error al agregar a la lista'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const removeMutation = useMutation({
-    mutationFn: (list_id: string) =>
-      fetch(`/api/lists/${list_id}/leads`, {
+    mutationFn: async (list_id: string) => {
+      const res = await fetch(`/api/lists/${list_id}/leads`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lead_id: leadId }),
-      }).then((r) => r.json()),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Error al remover de la lista')
+      return json
+    },
     onSuccess: () => { invalidate(); toast.success('Removido de la lista') },
-    onError: () => toast.error('Error al remover de la lista'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   return (

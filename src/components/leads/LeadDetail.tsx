@@ -6,7 +6,7 @@ import {
   X, Mail, Building2, Tag as TagIcon, Globe, Calendar,
   MessageSquare, FileText, History, ExternalLink,
   Check, AlertCircle, MessageCircle, ChevronDown, Users,
-  Edit2,
+  Edit2, List as ListIcon,
 } from 'lucide-react'
 import { leadsApi, usersApi } from '@/lib/api'
 import { cn, formatUSD, formatARS, timeAgo, getProjectStatus, getDaysUntil } from '@/lib/utils'
@@ -18,6 +18,7 @@ import { UnifiedTimeline } from './UnifiedTimeline'
 import { EmailsSection } from './EmailsSection'
 import { PropuestasSection } from './PropuestasSection'
 import { TagsSection } from './TagsSection'
+import { ListsSection } from './ListsSection'
 import { StageHistorySection } from './StageHistorySection'
 import { ServiciosEdit } from './ServiciosEdit'
 import { FormDataSection } from './FormDataSection'
@@ -34,13 +35,14 @@ interface LeadDetailProps {
   fullPage?: boolean
 }
 
-type Tab = 'actividad' | 'emails' | 'propuestas' | 'tags' | 'historial' | 'formulario'
+type Tab = 'actividad' | 'emails' | 'propuestas' | 'tags' | 'listas' | 'historial' | 'formulario'
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'actividad',   label: 'Actividad',   icon: MessageSquare },
   { id: 'emails',      label: 'Emails',      icon: Mail          },
   { id: 'propuestas',  label: 'Propuestas',  icon: FileText      },
   { id: 'tags',        label: 'Etiquetas',   icon: TagIcon       },
+  { id: 'listas',      label: 'Listas',      icon: ListIcon      },
   { id: 'historial',   label: 'Historial',   icon: History       },
   { id: 'formulario',  label: 'Formulario',  icon: Globe         },
 ]
@@ -738,6 +740,7 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
             {activeTab === 'emails'     && <EmailsSection leadId={lead.id} leadEmail={lead.email} />}
             {activeTab === 'propuestas' && <PropuestasSection leadId={lead.id} propuestas={lead.propuestas} />}
             {activeTab === 'tags'       && <TagsSection leadId={lead.id} />}
+            {activeTab === 'listas'     && <ListsSection leadId={lead.id} />}
             {activeTab === 'historial'  && <StageHistorySection history={lead.stage_history} />}
             {activeTab === 'formulario' && <FormDataSection formData={lead.form_data} />}
           </div>
