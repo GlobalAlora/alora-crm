@@ -22,16 +22,25 @@ export default function ListsSettingsPage() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['lists'] })
 
   const createMutation = useMutation({
-    mutationFn: (body: object) =>
-      fetch('/api/lists', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json()),
+    mutationFn: async (body: object) => {
+      const res = await fetch('/api/lists', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Error al crear lista')
+      return json
+    },
     onSuccess: () => { invalidate(); setShowNew(false); setNewName(''); setNewDesc(''); toast.success('Lista creada') },
-    onError: () => toast.error('Error al crear lista'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => fetch(`/api/lists/${id}`, { method: 'DELETE' }).then((r) => r.json()),
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/lists/${id}`, { method: 'DELETE' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error ?? 'Error al eliminar')
+      return json
+    },
     onSuccess: () => { invalidate(); toast.success('Lista eliminada') },
-    onError: () => toast.error('Error al eliminar'),
+    onError: (err: Error) => toast.error(err.message),
   })
 
   return (
