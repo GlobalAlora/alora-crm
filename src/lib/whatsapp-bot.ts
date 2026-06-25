@@ -36,6 +36,20 @@ const QUESTION_ORDER = ['nombre', 'consulta_detallada', 'servicios_interesados',
 type QuestionField = typeof QUESTION_ORDER[number]
 const DIRECT_SAVE_FIELDS = new Set<QuestionField>(['nombre', 'consulta_detallada'])
 
+// Fields where we push back once instead of silently accepting a non-answer
+// (e.g. "no tengo" to the email question) and moving on. After one retry we
+// accept whatever comes back, so we never loop forever on it.
+const VALIDATORS: Partial<Record<QuestionField, { isValid: (text: string) => boolean; pushback: string }>> = {
+  email: {
+    isValid: (t) => /\S+@\S+\.\S+/.test(t),
+    pushback: 'Te pido el email puntualmente porque es importante para que el equipo te pueda hacer seguimiento — ¿tenés alguno que me puedas pasar? 🙏',
+  },
+  consulta_detallada: {
+    isValid: (t) => t.trim().split(/\s+/).length >= 5,
+    pushback: '¿Me podés contar un poco más en detalle? Cuanto más contexto me das, mejor te puede ayudar el equipo 🙏',
+  },
+}
+
 const QUESTION_TEXT: Record<QuestionField, string> = {
   nombre:                '¿Cómo te llamás?',
   consulta_detallada:    'Contame con el mayor detalle posible qué necesitás, así te puedo ayudar mejor 🙂',
@@ -121,10 +135,36 @@ async function advanceQualifyingBot(
     botNextQuestion: string | null
   },
 ): Promise<void> {
+  // A "<field>__retry" sentinel means we already pushed back once on that
+  // field and are now looking at the second attempt — accept it no matter what.
+  const isRetry = !!botNextQuestion?.endsWith('__retry')
+  const askedField = isRetry
+    ? (botNextQuestion!.slice(0, -'__retry'.length) as QuestionField)
+    : (botNextQuestion as QuestionField | null)
+
+  const trimmed = text?.trim() || ''
+
+  // Push back once on a non-answer to a validated field instead of silently
+  // moving on (e.g. "no tengo" to the email question).
+  const validator = askedField ? VALIDATORS[askedField] : undefined
+  if (validator && trimmed && !validator.isValid(trimmed) && !isRetry) {
+    await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: validator.pushback })
+    await admin
+      .from('whatsapp_conversations')
+      .update({ bot_next_question: `${askedField}__retry` })
+      .eq('id', conversationId)
+    return
+  }
+
   // The field we just asked about isn't AI-inferred — save the raw reply
   // directly (if any) before deciding what's next.
-  if (botNextQuestion && DIRECT_SAVE_FIELDS.has(botNextQuestion as QuestionField) && text?.trim()) {
-    await admin.from('leads').update({ [botNextQuestion]: text.trim() }).eq('id', leadId)
+  if (askedField && DIRECT_SAVE_FIELDS.has(askedField) && trimmed) {
+    await admin.from('leads').update({ [askedField]: trimmed }).eq('id', leadId)
+  }
+  // Email is otherwise left to AI enrichment, but save it directly here too
+  // when it was the literal answer to the email question — no need to wait.
+  if (askedField === 'email' && trimmed && /\S+@\S+\.\S+/.test(trimmed)) {
+    await admin.from('leads').update({ email: trimmed }).eq('id', leadId)
   }
 
   const { data: lead } = await admin
@@ -137,7 +177,7 @@ async function advanceQualifyingBot(
 
   // Whatever we last asked counts as "answered" (even with a "no") — resume
   // looking for missing fields right after it, not from the start.
-  const lastAskedIdx = botNextQuestion ? QUESTION_ORDER.indexOf(botNextQuestion as QuestionField) : -1
+  const lastAskedIdx = askedField ? QUESTION_ORDER.indexOf(askedField) : -1
   const isFreshStart = lastAskedIdx === -1
   const startIdx = isFreshStart ? 0 : lastAskedIdx + 1
 
@@ -188,13 +228,14 @@ async function handleFaqPhase(
     return
   }
 
-  // Only say "let me connect you with the team" if they actually asked for a
-  // person — otherwise just step back quietly and let a human pick it up.
+  // Only step back (and say so) if they actually asked for a person. Anything
+  // else that didn't match a FAQ just gets no reply — Lidia stays in FAQ mode
+  // and keeps trying on the next message, instead of going silent for good.
   if (result.humanRequested) {
     await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: HANDOFF })
+    await admin
+      .from('whatsapp_conversations')
+      .update({ bot_active: false })
+      .eq('id', conversationId)
   }
-  await admin
-    .from('whatsapp_conversations')
-    .update({ bot_active: false })
-    .eq('id', conversationId)
 }
