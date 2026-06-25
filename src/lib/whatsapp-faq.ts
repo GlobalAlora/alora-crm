@@ -13,6 +13,7 @@ function getClient(): Anthropic | null {
 export interface FaqMatchResult {
   action: 'answer' | 'escalate'
   answer?: string
+  humanRequested?: boolean
 }
 
 /**
@@ -58,6 +59,7 @@ export async function matchFaqOrEscalate(admin: AdminClient, message: string): P
           properties: {
             action: { type: 'string', enum: ['answer', 'escalate'] },
             faq_index: { type: 'integer', description: 'Si action es "answer": número (empezando en 1) de la pregunta de la lista que coincide.' },
+            human_requested: { type: 'boolean', description: 'true solo si, al escalar, el cliente pidió explícitamente hablar con una persona del equipo.' },
           },
           required: ['action'],
         },
@@ -68,11 +70,11 @@ export async function matchFaqOrEscalate(admin: AdminClient, message: string): P
     const toolUse = response.content.find((b) => b.type === 'tool_use')
     if (!toolUse || toolUse.type !== 'tool_use') return { action: 'escalate' }
 
-    const input = toolUse.input as { action: 'answer' | 'escalate'; faq_index?: number }
+    const input = toolUse.input as { action: 'answer' | 'escalate'; faq_index?: number; human_requested?: boolean }
     if (input.action === 'answer' && input.faq_index && faqs[input.faq_index - 1]) {
       return { action: 'answer', answer: faqs[input.faq_index - 1].respuesta }
     }
-    return { action: 'escalate' }
+    return { action: 'escalate', humanRequested: !!input.human_requested }
   } catch (err) {
     console.error('[AI] FAQ matching failed:', err)
     return { action: 'escalate' }

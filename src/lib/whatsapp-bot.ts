@@ -29,34 +29,45 @@ export async function isClientLead(admin: AdminClient, leadId: string): Promise<
 }
 
 // Order in which the qualifying bot asks for missing info.
-const QUESTION_ORDER = ['servicios_interesados', 'email', 'empresa', 'sitio_web', 'pais'] as const
+// "nombre" and "consulta_detallada" are free-text answers we save directly
+// (no AI inference) and are always asked once, regardless of whether the
+// lead already has a placeholder value (e.g. the WhatsApp profile name).
+const QUESTION_ORDER = ['nombre', 'consulta_detallada', 'servicios_interesados', 'email', 'empresa', 'sitio_web', 'pais'] as const
 type QuestionField = typeof QUESTION_ORDER[number]
+const DIRECT_SAVE_FIELDS = new Set<QuestionField>(['nombre', 'consulta_detallada'])
 
 const QUESTION_TEXT: Record<QuestionField, string> = {
-  email:                 'Para arrancar, ¿me pasás tu email? 📧',
+  nombre:                '¿Cómo te llamás?',
+  consulta_detallada:    'Contame con el mayor detalle posible qué necesitás, así te puedo ayudar mejor 🙂',
+  email:                 '¿Me pasás tu email? 📧',
   empresa:               '¿Tenés una empresa o negocio? Contame cómo se llama 😊',
   sitio_web:             '¿Ya tenés un sitio web? Si tenés, pasame el link (si no tenés todavía, tranquilo, no es obligatorio)',
   pais:                  '¿Desde qué país me escribís?',
-  servicios_interesados: '¿En qué te podemos ayudar? Contame qué estás buscando (por ejemplo: diseño web, mantenimiento, redes sociales, branding, marketing, etc.) ✨',
+  servicios_interesados: '¿En qué servicio puntual estás interesado? (por ejemplo: diseño web, mantenimiento, redes sociales, branding, marketing, etc.) ✨',
 }
 
 const WELCOME = '¡Hola! 👋 Soy Lidia, de Alora. ¡Qué alegría que nos escribas! 🙂'
 const CLOSING = '¡Listo, ya tengo todo lo que necesitaba! 🎉 Gracias por tu paciencia.\n\n'
-  + 'Para avanzar, te propongo agendar una llamada de relevamiento rápida con Walo, así charlan tranquilos sobre lo que necesitás:\n'
+  + 'Te propongo agendar una llamada de relevamiento rápida con Walo, así charlan tranquilos sobre lo que necesitás:\n'
   + 'https://www.globalalora.com/es/llamada-de-relevamiento\n\n'
   + 'Elegí el horario que más te quede cómodo y ahí se conectan 💛\n\n'
   + 'Mientras tanto, si tenés alguna otra duda, escribime tranquilo que te ayudo 🙂'
 const HANDOFF = 'Dejame que te conecte con alguien del equipo para ayudarte mejor con esto 🙂 En breve te responden.'
 
 interface LeadSnapshot {
+  nombre: string | null
   email: string | null
   empresa: string | null
   sitio_web: string | null
   pais: string | null
   servicios_interesados: string[] | null
+  consulta_detallada: string | null
 }
 
 function isFieldFilled(lead: LeadSnapshot, field: QuestionField): boolean {
+  // Always ask once — the WhatsApp profile name isn't a real answer, and
+  // there's no other source for the detailed inquiry.
+  if (DIRECT_SAVE_FIELDS.has(field)) return false
   if (field === 'servicios_interesados') return !!lead.servicios_interesados?.length
   return !!lead[field]
 }
@@ -90,7 +101,7 @@ export async function runBot(
     return
   }
 
-  await advanceQualifyingBot(admin, { leadId, conversationId, phone, botNextQuestion: convo.bot_next_question })
+  await advanceQualifyingBot(admin, { leadId, conversationId, phone, text, botNextQuestion: convo.bot_next_question })
 }
 
 /**
@@ -102,16 +113,23 @@ export async function runBot(
  */
 async function advanceQualifyingBot(
   admin: AdminClient,
-  { leadId, conversationId, phone, botNextQuestion }: {
+  { leadId, conversationId, phone, text, botNextQuestion }: {
     leadId: string
     conversationId: string
     phone: string
+    text: string | null
     botNextQuestion: string | null
   },
 ): Promise<void> {
+  // The field we just asked about isn't AI-inferred — save the raw reply
+  // directly (if any) before deciding what's next.
+  if (botNextQuestion && DIRECT_SAVE_FIELDS.has(botNextQuestion as QuestionField) && text?.trim()) {
+    await admin.from('leads').update({ [botNextQuestion]: text.trim() }).eq('id', leadId)
+  }
+
   const { data: lead } = await admin
     .from('leads')
-    .select('email, empresa, sitio_web, pais, servicios_interesados')
+    .select('nombre, email, empresa, sitio_web, pais, servicios_interesados, consulta_detallada')
     .eq('id', leadId)
     .single()
 
@@ -170,7 +188,11 @@ async function handleFaqPhase(
     return
   }
 
-  await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: HANDOFF })
+  // Only say "let me connect you with the team" if they actually asked for a
+  // person — otherwise just step back quietly and let a human pick it up.
+  if (result.humanRequested) {
+    await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: HANDOFF })
+  }
   await admin
     .from('whatsapp_conversations')
     .update({ bot_active: false })

@@ -101,6 +101,7 @@ export interface Lead {
   tipo_cambio_usd_ars: number | null
   kanban_position: number
   notas: string | null
+  consulta_detallada: string | null
   responsable_id: string | null
   created_by: string
   fecha_ingreso: string
