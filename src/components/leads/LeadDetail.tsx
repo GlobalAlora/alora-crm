@@ -24,6 +24,7 @@ import { ServiciosEdit } from './ServiciosEdit'
 import { FormDataSection } from './FormDataSection'
 import { MeetingStatusCheck } from './MeetingStatusCheck'
 import { RichTextEditor } from '@/components/shared/RichTextEditor'
+import { LeadSummary } from './LeadSummary'
 import toast from 'react-hot-toast'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -375,6 +376,9 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                 </button>
               )}
             </div>
+
+            {/* AI Summary */}
+            <LeadSummary leadId={lead.id} />
 
             {/* Stage selector + valor */}
             <div className="flex items-center gap-2 flex-wrap">
