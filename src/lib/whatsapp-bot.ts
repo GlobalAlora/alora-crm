@@ -198,12 +198,32 @@ async function advanceQualifyingBot(
     return
   }
 
-  const prefix = isFreshStart ? `${WELCOME}\n\n` : ''
+  if (isFreshStart) {
+    // Atomic claim: only one concurrent call wins when bot_next_question is still null.
+    // If another call already claimed it, data comes back empty and we bail out.
+    const { data: claimed } = await admin
+      .from('whatsapp_conversations')
+      .update({ bot_next_question: nextField })
+      .eq('id', conversationId)
+      .is('bot_next_question', null)
+      .select('id')
+
+    if (!claimed?.length) return
+
+    await sendOutboundWhatsAppMessage(admin, {
+      conversationId,
+      leadId,
+      phone,
+      body: `${WELCOME}\n\n${QUESTION_TEXT[nextField]}`,
+    })
+    return
+  }
+
   await sendOutboundWhatsAppMessage(admin, {
     conversationId,
     leadId,
     phone,
-    body: `${prefix}${QUESTION_TEXT[nextField]}`,
+    body: QUESTION_TEXT[nextField],
   })
 
   await admin
