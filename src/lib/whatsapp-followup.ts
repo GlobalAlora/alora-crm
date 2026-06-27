@@ -4,7 +4,7 @@ import { isClientLead } from '@/lib/whatsapp-bot'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
-const FOLLOWUP_HOURS = [24, 48] // hours of silence required before follow-up #1, then #2 (counted from the previous outbound message each time)
+const FOLLOWUP_HOURS = [0.5, 48] // hours of silence required before follow-up #1 (30 min), then #2 (48 h)
 
 const FOLLOWUP_TEXT = [
   '¡Hola! 👋 Vi que quedamos en contacto pero no supe más de vos — ¿seguís por ahí? Si tenés alguna duda o querés que sigamos viendo tu proyecto, contame 🙂',
