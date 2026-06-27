@@ -135,6 +135,7 @@ export interface Lead {
   dev?: Pick<TeamMember, 'id' | 'full_name' | 'role'>
   calidad_lead?: LeadQuality
   dias_sin_respuesta?: number
+  next_followup_at?: string | null
   propuestas?: Propuesta[]
   stage_history?: StageHistory[]
   // Computed on GET /leads (list)
