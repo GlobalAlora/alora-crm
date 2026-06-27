@@ -13,6 +13,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const FOLLOWUP_HOURS = [0.5, 48]
+  const admin = createAdminClient()
 
   // Fetch lead with propuestas, stage history, and whatsapp conversation status
   const [{ data: lead, error: leadError }, { data: propuestas }, { data: stageHistory }, { data: waConvo }] = await Promise.all([
@@ -32,7 +33,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       .select('*')
       .eq('lead_id', id)
       .order('fecha_ingreso', { ascending: false }),
-    supabase
+    admin
       .from('whatsapp_conversations')
       .select('bot_active, last_message_direction, last_message_at, followup_count')
       .eq('lead_id', id)
