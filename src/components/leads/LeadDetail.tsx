@@ -419,6 +419,29 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                 Sin respuesta hace {lead.dias_sin_respuesta} días
               </div>
             )}
+            {lead.next_followup_at && (() => {
+              const followupDate = new Date(lead.next_followup_at)
+              const now = new Date()
+              const diffMs = followupDate.getTime() - now.getTime()
+              const isPast = diffMs < 0
+              const absDiff = Math.abs(diffMs)
+              const mins = Math.floor(absDiff / 60_000)
+              const hours = Math.floor(absDiff / 3_600_000)
+              const days = Math.floor(absDiff / 86_400_000)
+              const label = isPast
+                ? 'Follow-up pendiente (cron aún no disparó)'
+                : days >= 1
+                  ? `Follow-up de Lidia en ${days}d ${Math.floor((absDiff % 86_400_000) / 3_600_000)}h`
+                  : hours >= 1
+                    ? `Follow-up de Lidia en ${hours}h ${Math.floor((absDiff % 3_600_000) / 60_000)}min`
+                    : `Follow-up de Lidia en ${mins} min`
+              return (
+                <div className="flex items-center gap-2 text-xs text-violet-700 bg-violet-50 border border-violet-200 rounded-lg px-3 py-2">
+                  <MessageCircle size={13} />
+                  {label}
+                </div>
+              )
+            })()}
 
             {/* Contact fields */}
             <div className="space-y-4">

@@ -12,8 +12,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  // Fetch lead with propuestas and stage history
-  const [{ data: lead, error: leadError }, { data: propuestas }, { data: stageHistory }] = await Promise.all([
+  const FOLLOWUP_HOURS = [0.5, 48]
+
+  // Fetch lead with propuestas, stage history, and whatsapp conversation status
+  const [{ data: lead, error: leadError }, { data: propuestas }, { data: stageHistory }, { data: waConvo }] = await Promise.all([
     supabase
       .from('leads')
       .select('*, responsable:users!responsable_id(id, full_name, avatar_url), lider_tecnico:team_members!lider_tecnico_id(id, full_name, role), dev:team_members!dev_id(id, full_name, role)')
@@ -30,6 +32,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
       .select('*')
       .eq('lead_id', id)
       .order('fecha_ingreso', { ascending: false }),
+    supabase
+      .from('whatsapp_conversations')
+      .select('bot_active, last_message_direction, last_message_at, followup_count')
+      .eq('lead_id', id)
+      .maybeSingle(),
   ])
 
   if (leadError || !lead) return NextResponse.json({ error: 'Lead no encontrado' }, { status: 404 })
@@ -47,7 +54,20 @@ export async function GET(_req: NextRequest, { params }: Params) {
     ? Math.floor((Date.now() - new Date(lead.stage_updated_at).getTime()) / 86_400_000)
     : 0
 
-  return NextResponse.json({ data: { ...lead, propuestas: propuestas || [], stage_history: stageHistory || [], calidad_lead, dias_sin_respuesta } })
+  let next_followup_at: string | null = null
+  if (
+    waConvo?.bot_active &&
+    waConvo.last_message_direction === 'outbound' &&
+    waConvo.last_message_at &&
+    waConvo.followup_count != null &&
+    waConvo.followup_count < FOLLOWUP_HOURS.length
+  ) {
+    const hoursToAdd = FOLLOWUP_HOURS[waConvo.followup_count]
+    const ts = new Date(waConvo.last_message_at).getTime() + hoursToAdd * 3_600_000
+    next_followup_at = new Date(ts).toISOString()
+  }
+
+  return NextResponse.json({ data: { ...lead, propuestas: propuestas || [], stage_history: stageHistory || [], calidad_lead, dias_sin_respuesta, next_followup_at } })
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
