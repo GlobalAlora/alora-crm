@@ -193,9 +193,19 @@ async function advanceQualifyingBot(
 
   const nextField = QUESTION_ORDER.slice(startIdx).find((f) => !isFieldFilled(lead, f))
 
+  // Gentle reality check when the lead mentions they want something for free.
+  // We only inject this once, when they're actively telling us what they need.
+  const mentionsGratis = /\b(gratis|gratuito|gratuita|gratuitos|gratuitas|sin costo|sin cobrar|de onda|free)\b/i.test(trimmed)
+  const gratisPrefix = mentionsGratis && !isFreshStart
+    ? 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios tienen un costo 🙂 En la llamada con Walo van a charlar sobre qué necesitás y cuánto implicaría — te aseguro que vale la pena.\n\n'
+    : ''
+
   if (!nextField) {
     // Nothing left to ask — start the booking flow (or fall back to link).
     if (!isFreshStart) {
+      if (gratisPrefix) {
+        await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: gratisPrefix.trim() })
+      }
       await startBookingFlow(admin, { leadId, conversationId, phone })
     } else {
       await admin
@@ -231,7 +241,7 @@ async function advanceQualifyingBot(
     conversationId,
     leadId,
     phone,
-    body: QUESTION_TEXT[nextField],
+    body: `${gratisPrefix}${QUESTION_TEXT[nextField]}`,
   })
 
   await admin
@@ -499,6 +509,16 @@ async function handleFaqPhase(
       body: '¡Sin problema! Acá van los horarios disponibles para que elijas el que mejor te quede 🗓️',
     })
     await startBookingFlow(admin, { leadId, conversationId, phone }, 0)
+    return
+  }
+
+  // If they ask about getting something free, set expectations gently
+  const mentionsGratis = /\b(gratis|gratuito|gratuita|gratuitos|gratuitas|sin costo|sin cobrar|de onda|free)\b/i.test(t)
+  if (mentionsGratis) {
+    await sendOutboundWhatsAppMessage(admin, {
+      conversationId, leadId, phone,
+      body: 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios son pagos 🙂 En la reunión con Walo van a charlar sobre lo que necesitás y los valores — ¡te aseguro que vale la pena! Si tenés alguna duda más, decime 😊',
+    })
     return
   }
 
