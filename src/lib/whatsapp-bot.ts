@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sendOutboundWhatsAppMessage } from '@/lib/whatsapp-outbound'
 import { matchFaqOrEscalate } from '@/lib/whatsapp-faq'
 import { getAvailableSlots, formatSlotAR, createCalendarEvent } from '@/lib/google-calendar'
+import { sendGmail } from '@/lib/google-gmail'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -340,11 +341,74 @@ async function handleBookingPhase(
 
     const confirmation = `¡Reunión confirmada! 🎉\n\n📅 ${fullLabel}\n\n`
       + `Walo se va a conectar en ese horario para charlar sobre lo que necesitás 💛\n\n`
-      + (lead.email ? `Te mandamos una invitación a ${lead.email} con el link de la videollamada.\n\n` : '')
+      + (lead.email ? `Te mandamos una invitación a ${lead.email} con el detalle de la reunión.\n\n` : '')
       + 'Si necesitás cambiar el horario o tenés alguna duda, escribime tranquilo 🙂'
 
     await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: confirmation })
     await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
+
+    // Send emails (best-effort — don't fail the booking if email sending fails)
+    const leadName = [lead.nombre, lead.apellido].filter(Boolean).join(' ') || 'Lead'
+    const calendarUrl = result.eventUrl
+
+    // Internal notification to the team
+    sendGmail({
+      from:    'info@globalalora.com',
+      to:      'somosglobalalora@gmail.com',
+      subject: `📅 Nueva reunión agendada — ${leadName} (${fullLabel})`,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f8f6ff;padding:32px;border-radius:12px">
+          <div style="background:#7c3aed;border-radius:8px;padding:24px;text-align:center;margin-bottom:24px">
+            <h1 style="color:#fff;margin:0;font-size:22px">📅 Nueva reunión agendada</h1>
+          </div>
+          <div style="background:#fff;border-radius:8px;padding:24px;border:1px solid #e5e7eb">
+            <p style="margin:0 0 16px;font-size:15px;color:#374151">
+              <strong>${leadName}</strong> agendó una reunión de relevamiento.
+            </p>
+            <table style="width:100%;border-collapse:collapse">
+              <tr><td style="padding:8px 0;color:#6b7280;font-size:13px;width:120px">Fecha y hora</td><td style="padding:8px 0;font-weight:600;color:#111827;font-size:13px">${fullLabel}</td></tr>
+              ${lead.empresa ? `<tr><td style="padding:8px 0;color:#6b7280;font-size:13px">Empresa</td><td style="padding:8px 0;font-weight:600;color:#111827;font-size:13px">${lead.empresa}</td></tr>` : ''}
+              ${lead.email   ? `<tr><td style="padding:8px 0;color:#6b7280;font-size:13px">Email</td><td style="padding:8px 0;font-weight:600;color:#111827;font-size:13px">${lead.email}</td></tr>` : ''}
+              <tr><td style="padding:8px 0;color:#6b7280;font-size:13px">WhatsApp</td><td style="padding:8px 0;font-weight:600;color:#111827;font-size:13px">+${phone}</td></tr>
+            </table>
+            <div style="margin-top:20px;text-align:center">
+              <a href="${calendarUrl}" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Ver en Google Calendar</a>
+            </div>
+          </div>
+          <p style="text-align:center;color:#9ca3af;font-size:12px;margin-top:16px">Alora CRM · Enviado automáticamente por Lidia</p>
+        </div>
+      `,
+    }).catch(err => console.error('[Booking] Internal email failed:', err))
+
+    // Confirmation to the lead (only if they provided email)
+    if (lead.email) {
+      sendGmail({
+        from:    'info@globalalora.com',
+        to:      lead.email,
+        toName:  leadName,
+        subject: `Reunión confirmada con Alora — ${fullLabel}`,
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f8f6ff;padding:32px;border-radius:12px">
+            <div style="background:#7c3aed;border-radius:8px;padding:24px;text-align:center;margin-bottom:24px">
+              <img src="https://www.globalalora.com/logo.png" alt="Alora" style="height:40px;margin-bottom:12px" onerror="this.style.display='none'">
+              <h1 style="color:#fff;margin:0;font-size:22px">¡Reunión confirmada! 🎉</h1>
+            </div>
+            <div style="background:#fff;border-radius:8px;padding:24px;border:1px solid #e5e7eb">
+              <p style="margin:0 0 16px;font-size:15px;color:#374151">Hola <strong>${lead.nombre ?? 'ahí'}</strong>,</p>
+              <p style="margin:0 0 20px;font-size:15px;color:#374151">Tu llamada de relevamiento con el equipo de Alora está confirmada:</p>
+              <div style="background:#f5f3ff;border-left:4px solid #7c3aed;padding:16px;border-radius:0 8px 8px 0;margin-bottom:20px">
+                <p style="margin:0;font-size:18px;font-weight:700;color:#7c3aed">📅 ${fullLabel}</p>
+              </div>
+              <p style="margin:0 0 20px;font-size:14px;color:#6b7280">En breve te llega la invitación de Google Calendar con el link de la videollamada.</p>
+              <div style="text-align:center">
+                <a href="${calendarUrl}" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Ver en Google Calendar</a>
+              </div>
+            </div>
+            <p style="text-align:center;color:#9ca3af;font-size:12px;margin-top:16px">Si necesitás reprogramar, respondé a este email o escribinos por WhatsApp.</p>
+          </div>
+        `,
+      }).catch(err => console.error('[Booking] Lead confirmation email failed:', err))
+    }
 
   } catch (err) {
     console.error('[Booking] Failed to create calendar event:', err)
