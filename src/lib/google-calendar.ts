@@ -265,8 +265,8 @@ export async function getAvailableSlotsByDay(daysToShow = 2, skipDays = 0): Prom
       const dow   = dayAR.getDay()
       if (dow === 0 || dow === 6) continue
 
-      const morning   = slotsInRange(dayAR, 9, 13)
-      const afternoon = slotsInRange(dayAR, 13, 18)
+      const morning   = slotsInRange(dayAR, 7, 13)
+      const afternoon = slotsInRange(dayAR, 13, 19)
 
       // Pick up to 2 from each half; if one is short, fill from the other
       let selected: Date[]
