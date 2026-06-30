@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendOutboundWhatsAppMessage } from '@/lib/whatsapp-outbound'
 import { matchFaqOrEscalate } from '@/lib/whatsapp-faq'
+import { getAvailableSlots, formatSlotAR, createCalendarEvent } from '@/lib/google-calendar'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -60,13 +61,15 @@ const QUESTION_TEXT: Record<QuestionField, string> = {
   servicios_interesados: '¿En qué servicio puntual estás interesado? (por ejemplo: diseño web, mantenimiento, redes sociales, branding, marketing, etc.) ✨',
 }
 
-const WELCOME = '¡Hola! 👋 Soy Lidia, de Alora. ¡Qué alegría que nos escribas! 🙂'
-const CLOSING = '¡Listo, ya tengo todo lo que necesitaba! 🎉 Gracias por tu paciencia.\n\n'
+const WELCOME  = '¡Hola! 👋 Soy Lidia, de Alora. ¡Qué alegría que nos escribas! 🙂'
+const CLOSING_FALLBACK = '¡Listo, ya tengo todo lo que necesitaba! 🎉 Gracias por tu paciencia.\n\n'
   + 'Te propongo agendar una llamada de relevamiento rápida con Walo, así charlan tranquilos sobre lo que necesitás:\n'
   + 'https://www.globalalora.com/es/llamada-de-relevamiento\n\n'
   + 'Elegí el horario que más te quede cómodo y ahí se conectan 💛\n\n'
   + 'Mientras tanto, si tenés alguna otra duda, escribime tranquilo que te ayudo 🙂'
-const HANDOFF = 'Dejame que te conecte con alguien del equipo para ayudarte mejor con esto 🙂 En breve te responden.'
+const HANDOFF  = 'Dejame que te conecte con alguien del equipo para ayudarte mejor con esto 🙂 En breve te responden.'
+
+const BOOKING_SLOTS_PREFIX = 'booking_slots:::'
 
 interface LeadSnapshot {
   nombre: string | null
@@ -112,6 +115,11 @@ export async function runBot(
 
   if (convo.bot_phase === 'faq') {
     await handleFaqPhase(admin, { leadId, conversationId, phone, text })
+    return
+  }
+
+  if (convo.bot_phase === 'booking') {
+    await handleBookingPhase(admin, { leadId, conversationId, phone, text, botNextQuestion: convo.bot_next_question })
     return
   }
 
@@ -184,17 +192,15 @@ async function advanceQualifyingBot(
   const nextField = QUESTION_ORDER.slice(startIdx).find((f) => !isFieldFilled(lead, f))
 
   if (!nextField) {
-    // Nothing left to ask. Skip a silent close if the bot never actually
-    // got to ask anything (e.g. the lead arrived already fully filled in).
+    // Nothing left to ask — start the booking flow (or fall back to link).
     if (!isFreshStart) {
-      await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: CLOSING })
+      await startBookingFlow(admin, { leadId, conversationId, phone })
+    } else {
+      await admin
+        .from('whatsapp_conversations')
+        .update({ bot_phase: 'faq', bot_next_question: null })
+        .eq('id', conversationId)
     }
-    // Hand off to FAQ mode instead of switching the bot off entirely —
-    // Lidia keeps handling what she can; a human only steps in when needed.
-    await admin
-      .from('whatsapp_conversations')
-      .update({ bot_phase: 'faq', bot_next_question: null })
-      .eq('id', conversationId)
     return
   }
 
@@ -230,6 +236,122 @@ async function advanceQualifyingBot(
     .from('whatsapp_conversations')
     .update({ bot_next_question: nextField })
     .eq('id', conversationId)
+}
+
+/**
+ * After qualifying, try to offer 3 calendar slots directly in WhatsApp.
+ * Falls back to the external link if Calendar is unavailable or returns no slots.
+ */
+async function startBookingFlow(
+  admin: AdminClient,
+  { leadId, conversationId, phone }: { leadId: string; conversationId: string; phone: string },
+): Promise<void> {
+  const slots = await getAvailableSlots(3)
+
+  if (!slots.length) {
+    await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: CLOSING_FALLBACK })
+    await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
+    return
+  }
+
+  const lines = slots.map((s, i) => `${i + 1}️⃣ ${formatSlotAR(s).label}`)
+  const encoded = slots.map(s => s.toISOString()).join('|')
+
+  const body = '¡Perfecto, ya tengo todo! 🎉\n\n'
+    + 'Para arrancar, te propongo agendar una llamada de 30 minutos con Walo para charlar sobre lo que necesitás.\n\n'
+    + 'Estos son los próximos horarios disponibles:\n'
+    + lines.join('\n')
+    + '\n\nRespondé con *1*, *2* o *3* y lo agendo ahora mismo 🗓️'
+
+  await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body })
+  await admin
+    .from('whatsapp_conversations')
+    .update({ bot_phase: 'booking', bot_next_question: `${BOOKING_SLOTS_PREFIX}${encoded}` })
+    .eq('id', conversationId)
+}
+
+/**
+ * Handles the lead's slot selection (1/2/3), creates the Calendar event,
+ * updates the lead to reunion_reservada, and confirms via WhatsApp.
+ */
+async function handleBookingPhase(
+  admin: AdminClient,
+  { leadId, conversationId, phone, text, botNextQuestion }: {
+    leadId: string; conversationId: string; phone: string; text: string | null; botNextQuestion: string | null
+  },
+): Promise<void> {
+  if (!botNextQuestion?.startsWith(BOOKING_SLOTS_PREFIX)) {
+    await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
+    return
+  }
+
+  const slots = botNextQuestion
+    .slice(BOOKING_SLOTS_PREFIX.length)
+    .split('|')
+    .map(s => new Date(s))
+
+  const choice = text?.trim()
+  const idx    = choice === '1' ? 0 : choice === '2' ? 1 : choice === '3' ? 2 : -1
+
+  if (idx === -1 || !slots[idx]) {
+    await sendOutboundWhatsAppMessage(admin, {
+      conversationId, leadId, phone,
+      body: 'Respondé con *1*, *2* o *3* para elegir el horario que más te quede bien 🙂',
+    })
+    return
+  }
+
+  const slot = slots[idx]
+  const { fecha, hora, label } = formatSlotAR(slot)
+
+  const { data: lead } = await admin
+    .from('leads')
+    .select('nombre, apellido, empresa, email')
+    .eq('id', leadId)
+    .single()
+
+  if (!lead) return
+
+  try {
+    const result = await createCalendarEvent({
+      leadId,
+      nombre:            lead.nombre ?? 'Lead',
+      apellido:          lead.apellido ?? null,
+      empresa:           lead.empresa ?? null,
+      email:             lead.email ?? null,
+      fecha_reunion:     fecha,
+      reunion_hora:      hora,
+      reunion_link:      null,
+      responsable_email: process.env.GOOGLE_CALENDAR_SUBJECT ?? null,
+    })
+
+    await admin.from('leads').update({
+      reunion_fecha:       fecha,
+      reunion_hora:        hora,
+      estado_pipeline:     'reunion_reservada',
+      calendar_event_id:   result.eventId,
+      calendar_event_url:  result.eventUrl,
+    }).eq('id', leadId)
+
+    const daysFull  = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+    const monthsFull = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+    const ar = new Date(slot.getTime() - 3 * 60 * 60 * 1000)
+    const fullLabel = `${daysFull[ar.getDay()]} ${ar.getDate()} de ${monthsFull[ar.getMonth()]} a las ${hora} hs`
+
+    const confirmation = `¡Reunión confirmada! 🎉\n\n📅 ${fullLabel}\n\n`
+      + `Walo se va a conectar en ese horario para charlar sobre lo que necesitás 💛\n\n`
+      + (lead.email ? `Te mandamos una invitación a ${lead.email} con el link de la videollamada.\n\n` : '')
+      + 'Si necesitás cambiar el horario o tenés alguna duda, escribime tranquilo 🙂'
+
+    await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: confirmation })
+    await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
+
+  } catch (err) {
+    console.error('[Booking] Failed to create calendar event:', err)
+    // Fall back to external link
+    await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: CLOSING_FALLBACK })
+    await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
+  }
 }
 
 /**

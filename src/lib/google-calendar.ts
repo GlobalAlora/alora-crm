@@ -198,3 +198,90 @@ export async function deleteCalendarEvent(eventId: string): Promise<void> {
     // best-effort
   }
 }
+
+/**
+ * Returns the next N available 30-minute slots on the calendar of
+ * GOOGLE_CALENDAR_SUBJECT during business hours (Mon–Fri 9:00–18:00 AR time).
+ * Requires at least 2 hours of advance notice.
+ * Returns [] if Calendar is not configured or the freebusy query fails.
+ */
+export async function getAvailableSlots(slotsNeeded = 3): Promise<Date[]> {
+  const calendarId = process.env.GOOGLE_CALENDAR_SUBJECT
+  if (!calendarId) return []
+
+  try {
+    const calendar = getCalendarClient()
+
+    const AR_OFFSET_MS  = -3 * 60 * 60 * 1000   // UTC-3, no DST
+    const SLOT_MS       = 30 * 60 * 1000
+    const BIZ_START_H   = 9
+    const BIZ_END_H     = 18
+    const MIN_NOTICE_MS = 2 * 60 * 60 * 1000     // 2 hours ahead
+
+    const nowUTC     = new Date()
+    const rangeEnd   = new Date(nowUTC.getTime() + 10 * 24 * 60 * 60 * 1000)
+
+    const { data } = await calendar.freebusy.query({
+      requestBody: {
+        timeMin:  nowUTC.toISOString(),
+        timeMax:  rangeEnd.toISOString(),
+        items:    [{ id: calendarId }],
+      },
+    })
+
+    const busy = (data.calendars?.[calendarId]?.busy ?? []).map(b => ({
+      start: new Date(b.start!),
+      end:   new Date(b.end!),
+    }))
+
+    const available: Date[] = []
+
+    // Walk day by day in AR local time
+    const todayAR = new Date(nowUTC.getTime() + AR_OFFSET_MS)
+    todayAR.setHours(0, 0, 0, 0)
+
+    for (let d = 0; d < 10 && available.length < slotsNeeded; d++) {
+      const dayAR  = new Date(todayAR.getTime() + d * 86_400_000)
+      const dow    = dayAR.getDay()
+      if (dow === 0 || dow === 6) continue  // skip weekends
+
+      for (let h = BIZ_START_H; h < BIZ_END_H && available.length < slotsNeeded; h++) {
+        for (let m = 0; m < 60 && available.length < slotsNeeded; m += 30) {
+          // Last slot must end by BIZ_END_H
+          if (h === BIZ_END_H - 1 && m > 30) continue
+
+          const slotAR  = new Date(dayAR)
+          slotAR.setHours(h, m, 0, 0)
+          const slotUTC = new Date(slotAR.getTime() - AR_OFFSET_MS)
+          const slotEndUTC = new Date(slotUTC.getTime() + SLOT_MS)
+
+          if (slotUTC.getTime() - nowUTC.getTime() < MIN_NOTICE_MS) continue
+
+          const overlaps = busy.some(b => slotUTC < b.end && slotEndUTC > b.start)
+          if (!overlaps) available.push(slotUTC)
+        }
+      }
+    }
+
+    return available
+  } catch (err) {
+    console.error('[Calendar] getAvailableSlots failed:', err)
+    return []
+  }
+}
+
+const AR_OFFSET_MS = -3 * 60 * 60 * 1000
+
+/** Format a UTC Date as a human-readable Argentine time string. */
+export function formatSlotAR(utcDate: Date): { fecha: string; hora: string; label: string } {
+  const ar = new Date(utcDate.getTime() + AR_OFFSET_MS)
+  const days   = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+  const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+  const h = String(ar.getHours()).padStart(2, '0')
+  const m = String(ar.getMinutes()).padStart(2, '0')
+  return {
+    fecha: ar.toISOString().slice(0, 10),                    // YYYY-MM-DD
+    hora:  `${h}:${m}`,                                      // HH:MM
+    label: `${days[ar.getDay()]} ${ar.getDate()} ${months[ar.getMonth()]} — ${h}:${m} hs`,
+  }
+}

@@ -182,7 +182,7 @@ export interface WhatsAppConversation {
   unread_count: number
   status: 'open' | 'closed'
   bot_active: boolean
-  bot_phase: 'qualifying' | 'faq'
+  bot_phase: 'qualifying' | 'faq' | 'booking'
   created_at: string
   updated_at: string
   // Joined from leads
