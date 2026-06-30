@@ -404,8 +404,8 @@ async function handleBookingPhase(
     const BRAND_BG = '#EEF4F4'   // very light teal (background)
     const BRAND_LT = '#E0EEEE'   // light teal (accent strip)
 
-    // Internal notification to the team
-    sendGmail({
+    // Internal notification to the team (awaited so Vercel doesn't kill it before it sends)
+    try { await sendGmail({
       from:    'info@globalalora.com',
       to:      'somosglobalalora@gmail.com',
       subject: `📅 Nueva reunión agendada — ${leadName} (${fullLabel})`,
@@ -432,11 +432,11 @@ async function handleBookingPhase(
           <p style="text-align:center;color:#9ca3af;font-size:12px;margin-top:16px">Alora CRM · Enviado automáticamente por Lidia</p>
         </div>
       `,
-    }).catch(err => console.error('[Booking] Internal email failed:', err))
+    }) } catch (err) { console.error('[Booking] Internal email failed:', err) }
 
     // Confirmation to the lead (only if they provided email)
     if (lead.email) {
-      sendGmail({
+      try { await sendGmail({
         from:    'info@globalalora.com',
         to:      lead.email,
         toName:  leadName,
@@ -461,7 +461,7 @@ async function handleBookingPhase(
             <p style="text-align:center;color:#9ca3af;font-size:12px;margin-top:16px">Si necesitás reprogramar, respondé a este email o escribinos por WhatsApp.</p>
           </div>
         `,
-      }).catch(err => console.error('[Booking] Lead confirmation email failed:', err))
+      }) } catch (err) { console.error('[Booking] Lead confirmation email failed:', err) }
     }
 
   } catch (err) {
