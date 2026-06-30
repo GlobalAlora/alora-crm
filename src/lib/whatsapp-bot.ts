@@ -3,6 +3,7 @@ import { sendOutboundWhatsAppMessage } from '@/lib/whatsapp-outbound'
 import { matchFaqOrEscalate } from '@/lib/whatsapp-faq'
 import { getAvailableSlotsByDay, formatSlotAR, createCalendarEvent } from '@/lib/google-calendar'
 import { sendGmail } from '@/lib/google-gmail'
+import { notifyAll } from '@/lib/push-notify'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -394,6 +395,13 @@ async function handleBookingPhase(
 
     await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: confirmation })
     await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
+
+    // Push notification to the team
+    notifyAll({
+      title: `📅 Reunión agendada — ${[lead.nombre, lead.apellido].filter(Boolean).join(' ')}`,
+      body:  fullLabel,
+      url:   `/leads/${leadId}`,
+    }).catch(() => {})
 
     // Send emails (best-effort — don't fail the booking if email sending fails)
     const leadName = [lead.nombre, lead.apellido].filter(Boolean).join(' ') || 'Lead'

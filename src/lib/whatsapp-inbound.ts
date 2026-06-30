@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { extractLeadInfoFromConversation } from '@/lib/ai-lead-extract'
 import { runBot } from '@/lib/whatsapp-bot'
+import { notifyAll } from '@/lib/push-notify'
 import { PAISES, SERVICIOS } from '@/types'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -74,6 +75,16 @@ export async function recordInboundWhatsAppMessage(admin: AdminClient, msg: Inbo
     .from('whatsapp_conversations')
     .update({ last_message_direction: 'inbound', followup_count: 0 })
     .eq('id', convId)
+
+  // Push notification to the team for every inbound message
+  const { data: leadInfo } = await admin
+    .from('leads').select('nombre, apellido').eq('id', leadId).single()
+  const leadLabel = [leadInfo?.nombre, leadInfo?.apellido].filter(Boolean).join(' ') || `+${phone}`
+  notifyAll({
+    title: `💬 Nuevo mensaje — ${leadLabel}`,
+    body:  text ? (text.length > 80 ? text.slice(0, 80) + '…' : text) : 'Mensaje de WhatsApp',
+    url:   `/leads/${leadId}`,
+  }).catch(() => {})
 
   await enrichLeadFromConversation(admin, leadId, convId).catch((err) => {
     console.error('[WhatsApp] AI enrichment failed:', err instanceof Error ? err.message : err)

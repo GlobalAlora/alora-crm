@@ -7,6 +7,7 @@ import { LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, Li
 import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import type { WhatsAppConversation } from '@/types'
+import { PushSubscription } from '@/components/PushSubscription'
 
 const settingsNav = [
   { href: '/settings/equipo',    label: 'Equipo',      icon: UserCog        },
@@ -134,6 +135,8 @@ function NavContent({ pathname, nav, inSettings, settingsNav, onCloseMobile }: N
             ))}
           </div>
         )}
+
+        <PushSubscription />
 
         <div className="flex items-center gap-3 px-3 py-2 mt-1">
           <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">

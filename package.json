@@ -44,6 +44,7 @@
     "recharts": "^3.8.1",
     "resend": "^6.12.2",
     "tailwind-merge": "^3.5.0",
+    "web-push": "^3.6.7",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
@@ -54,6 +55,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
+    "@types/web-push": "^3.6.3",
     "typescript": "^5"
   }
 }
