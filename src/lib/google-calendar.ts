@@ -77,8 +77,9 @@ function buildEndDateTime(fecha: string, hora: string | null): string {
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export interface CalendarEventResult {
-  eventId: string
+  eventId:  string
   eventUrl: string
+  meetLink: string | null  // Google Meet join URL (hangoutLink from Calendar API)
 }
 
 export interface CreateCalendarEventInput {
@@ -146,6 +147,7 @@ export async function createCalendarEvent(
   return {
     eventId:  event.id,
     eventUrl: event.htmlLink ?? `https://calendar.google.com/calendar/event?eid=${event.id}`,
+    meetLink: event.hangoutLink ?? null,
   }
 }
 
@@ -183,6 +185,7 @@ export async function updateCalendarEvent(
   return {
     eventId:  event.id ?? eventId,
     eventUrl: event.htmlLink ?? `https://calendar.google.com/calendar/event?eid=${eventId}`,
+    meetLink: event.hangoutLink ?? null,
   }
 }
 

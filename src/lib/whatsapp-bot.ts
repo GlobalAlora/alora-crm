@@ -367,10 +367,17 @@ async function handleBookingPhase(
       responsable_email: process.env.GOOGLE_CALENDAR_SUBJECT ?? null,
     })
 
+    // Build follow-up date: 2 days after the meeting
+    const reunionDate  = new Date(`${fecha}T${hora}:00-03:00`)
+    const followupDate = new Date(reunionDate.getTime() + 2 * 24 * 60 * 60 * 1000)
+
     await admin.from('leads').update({
-      reunion_fecha:       fecha,
+      fecha_reunion:       fecha,
       reunion_hora:        hora,
+      reunion_link:        result.meetLink ?? result.eventUrl,
       estado_pipeline:     'reunion_reservada',
+      fecha_contacto:      new Date().toISOString(),
+      fecha_followup:      followupDate.toISOString().slice(0, 10),
       calendar_event_id:   result.eventId,
       calendar_event_url:  result.eventUrl,
     }).eq('id', leadId)
