@@ -399,17 +399,23 @@ async function handleBookingPhase(
     const leadName = [lead.nombre, lead.apellido].filter(Boolean).join(' ') || 'Lead'
     const calendarUrl = result.eventUrl
 
+    // Alora brand colors
+    const BRAND    = '#1B4040'   // dark teal (primary)
+    const BRAND_BG = '#EEF4F4'   // very light teal (background)
+    const BRAND_LT = '#E0EEEE'   // light teal (accent strip)
+
     // Internal notification to the team
     sendGmail({
       from:    'info@globalalora.com',
       to:      'somosglobalalora@gmail.com',
       subject: `📅 Nueva reunión agendada — ${leadName} (${fullLabel})`,
       html: `
-        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f8f6ff;padding:32px;border-radius:12px">
-          <div style="background:#7c3aed;border-radius:8px;padding:24px;text-align:center;margin-bottom:24px">
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:${BRAND_BG};padding:32px;border-radius:12px">
+          <div style="background:${BRAND};border-radius:8px;padding:24px;text-align:center;margin-bottom:24px">
+            <img src="https://globalalora.com/logo-web.png" alt="Alora" style="height:36px;margin-bottom:12px;filter:brightness(0) invert(1)" onerror="this.style.display='none'">
             <h1 style="color:#fff;margin:0;font-size:22px">📅 Nueva reunión agendada</h1>
           </div>
-          <div style="background:#fff;border-radius:8px;padding:24px;border:1px solid #e5e7eb">
+          <div style="background:#fff;border-radius:8px;padding:24px;border:1px solid #d1e0e0">
             <p style="margin:0 0 16px;font-size:15px;color:#374151">
               <strong>${leadName}</strong> agendó una reunión de relevamiento.
             </p>
@@ -420,7 +426,7 @@ async function handleBookingPhase(
               <tr><td style="padding:8px 0;color:#6b7280;font-size:13px">WhatsApp</td><td style="padding:8px 0;font-weight:600;color:#111827;font-size:13px">+${phone}</td></tr>
             </table>
             <div style="margin-top:20px;text-align:center">
-              <a href="${calendarUrl}" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Ver en Google Calendar</a>
+              <a href="${calendarUrl}" style="display:inline-block;background:${BRAND};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Ver en Google Calendar</a>
             </div>
           </div>
           <p style="text-align:center;color:#9ca3af;font-size:12px;margin-top:16px">Alora CRM · Enviado automáticamente por Lidia</p>
@@ -436,20 +442,20 @@ async function handleBookingPhase(
         toName:  leadName,
         subject: `Reunión confirmada con Alora — ${fullLabel}`,
         html: `
-          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f8f6ff;padding:32px;border-radius:12px">
-            <div style="background:#7c3aed;border-radius:8px;padding:24px;text-align:center;margin-bottom:24px">
-              <img src="https://www.globalalora.com/logo.png" alt="Alora" style="height:40px;margin-bottom:12px" onerror="this.style.display='none'">
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:${BRAND_BG};padding:32px;border-radius:12px">
+            <div style="background:${BRAND};border-radius:8px;padding:24px;text-align:center;margin-bottom:24px">
+              <img src="https://globalalora.com/logo-web.png" alt="Alora" style="height:40px;margin-bottom:12px;filter:brightness(0) invert(1)" onerror="this.style.display='none'">
               <h1 style="color:#fff;margin:0;font-size:22px">¡Reunión confirmada! 🎉</h1>
             </div>
-            <div style="background:#fff;border-radius:8px;padding:24px;border:1px solid #e5e7eb">
+            <div style="background:#fff;border-radius:8px;padding:24px;border:1px solid #d1e0e0">
               <p style="margin:0 0 16px;font-size:15px;color:#374151">Hola <strong>${lead.nombre ?? 'ahí'}</strong>,</p>
               <p style="margin:0 0 20px;font-size:15px;color:#374151">Tu llamada de relevamiento con el equipo de Alora está confirmada:</p>
-              <div style="background:#f5f3ff;border-left:4px solid #7c3aed;padding:16px;border-radius:0 8px 8px 0;margin-bottom:20px">
-                <p style="margin:0;font-size:18px;font-weight:700;color:#7c3aed">📅 ${fullLabel}</p>
+              <div style="background:${BRAND_LT};border-left:4px solid ${BRAND};padding:16px;border-radius:0 8px 8px 0;margin-bottom:20px">
+                <p style="margin:0;font-size:18px;font-weight:700;color:${BRAND}">📅 ${fullLabel}</p>
               </div>
               <p style="margin:0 0 20px;font-size:14px;color:#6b7280">En breve te llega la invitación de Google Calendar con el link de la videollamada.</p>
               <div style="text-align:center">
-                <a href="${calendarUrl}" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Ver en Google Calendar</a>
+                <a href="${calendarUrl}" style="display:inline-block;background:${BRAND};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Ver en Google Calendar</a>
               </div>
             </div>
             <p style="text-align:center;color:#9ca3af;font-size:12px;margin-top:16px">Si necesitás reprogramar, respondé a este email o escribinos por WhatsApp.</p>
