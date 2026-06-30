@@ -461,14 +461,27 @@ async function handleBookingPhase(
 
 /**
  * Post-qualifying: Lidia only answers from the team's fixed FAQ list.
- * Anything else (explicit request for a human, complaints, exact pricing,
- * or just no confident match) gets escalated to a human instead of guessed.
+ * Detects rescheduling intent and restarts the booking flow.
+ * Escalates to a human only when explicitly requested.
  */
 async function handleFaqPhase(
   admin: AdminClient,
   { leadId, conversationId, phone, text }: { leadId: string; conversationId: string; phone: string; text: string | null },
 ): Promise<void> {
-  const result = await matchFaqOrEscalate(admin, text ?? '')
+  const t = text?.trim() ?? ''
+
+  // Lead wants to change / pick a different slot → restart booking from scratch
+  const wantsReschedule = /\b(otro|otra|otros|cambiar|reagendar|reprogramar|diferente|distinto|quiero otro|quiero otra|cambio|cambien|no me queda|no puedo ese|otro horario|otra fecha|otro dia|otro día)\b/i.test(t)
+  if (wantsReschedule) {
+    await sendOutboundWhatsAppMessage(admin, {
+      conversationId, leadId, phone,
+      body: '¡Sin problema! Acá van los horarios disponibles para que elijas el que mejor te quede 🗓️',
+    })
+    await startBookingFlow(admin, { leadId, conversationId, phone }, 0)
+    return
+  }
+
+  const result = await matchFaqOrEscalate(admin, t)
 
   if (result.action === 'answer' && result.answer) {
     await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: result.answer })
