@@ -199,73 +199,97 @@ export async function deleteCalendarEvent(eventId: string): Promise<void> {
   }
 }
 
+export interface DaySlots {
+  dateLabel: string   // e.g. "lunes 30 jun"
+  fecha:     string   // YYYY-MM-DD in AR time
+  slots:     Date[]   // UTC Date objects, up to 4 (2 morning + 2 afternoon)
+}
+
 /**
- * Returns the next N available 30-minute slots on the calendar of
- * GOOGLE_CALENDAR_SUBJECT during business hours (Mon–Fri 9:00–18:00 AR time).
- * Requires at least 2 hours of advance notice.
- * Returns [] if Calendar is not configured or the freebusy query fails.
+ * Returns available 30-min slots grouped by business day (Mon–Fri, AR time).
+ * Each day has up to 4 slots: 2 from morning (9–13) + 2 from afternoon (13–18),
+ * filling from the fuller half when one side has fewer available.
+ *
+ * @param daysToShow  How many days to return (default 2)
+ * @param skipDays    Skip the first N days that have available slots (for "show more")
  */
-export async function getAvailableSlots(slotsNeeded = 3): Promise<Date[]> {
+export async function getAvailableSlotsByDay(daysToShow = 2, skipDays = 0): Promise<DaySlots[]> {
   const calendarId = process.env.GOOGLE_CALENDAR_SUBJECT
   if (!calendarId) return []
 
   try {
     const calendar = getCalendarClient()
 
-    const AR_OFFSET_MS  = -3 * 60 * 60 * 1000   // UTC-3, no DST
+    const AR_MS         = -3 * 60 * 60 * 1000
     const SLOT_MS       = 30 * 60 * 1000
-    const BIZ_START_H   = 9
-    const BIZ_END_H     = 18
-    const MIN_NOTICE_MS = 2 * 60 * 60 * 1000     // 2 hours ahead
-
-    const nowUTC     = new Date()
-    const rangeEnd   = new Date(nowUTC.getTime() + 10 * 24 * 60 * 60 * 1000)
+    const MIN_NOTICE_MS = 2 * 60 * 60 * 1000
+    const nowUTC        = new Date()
+    const rangeEnd      = new Date(nowUTC.getTime() + 30 * 24 * 60 * 60 * 1000)
 
     const { data } = await calendar.freebusy.query({
-      requestBody: {
-        timeMin:  nowUTC.toISOString(),
-        timeMax:  rangeEnd.toISOString(),
-        items:    [{ id: calendarId }],
-      },
+      requestBody: { timeMin: nowUTC.toISOString(), timeMax: rangeEnd.toISOString(), items: [{ id: calendarId }] },
     })
 
     const busy = (data.calendars?.[calendarId]?.busy ?? []).map(b => ({
-      start: new Date(b.start!),
-      end:   new Date(b.end!),
+      start: new Date(b.start!), end: new Date(b.end!),
     }))
 
-    const available: Date[] = []
-
-    // Walk day by day in AR local time
-    const todayAR = new Date(nowUTC.getTime() + AR_OFFSET_MS)
-    todayAR.setHours(0, 0, 0, 0)
-
-    for (let d = 0; d < 10 && available.length < slotsNeeded; d++) {
-      const dayAR  = new Date(todayAR.getTime() + d * 86_400_000)
-      const dow    = dayAR.getDay()
-      if (dow === 0 || dow === 6) continue  // skip weekends
-
-      for (let h = BIZ_START_H; h < BIZ_END_H && available.length < slotsNeeded; h++) {
-        for (let m = 0; m < 60 && available.length < slotsNeeded; m += 30) {
-          // Last slot must end by BIZ_END_H
-          if (h === BIZ_END_H - 1 && m > 30) continue
-
-          const slotAR  = new Date(dayAR)
-          slotAR.setHours(h, m, 0, 0)
-          const slotUTC = new Date(slotAR.getTime() - AR_OFFSET_MS)
-          const slotEndUTC = new Date(slotUTC.getTime() + SLOT_MS)
-
-          if (slotUTC.getTime() - nowUTC.getTime() < MIN_NOTICE_MS) continue
-
-          const overlaps = busy.some(b => slotUTC < b.end && slotEndUTC > b.start)
-          if (!overlaps) available.push(slotUTC)
-        }
-      }
+    function isFree(slotUTC: Date): boolean {
+      const end = new Date(slotUTC.getTime() + SLOT_MS)
+      return !busy.some(b => slotUTC < b.end && end > b.start)
     }
 
-    return available
+    function slotsInRange(dayAR: Date, startH: number, endH: number): Date[] {
+      const out: Date[] = []
+      for (let h = startH; h < endH; h++) {
+        for (let m = 0; m < 60; m += 30) {
+          if (h === endH - 1 && m > 30) continue
+          const slotAR  = new Date(dayAR); slotAR.setHours(h, m, 0, 0)
+          const slotUTC = new Date(slotAR.getTime() - AR_MS)
+          if (slotUTC.getTime() - nowUTC.getTime() < MIN_NOTICE_MS) continue
+          if (isFree(slotUTC)) out.push(slotUTC)
+        }
+      }
+      return out
+    }
+
+    const days   = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+    const result: DaySlots[] = []
+    let skipped = 0
+    const todayAR = new Date(nowUTC.getTime() + AR_MS); todayAR.setHours(0, 0, 0, 0)
+
+    for (let d = 0; d < 45 && result.length < daysToShow; d++) {
+      const dayAR = new Date(todayAR.getTime() + d * 86_400_000)
+      const dow   = dayAR.getDay()
+      if (dow === 0 || dow === 6) continue
+
+      const morning   = slotsInRange(dayAR, 9, 13)
+      const afternoon = slotsInRange(dayAR, 13, 18)
+
+      // Pick up to 2 from each half; if one is short, fill from the other
+      let selected: Date[]
+      const mPicks = morning.slice(0, 2)
+      const aPicks = afternoon.slice(0, 2)
+      if      (mPicks.length >= 2 && aPicks.length >= 2) selected = [...mPicks, ...aPicks]
+      else if (mPicks.length < 2)  selected = [...mPicks, ...afternoon.slice(0, 4 - mPicks.length)]
+      else                          selected = [...morning.slice(0, 4 - aPicks.length), ...aPicks]
+      selected.sort((a, b) => a.getTime() - b.getTime())
+
+      if (!selected.length) continue
+      if (skipped < skipDays) { skipped++; continue }
+
+      result.push({
+        dateLabel: `${days[dayAR.getDay()]} ${dayAR.getDate()} ${months[dayAR.getMonth()]}`,
+        fecha:     dayAR.toISOString().slice(0, 10),
+        slots:     selected,
+      })
+    }
+
+    return result
   } catch (err) {
-    console.error('[Calendar] getAvailableSlots failed:', err)
+    console.error('[Calendar] getAvailableSlotsByDay failed:', err)
     return []
   }
 }

@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendOutboundWhatsAppMessage } from '@/lib/whatsapp-outbound'
 import { matchFaqOrEscalate } from '@/lib/whatsapp-faq'
-import { getAvailableSlots, formatSlotAR, createCalendarEvent } from '@/lib/google-calendar'
+import { getAvailableSlotsByDay, formatSlotAR, createCalendarEvent } from '@/lib/google-calendar'
 import { sendGmail } from '@/lib/google-gmail'
 
 type AdminClient = ReturnType<typeof createAdminClient>
@@ -239,30 +239,51 @@ async function advanceQualifyingBot(
     .eq('id', conversationId)
 }
 
+const SLOT_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣']
+
 /**
- * After qualifying, try to offer 3 calendar slots directly in WhatsApp.
- * Falls back to the external link if Calendar is unavailable or returns no slots.
+ * Offers calendar slots grouped by day (up to 2 days, 4 slots each: 2 morning + 2 afternoon).
+ * skipDays lets subsequent calls skip already-shown days so the lead can see new options.
+ * State is encoded in bot_next_question as: booking_slots:::NEXT_SKIP:::ISO1|ISO2|...|ISON
  */
 async function startBookingFlow(
   admin: AdminClient,
   { leadId, conversationId, phone }: { leadId: string; conversationId: string; phone: string },
+  skipDays = 0,
 ): Promise<void> {
-  const slots = await getAvailableSlots(3)
+  const days = await getAvailableSlotsByDay(2, skipDays)
 
-  if (!slots.length) {
+  if (!days.length) {
     await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: CLOSING_FALLBACK })
     await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
     return
   }
 
-  const lines = slots.map((s, i) => `${i + 1}️⃣ ${formatSlotAR(s).label}`)
-  const encoded = slots.map(s => s.toISOString()).join('|')
+  const allSlots: Date[] = []
+  const dayLines: string[] = []
 
-  const body = '¡Perfecto, ya tengo todo! 🎉\n\n'
-    + 'Para arrancar, te propongo agendar una llamada de 30 minutos con Walo para charlar sobre lo que necesitás.\n\n'
-    + 'Estos son los próximos horarios disponibles:\n'
-    + lines.join('\n')
-    + '\n\nRespondé con *1*, *2* o *3* y lo agendo ahora mismo 🗓️'
+  for (const day of days) {
+    dayLines.push(`📅 *${day.dateLabel}*`)
+    for (const slot of day.slots) {
+      const { hora } = formatSlotAR(slot)
+      dayLines.push(`${SLOT_EMOJIS[allSlots.length]} ${hora} hs`)
+      allSlots.push(slot)
+    }
+    dayLines.push('')
+  }
+
+  const nextSkip  = skipDays + days.length
+  const encoded   = `${nextSkip}:::${allSlots.map(s => s.toISOString()).join('|')}`
+  const validNums = allSlots.map((_, i) => `*${i + 1}*`).join(', ')
+
+  const intro = skipDays === 0
+    ? '¡Perfecto, ya tengo todo! 🎉\n\nPara arrancar, te propongo agendar una llamada de 30 minutos con Walo para charlar sobre lo que necesitás.\n\n'
+    : 'Acá van más horarios disponibles:\n\n'
+
+  const body = intro
+    + dayLines.join('\n').trim()
+    + `\n\nRespondé con el número del horario que más te quede bien (${validNums}) 🗓️`
+    + '\nO si ninguno te sirve, escribí *"otros"* para ver más fechas.'
 
   await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body })
   await admin
@@ -272,8 +293,9 @@ async function startBookingFlow(
 }
 
 /**
- * Handles the lead's slot selection (1/2/3), creates the Calendar event,
- * updates the lead to reunion_reservada, and confirms via WhatsApp.
+ * Handles the lead's slot selection or "otros" request.
+ * State format in bot_next_question: booking_slots:::NEXT_SKIP:::ISO1|ISO2|...|ISON
+ * Legacy format (no NEXT_SKIP segment) is also handled gracefully.
  */
 async function handleBookingPhase(
   admin: AdminClient,
@@ -286,18 +308,37 @@ async function handleBookingPhase(
     return
   }
 
-  const slots = botNextQuestion
-    .slice(BOOKING_SLOTS_PREFIX.length)
-    .split('|')
-    .map(s => new Date(s))
+  const raw = botNextQuestion.slice(BOOKING_SLOTS_PREFIX.length)
 
-  const choice = text?.trim()
-  const idx    = choice === '1' ? 0 : choice === '2' ? 1 : choice === '3' ? 2 : -1
+  // New format: "NEXT_SKIP:::ISO1|ISO2|..." — legacy format starts with a date char
+  let nextSkip = 0
+  let slotsStr = raw
+  if (/^\d+:::/.test(raw)) {
+    const sep = raw.indexOf(':::')
+    nextSkip = parseInt(raw.slice(0, sep), 10) || 0
+    slotsStr = raw.slice(sep + 3)
+  }
 
-  if (idx === -1 || !slots[idx]) {
+  const slots = slotsStr.split('|').filter(Boolean).map(s => new Date(s))
+  const trimmed = text?.trim() ?? ''
+
+  // Lead wants to see different dates
+  const wantsOthers = /^(otro|otros|ninguno|ninguna|no puedo|no me|no sirve|más|mas|ver más|ver mas|otras fechas)/i.test(trimmed)
+    || /\b(otro|otros|ninguno|más (fecha|horario|dia|opcion)|otra fecha)\b/i.test(trimmed)
+
+  if (wantsOthers) {
+    await startBookingFlow(admin, { leadId, conversationId, phone }, nextSkip)
+    return
+  }
+
+  const num = parseInt(trimmed, 10)
+  const idx = num - 1
+
+  if (isNaN(num) || idx < 0 || idx >= slots.length) {
+    const validNums = slots.map((_, i) => `*${i + 1}*`).join(', ')
     await sendOutboundWhatsAppMessage(admin, {
       conversationId, leadId, phone,
-      body: 'Respondé con *1*, *2* o *3* para elegir el horario que más te quede bien 🙂',
+      body: `Respondé con el número del horario (${validNums}) o escribí *"otros"* para ver más fechas 🙂`,
     })
     return
   }
