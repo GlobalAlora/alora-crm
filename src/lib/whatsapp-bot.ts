@@ -193,12 +193,19 @@ async function advanceQualifyingBot(
 
   const nextField = QUESTION_ORDER.slice(startIdx).find((f) => !isFieldFilled(lead, f))
 
-  // Gentle reality check when the lead mentions they want something for free.
-  // We only inject this once, when they're actively telling us what they need.
+  // When the lead mentions pricing or asks if services are free, acknowledge briefly
+  // before continuing with the next qualifying question.
   const mentionsGratis = /\b(gratis|gratuito|gratuita|gratuitos|gratuitas|sin costo|sin cobrar|de onda|free)\b/i.test(trimmed)
-  const gratisPrefix = mentionsGratis && !isFreshStart
-    ? 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios tienen un costo 🙂 En la llamada con Walo van a charlar sobre qué necesitás y cuánto implicaría — te aseguro que vale la pena.\n\n'
-    : ''
+  const asksPricing = /\b(costo|costos|precio|precios|cuánto sale|cuanto sale|cuánto cuesta|cuanto cuesta|cuánto cobran|cuanto cobran|tiene costo|tienen costo|es pago|es gratis|cobran|presupuesto|tarifas?)\b/i.test(trimmed)
+
+  let gratisPrefix = ''
+  if (!isFreshStart) {
+    if (mentionsGratis) {
+      gratisPrefix = 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios tienen un costo 🙂 En la llamada con Walo van a charlar sobre qué necesitás y cuánto implicaría — te aseguro que vale la pena.\n\n'
+    } else if (asksPricing) {
+      gratisPrefix = '¡Muy buena pregunta! Los costos dependen del proyecto puntual, así que en la llamada con Walo van a ver juntos qué solución se adapta mejor y qué invertiría 🙂\n\n'
+    }
+  }
 
   if (!nextField) {
     // Nothing left to ask — start the booking flow (or fall back to link).

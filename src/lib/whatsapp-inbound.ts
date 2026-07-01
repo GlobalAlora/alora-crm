@@ -224,10 +224,16 @@ async function findOrCreateLeadByPhone(
     .limit(1)
     .maybeSingle()
 
+  // Only use the WhatsApp display name if it looks like an actual name
+  // (short, 1-3 words). Baileys sometimes sends the first message text as
+  // the contact name when no profile name is set — we don't want that.
+  const words = (name ?? '').trim().split(/\s+/)
+  const cleanName = name && words.length <= 3 && name.length <= 40 ? name : null
+
   const { data: newLead, error } = await admin
     .from('leads')
     .insert({
-      nombre:          name || 'Contacto WhatsApp',
+      nombre:          cleanName || 'Contacto WhatsApp',
       telefono:        phone,
       fuente:          'whatsapp',
       estado_pipeline: 'lead_entrante',
