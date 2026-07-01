@@ -235,7 +235,7 @@ async function findOrCreateLeadByPhone(
   const { data: newLead, error } = await admin
     .from('leads')
     .insert({
-      nombre:          cleanName || 'Contacto WhatsApp',
+      nombre:          cleanName || `+${phone}`,
       telefono:        phone,
       fuente:          'whatsapp',
       estado_pipeline: 'lead_entrante',
