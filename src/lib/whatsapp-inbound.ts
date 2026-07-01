@@ -225,10 +225,12 @@ async function findOrCreateLeadByPhone(
     .maybeSingle()
 
   // Only use the WhatsApp display name if it looks like an actual name
-  // (short, 1-3 words). Baileys sometimes sends the first message text as
-  // the contact name when no profile name is set — we don't want that.
+  // (1-2 words, short). Baileys sometimes sends the first message text as
+  // the contact name when no profile name is set (e.g. "Crear una app").
+  // 3-word phrases are often sentences/commands, so we reject them here;
+  // the qualifying bot will ask for the real name anyway.
   const words = (name ?? '').trim().split(/\s+/)
-  const cleanName = name && words.length <= 3 && name.length <= 40 ? name : null
+  const cleanName = name && words.length <= 2 && name.length <= 30 ? name : null
 
   const { data: newLead, error } = await admin
     .from('leads')

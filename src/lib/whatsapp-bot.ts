@@ -176,6 +176,41 @@ async function advanceQualifyingBot(
     return
   }
 
+  // Detect whether the incoming message is a question (pricing, gratis, FAQ, etc.)
+  // We do this early so we can intercept the consulta_detallada field: if the lead
+  // answers that question with a question of their own ("¿cuánto cuesta?") we should
+  // answer it and re-ask the field instead of saving a question as the consultation.
+  const mentionsGratis = !!(trimmed && /\b(gratis|gratuito|gratuita|gratuitos|gratuitas|sin costo|sin cobrar|de onda|free)\b/i.test(trimmed))
+  const asksPricing    = !!(trimmed && /\b(costo|costos|precio|precios|cuánto sale|cuanto sale|cuánto cuesta|cuanto cuesta|cuánto cobran|cuanto cobran|tiene costo|tienen costo|es pago|cobran|presupuesto|tarifas?)\b/i.test(trimmed))
+  const looksLikeQuestion = !!(trimmed && (
+    trimmed.includes('?') ||
+    /^(qué|que|cómo|como|cuánto|cuanto|cuándo|cuando|tienen|hacen|ofrecen|trabajan|pueden|hay |es posible|me gustaría saber|quisiera saber|quiero saber|me podés|podés decirme|podrian)\b/i.test(trimmed) ||
+    /\b(me gustaría saber|quisiera saber|quiero saber|necesito saber)\b/i.test(trimmed)
+  ))
+
+  // If the lead answered consulta_detallada with a question (not an actual description
+  // of their need), answer the question and re-ask consulta_detallada. Don't save it.
+  if (askedField === 'consulta_detallada' && !isRetry && trimmed && (mentionsGratis || asksPricing || looksLikeQuestion)) {
+    let questionAnswer = ''
+    if (mentionsGratis) {
+      questionAnswer = 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios tienen un costo 🙂 En la llamada con Walo van a charlar sobre qué necesitás y cuánto implicaría.'
+    } else if (asksPricing) {
+      questionAnswer = '¡Buena pregunta! Los costos dependen del proyecto, así que en la llamada con Walo van a ver juntos qué solución se adapta mejor y cuánto implicaría 🙂'
+    } else {
+      const faqResult = await matchFaqOrEscalate(admin, trimmed)
+      if (faqResult.action === 'answer' && faqResult.answer) {
+        questionAnswer = faqResult.answer
+      }
+    }
+    const body = questionAnswer
+      ? `${questionAnswer}\n\nAhora sí, ${QUESTION_TEXT.consulta_detallada.charAt(0).toLowerCase()}${QUESTION_TEXT.consulta_detallada.slice(1)}`
+      : VALIDATORS.consulta_detallada!.pushback
+    await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body })
+    // Stay on consulta_detallada — treat this turn as a retry so we accept the next answer
+    await admin.from('whatsapp_conversations').update({ bot_next_question: 'consulta_detallada__retry' }).eq('id', conversationId)
+    return
+  }
+
   // Push back once on a non-answer to a validated field instead of silently
   // moving on (e.g. "no tengo" to the email question).
   const validator = askedField ? VALIDATORS[askedField] : undefined
@@ -215,18 +250,11 @@ async function advanceQualifyingBot(
 
   const nextField = QUESTION_ORDER.slice(startIdx).find((f) => !isFieldFilled(lead, f))
 
-  // During qualifying, if the lead asks a question, answer it and then continue.
+  // During qualifying, if the lead asks a question, answer it before the next field.
   // Priority: gratis/free → pricing → general FAQ → no prefix.
   // We never escalate during qualifying — just answer what we can and keep going.
   let questionPrefix = ''
   if (!isFreshStart && trimmed) {
-    const mentionsGratis = /\b(gratis|gratuito|gratuita|gratuitos|gratuitas|sin costo|sin cobrar|de onda|free)\b/i.test(trimmed)
-    const asksPricing   = /\b(costo|costos|precio|precios|cuánto sale|cuanto sale|cuánto cuesta|cuanto cuesta|cuánto cobran|cuanto cobran|tiene costo|tienen costo|es pago|cobran|presupuesto|tarifas?)\b/i.test(trimmed)
-    const looksLikeQuestion =
-      trimmed.includes('?') ||
-      /^(qué|que|cómo|como|cuánto|cuanto|cuándo|cuando|tienen|hacen|ofrecen|trabajan|pueden|hay |es posible|me gustaría saber|quisiera saber|quiero saber|me podés|podés decirme|podrian)\b/i.test(trimmed) ||
-      /\b(me gustaría saber|quisiera saber|quiero saber|necesito saber)\b/i.test(trimmed)
-
     if (mentionsGratis) {
       questionPrefix = 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios tienen un costo 🙂 En la llamada con Walo van a charlar sobre qué necesitás y cuánto implicaría.\n\n'
     } else if (asksPricing) {
