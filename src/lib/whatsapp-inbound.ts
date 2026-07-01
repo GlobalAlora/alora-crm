@@ -23,7 +23,9 @@ export interface InboundWhatsAppMessage {
  * conversation, and stores the message.
  */
 export async function recordInboundWhatsAppMessage(admin: AdminClient, msg: InboundWhatsAppMessage): Promise<void> {
-  const { phone, name, text, waMessageId, mediaType } = msg
+  // Normalize phone: strip everything except digits so "+549..." and "549..." always resolve to the same lead.
+  const phone = msg.phone.replace(/\D/g, '')
+  const { name, text, waMessageId, mediaType } = msg
 
   const leadId = await findOrCreateLeadByPhone(admin, { phone, name, text })
 
@@ -187,10 +189,14 @@ async function findOrCreateLeadByPhone(
   admin: AdminClient,
   { phone, name, text }: { phone: string; name: string | null; text: string | null },
 ): Promise<string> {
+  // Search both "5492644..." and "+5492644..." — old leads may have been stored
+  // with the + prefix. Using two .eq() calls avoids URL-encoding issues with +
+  // inside a PostgREST .or() filter.
+  const withPlus = `+${phone}`
   const { data: existing } = await admin
     .from('leads')
     .select('id, nombre')
-    .or(`telefono.eq.${phone},telefono.eq.+${phone}`)
+    .in('telefono', [phone, withPlus])
     .is('deleted_at', null)
     .limit(1)
     .maybeSingle()
