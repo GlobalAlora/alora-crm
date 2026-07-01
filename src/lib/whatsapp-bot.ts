@@ -59,7 +59,7 @@ const VALIDATORS: Partial<Record<QuestionField, { isValid: (text: string) => boo
 
 // Detect farewell / disengagement messages so Lidia doesn't keep qualifying
 // someone who is saying goodbye or postponing.
-const DISENGAGEMENT_RE = /\b(postergar|posponer|pausar el proyecto|cancelar|lo dejamos|lo pausamos|no vamos a poder|no podemos continuar|no voy a poder|decidimos no|por el momento no|por ahora no|hasta pronto|hasta luego|gracias por todo|agradecemos tu gestión|agradecemos la gestión|inconveniente económico|inconveniente economico|dificultades económicas|no seguir|no continuar)\b/i
+const DISENGAGEMENT_RE = /\b(postergar|posponer|pausar el proyecto|cancelar|lo dejamos|lo pausamos|no vamos a poder|no podemos continuar|no voy a poder|decidimos no|por el momento no|por ahora no|hasta pronto|hasta luego|gracias por todo|agradecemos tu gestión|agradecemos la gestión|inconveniente económico|inconveniente economico|dificultades económicas|no seguir|no continuar|no tengo nada|no tengo proyecto|era mentira|te mentí|te menti|me equivoqué|me equivoque|era un chiste|era broma|estaba probando|lo dejo|dejalo|no me interesa|no estoy interesado|no estoy interesada|no voy a contratar|no vamos a contratar)\b/i
 
 const QUESTION_TEXT: Record<QuestionField, string> = {
   nombre:                '¿Cómo te llamás?',
@@ -453,6 +453,18 @@ async function handleBookingPhase(
     leadId: string; conversationId: string; phone: string; text: string | null; botNextQuestion: string | null
   },
 ): Promise<void> {
+  const trimmedEarly = text?.trim() ?? ''
+
+  // Detect disengagement before anything else — same as in qualifying
+  if (trimmedEarly && DISENGAGEMENT_RE.test(trimmedEarly)) {
+    await sendOutboundWhatsAppMessage(admin, {
+      conversationId, leadId, phone,
+      body: '¡Entendido, sin problema! Lamentamos no poder ayudarte por ahora. Cuando estés listo/a para retomar, escribinos tranquilo — acá vamos a estar 💛 ¡Mucho ánimo!',
+    })
+    await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
+    return
+  }
+
   if (!botNextQuestion?.startsWith(BOOKING_SLOTS_PREFIX)) {
     await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
     return
