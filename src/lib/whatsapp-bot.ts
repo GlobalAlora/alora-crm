@@ -101,8 +101,7 @@ export async function runBot(
   { leadId, conversationId, phone, text }: { leadId: string; conversationId: string; phone: string; text: string | null },
 ): Promise<void> {
   if (await isClientLead(admin, leadId)) {
-    // Existing clients: always straight to a human, never the bot — not even
-    // a welcome message. Force bot_active off in case it was somehow on.
+    console.log(`[Bot] PAUSE reason=client_list phone=${phone} conv=${conversationId}`)
     await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
     return
   }
@@ -113,7 +112,12 @@ export async function runBot(
     .eq('id', conversationId)
     .single()
 
-  if (!convo || convo.bot_active === false) return
+  if (!convo || convo.bot_active === false) {
+    console.log(`[Bot] SKIP phone=${phone} conv=${conversationId} bot_active=${convo?.bot_active} phase=${convo?.bot_phase}`)
+    return
+  }
+
+  console.log(`[Bot] START phone=${phone} phase=${convo.bot_phase ?? 'qualifying'} next_q=${convo.bot_next_question ?? 'null'}`)
 
   if (convo.bot_phase === 'faq') {
     await handleFaqPhase(admin, { leadId, conversationId, phone, text })

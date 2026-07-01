@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
   }
 
   // A human just replied — stop the qualifying bot from interjecting further.
+  console.log(`[Bot] PAUSE reason=human_reply user=${user.id} conv=${conversation_id} phone=${normalizedPhone}`)
   await admin
     .from('whatsapp_conversations')
     .update({ bot_active: false })
