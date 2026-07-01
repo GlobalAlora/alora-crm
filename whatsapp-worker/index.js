@@ -164,11 +164,27 @@ function extractText(message) {
 }
 
 async function handleIncomingMessage(m) {
-  if (!m.message || m.key.fromMe) return
+  if (!m.message) return
 
   const rawJid = m.key.remoteJid || ''
   // Ignore groups, broadcast lists and channels — only 1:1 chats become leads
   if (rawJid.endsWith('@g.us') || rawJid === 'status@broadcast' || rawJid.endsWith('@newsletter')) return
+
+  // Outbound message sent from the native WhatsApp app by the team.
+  // Notify the CRM so it can pause the bot — otherwise Lidia restarts
+  // qualifying when the lead replies.
+  if (m.key.fromMe) {
+    const { text, mediaType } = extractText(m.message)
+    if (!text && !mediaType) return // protocol noise, skip
+    if (!CRM_WEBHOOK_URL || !BAILEYS_WEBHOOK_SECRET) return
+    const phone = rawJid.split('@')[0].split(':')[0].replace(/\D/g, '')
+    await fetch(CRM_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-webhook-secret': BAILEYS_WEBHOOK_SECRET },
+      body: JSON.stringify({ phone, text, waMessageId: m.key.id, mediaType, direction: 'outbound' }),
+    }).catch(err => logger.warn({ err }, 'No se pudo avisar al CRM del mensaje saliente'))
+    return
+  }
 
   const isLid = rawJid.endsWith('@lid')
   const jidDigits = rawJid.split('@')[0].split(':')[0].replace(/\D/g, '')
