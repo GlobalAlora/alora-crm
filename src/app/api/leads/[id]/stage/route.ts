@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { PipelineStage } from '@/types'
 import { ensureLeadDriveFolder } from '@/lib/google-drive'
 
@@ -105,6 +106,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     })
   } catch {
     // table may not exist yet
+  }
+
+  // ── Disable Lidia when lead is disqualified ───────────────────────────────
+  // A no_cualificado lead should never receive another message from the bot.
+  if (estado_pipeline === 'no_cualificado') {
+    const admin = createAdminClient()
+    await admin
+      .from('whatsapp_conversations')
+      .update({ bot_active: false })
+      .eq('lead_id', id)
   }
 
   // ── Auto-reject pending proposals when lead is lost ───────────────────────

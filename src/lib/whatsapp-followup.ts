@@ -47,6 +47,20 @@ export async function runWhatsAppFollowUps(admin: AdminClient): Promise<{ sent: 
     const threshold = FOLLOWUP_HOURS[conv.followup_count]
     if (hoursSince < threshold) continue
 
+    // Never follow up on disqualified leads — they've been ruled out, silence is intentional.
+    if (conv.lead_id) {
+      const { data: lead } = await admin
+        .from('leads')
+        .select('estado_pipeline')
+        .eq('id', conv.lead_id)
+        .single()
+
+      if (lead?.estado_pipeline === 'no_cualificado') {
+        await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conv.id)
+        continue
+      }
+    }
+
     // Never chase up an existing client — they're not a lead going cold.
     if (conv.lead_id && await isClientLead(admin, conv.lead_id)) {
       await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conv.id)
