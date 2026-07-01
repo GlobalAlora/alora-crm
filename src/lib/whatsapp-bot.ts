@@ -63,12 +63,60 @@ const DISENGAGEMENT_RE = /\b(postergar|posponer|pausar el proyecto|cancelar|lo d
 
 const QUESTION_TEXT: Record<QuestionField, string> = {
   nombre:                '¿Cómo te llamás?',
-  consulta_detallada:    'Contame con el mayor detalle posible qué necesitás, así te puedo ayudar mejor 🙂',
-  email:                 '¿Me pasás tu email? 📧',
-  empresa:               '¿Tenés una empresa o negocio? Contame cómo se llama 😊',
-  sitio_web:             '¿Ya tenés un sitio web? Si tenés, pasame el link (si no tenés todavía, tranquilo, no es obligatorio)',
-  pais:                  '¿Desde qué país me escribís?',
-  servicios_interesados: '¿En qué servicio puntual estás interesado? (por ejemplo: diseño web, mantenimiento, redes sociales, branding, marketing, etc.) ✨',
+  consulta_detallada:    'Contame un poco más sobre lo que necesitás — así el equipo puede entender mejor tu proyecto 🙂',
+  email:                 '¿Me dejás tu email? Así el equipo puede hacerte seguimiento 📧',
+  empresa:               '¿Tenés empresa o negocio? ¿Cómo se llama? 😊',
+  sitio_web:             '¿Ya tenés sitio web? Si tenés, pasame el link — si no, sin problema, no es obligatorio 🙂',
+  pais:                  '¿Desde qué país nos escribís?',
+  servicios_interesados: '¿En qué servicio estás pensando? (diseño web, apps, redes sociales, branding, marketing... lo que sea 😊)',
+}
+
+/**
+ * Returns a short, natural acknowledgment for the field that was just answered.
+ * Varies by field and optionally uses the answer/lead name for personalization.
+ */
+function getAcknowledgment(field: QuestionField, answer: string, leadNombre?: string | null): string {
+  const name = leadNombre?.split(' ')[0] ?? ''
+  switch (field) {
+    case 'nombre': {
+      const firstName = answer.trim().split(/\s+/)[0]
+      const options = [
+        `¡Hola, ${firstName}! Un gusto 😊`,
+        `¡Encantada, ${firstName}! 🙂`,
+        `¡Qué bueno tenerte acá, ${firstName}! 😊`,
+      ]
+      return options[Math.floor(Math.random() * options.length)]
+    }
+    case 'consulta_detallada': {
+      const options = [
+        '¡Copado, me queda claro el proyecto! 🙌',
+        '¡Perfecto, entendido! Suena muy interesante 🙌',
+        '¡Genial, anoto todo! 📝',
+      ]
+      return options[Math.floor(Math.random() * options.length)]
+    }
+    case 'email': {
+      return '¡Perfecto, lo tomo nota! 📝'
+    }
+    case 'empresa': {
+      if (/no |sin |ninguna|no tengo/i.test(answer)) return '¡Tranquilo, no hay problema! 🙂'
+      const options = ['¡Buenísimo! 💪', '¡Genial! 🙌', '¡Qué bien! 😊']
+      return options[Math.floor(Math.random() * options.length)]
+    }
+    case 'sitio_web': {
+      if (/no |sin |todavía|aún|no tengo/i.test(answer)) return '¡Sin problema, no hace falta! 🙂'
+      return '¡Genial, lo anoto! 🙌'
+    }
+    case 'pais': {
+      return `¡Buenísimo, un saludo desde acá! 🙌`
+    }
+    case 'servicios_interesados': {
+      const options = ['¡Perfecto! 🙌', '¡Buenísimo, lo tengo en cuenta! 😊', '¡Entendido! 💪']
+      return options[Math.floor(Math.random() * options.length)]
+    }
+    default:
+      return '¡Perfecto! 🙌'
+  }
 }
 
 const WELCOME  = '¡Hola! 👋 Soy Lidia, de Alora. ¡Qué alegría que nos escribas! 🙂'
@@ -323,12 +371,15 @@ async function advanceQualifyingBot(
     return
   }
 
-  await sendOutboundWhatsAppMessage(admin, {
-    conversationId,
-    leadId,
-    phone,
-    body: `${questionPrefix}${QUESTION_TEXT[nextField]}`,
-  })
+  // Acknowledge the previous answer before asking the next question,
+  // unless we already have a questionPrefix that starts the message naturally.
+  const ack = askedField && trimmed && !questionPrefix
+    ? getAcknowledgment(askedField, trimmed, lead.nombre)
+    : ''
+
+  const body = [ack, questionPrefix, QUESTION_TEXT[nextField]].filter(Boolean).join('\n\n')
+
+  await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body })
 
   await admin
     .from('whatsapp_conversations')
