@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
     text?: string | null
     waMessageId?: string | null
     mediaType?: string | null
+    direction?: 'inbound' | 'outbound'   // outbound = sent from native WA app by the team
     lidResolved?: { oldPhone: string; newPhone: string }
     disconnected?: { reason: string }
   } | null
@@ -47,6 +48,38 @@ export async function POST(req: NextRequest) {
 
   if (!body.phone) {
     return NextResponse.json({ error: 'phone es requerido' }, { status: 400 })
+  }
+
+  // Outbound message sent by the team directly from the native WhatsApp app.
+  // Record it and pause the bot so Lidia doesn't restart qualifying when the
+  // lead replies — same effect as sending through the CRM send route.
+  if (body.direction === 'outbound') {
+    try {
+      const phone = body.phone.replace(/\D/g, '')
+      const { data: conv } = await admin
+        .from('whatsapp_conversations')
+        .select('id')
+        .eq('phone_number', phone)
+        .maybeSingle()
+
+      if (conv) {
+        await admin.from('wa_messages').insert({
+          conversation_id: conv.id,
+          lead_id:         null,
+          direction:       'outbound',
+          body:            body.text ?? null,
+          wa_message_id:   body.waMessageId ?? null,
+          status:          'sent',
+        }).throwOnError()
+        await admin.from('whatsapp_conversations')
+          .update({ bot_active: false, last_message_direction: 'outbound', last_message_at: new Date().toISOString() })
+          .eq('id', conv.id)
+        console.log(`[Bot] PAUSE reason=native_wa_outbound phone=${phone}`)
+      }
+    } catch (err) {
+      console.error('[WhatsApp Baileys] Failed to record outbound message:', err)
+    }
+    return NextResponse.json({ status: 'ok' })
   }
 
   try {

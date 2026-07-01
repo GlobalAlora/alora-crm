@@ -256,6 +256,25 @@ async function advanceQualifyingBot(
   }
 
   if (isFreshStart) {
+    // If there are already outbound messages in this conversation, a human was
+    // handling it directly (e.g. from the native WhatsApp app). Don't restart
+    // qualifying from scratch — go to FAQ mode so Lidia can answer questions
+    // but won't fire the welcome + form again.
+    const { count: outboundCount } = await admin
+      .from('wa_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', conversationId)
+      .eq('direction', 'outbound')
+
+    if (outboundCount && outboundCount > 0) {
+      console.log(`[Bot] Existing outbound messages found (${outboundCount}), skipping welcome — going to FAQ mode`)
+      await admin
+        .from('whatsapp_conversations')
+        .update({ bot_phase: 'faq', bot_next_question: null })
+        .eq('id', conversationId)
+      return
+    }
+
     // Atomic claim: only one concurrent call wins when bot_next_question is still null.
     // If another call already claimed it, data comes back empty and we bail out.
     const { data: claimed } = await admin
