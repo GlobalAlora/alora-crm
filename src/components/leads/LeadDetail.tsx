@@ -419,7 +419,7 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                 Sin respuesta hace {lead.dias_sin_respuesta} días
               </div>
             )}
-            {lead.next_followup_at && (() => {
+            {lead.next_followup_at && lead.estado_pipeline !== 'reunion_reservada' && (() => {
               const followupDate = new Date(lead.next_followup_at)
               const now = new Date()
               const diffMs = followupDate.getTime() - now.getTime()
