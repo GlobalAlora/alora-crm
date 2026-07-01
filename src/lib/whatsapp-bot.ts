@@ -31,6 +31,15 @@ export async function isClientLead(admin: AdminClient, leadId: string): Promise<
   return !!data
 }
 
+// Strips greeting words from a name answer ("hola soy Nahuel" → "Nahuel")
+function extractName(raw: string): string {
+  const cleaned = raw
+    .replace(/^(hola[,!]?\s*)?(soy|me llamo|mi nombre es|me dicen|soy el|soy la|soy)\s+/i, '')
+    .replace(/^hola[,!]?\s*/i, '')
+    .trim()
+  return cleaned || raw.trim()
+}
+
 // Order in which the qualifying bot asks for missing info.
 // "nombre" and "consulta_detallada" are free-text answers we save directly
 // (no AI inference) and are always asked once, regardless of whether the
@@ -274,7 +283,8 @@ async function advanceQualifyingBot(
   // The field we just asked about isn't AI-inferred — save the raw reply
   // directly (if any) before deciding what's next.
   if (askedField && DIRECT_SAVE_FIELDS.has(askedField) && trimmed) {
-    await admin.from('leads').update({ [askedField]: trimmed }).eq('id', leadId)
+    const valueToSave = askedField === 'nombre' ? extractName(trimmed) : trimmed
+    await admin.from('leads').update({ [askedField]: valueToSave }).eq('id', leadId)
   }
   // Email is otherwise left to AI enrichment, but save it directly here too
   // when it was the literal answer to the email question — no need to wait.
