@@ -61,10 +61,7 @@ export async function runWhatsAppFollowUps(admin: AdminClient): Promise<{ sent: 
       }
 
       // Never follow up on leads that already booked a meeting — they're in the funnel.
-      if (lead?.estado_pipeline === 'reunion_reservada') {
-        await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conv.id)
-        continue
-      }
+      if (lead?.estado_pipeline === 'reunion_reservada') continue
     }
 
     // Never chase up an existing client — they're not a lead going cold.
