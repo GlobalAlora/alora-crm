@@ -347,6 +347,7 @@ async function startBookingFlow(
   admin: AdminClient,
   { leadId, conversationId, phone }: { leadId: string; conversationId: string; phone: string },
   skipDays = 0,
+  customIntro?: string,
 ): Promise<void> {
   const days = await getAvailableSlotsByDay(2, skipDays)
 
@@ -373,9 +374,10 @@ async function startBookingFlow(
   const encoded   = `${nextSkip}:::${allSlots.map(s => s.toISOString()).join('|')}`
   const validNums = allSlots.map((_, i) => `*${i + 1}*`).join(', ')
 
-  const intro = skipDays === 0
-    ? '¡Perfecto, ya tengo todo! 🎉\n\nPara arrancar, te propongo agendar una llamada de 30 minutos con Walo para charlar sobre lo que necesitás.\n\n'
-    : 'Acá van más horarios disponibles:\n\n'
+  const intro = customIntro
+    ?? (skipDays === 0
+      ? '¡Perfecto, ya tengo todo! 🎉\n\nPara arrancar, te propongo agendar una llamada de 30 minutos con Walo para charlar sobre lo que necesitás.\n\n'
+      : 'Acá van más horarios disponibles:\n\n')
 
   const body = intro
     + dayLines.join('\n').trim()
@@ -432,10 +434,7 @@ async function handleBookingPhase(
   const idx = num - 1
 
   if (isNaN(num) || idx < 0 || idx >= slots.length) {
-    const validNums = slots.map((_, i) => `*${i + 1}*`).join(', ')
-    const slotPrompt = `Respondé con el número del horario (${validNums}) o escribí *"otros"* para ver más fechas 🙂`
-
-    // If the lead asked a question instead of picking a slot, answer it first
+    // Detect if the lead asked a question instead of picking a slot
     const mentionsGratisB = /\b(gratis|gratuito|gratuita|sin costo|sin cobrar|free)\b/i.test(trimmed)
     const asksPricingB    = /\b(costo|costos|precio|precios|cuánto sale|cuanto sale|cuánto cuesta|cuanto cuesta|cuánto cobran|cuanto cobran|a cuanto|a cuánto|tiene costo|tienen costo|es pago|cobran|presupuesto|tarifas?)\b/i.test(trimmed)
     const looksLikeQuestionB =
@@ -443,22 +442,29 @@ async function handleBookingPhase(
       /^(qué|que|cómo|como|cuánto|cuanto|cuándo|cuando|tienen|hacen|ofrecen|trabajan|pueden|hay |es posible|me gustaría saber|quisiera saber|quiero saber)\b/i.test(trimmed) ||
       /\b(me gustaría saber|quisiera saber|quiero saber|necesito saber)\b/i.test(trimmed)
 
-    let prefix = ''
+    let questionAnswer = ''
     if (mentionsGratisB) {
-      prefix = 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios son pagos 🙂 En la llamada con Walo van a charlar sobre lo que necesitás y los valores.\n\n'
+      questionAnswer = 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios son pagos 🙂 En la llamada con Walo van a charlar sobre lo que necesitás y los valores.'
     } else if (asksPricingB) {
-      prefix = '¡Buena pregunta! Los costos dependen del proyecto — en la llamada con Walo van a ver juntos qué solución se adapta mejor y cuánto implicaría 🙂\n\n'
+      questionAnswer = '¡Buena pregunta! Los costos dependen del proyecto — en la llamada con Walo van a ver juntos qué solución se adapta mejor y cuánto implicaría 🙂'
     } else if (looksLikeQuestionB) {
       const faqResult = await matchFaqOrEscalate(admin, trimmed)
       if (faqResult.action === 'answer' && faqResult.answer) {
-        prefix = faqResult.answer + '\n\n'
+        questionAnswer = faqResult.answer
       }
     }
 
-    await sendOutboundWhatsAppMessage(admin, {
-      conversationId, leadId, phone,
-      body: `${prefix}${slotPrompt}`,
-    })
+    // If they asked a question, answer it first and then re-offer slots conversationally
+    if (questionAnswer) {
+      await startBookingFlow(admin, { leadId, conversationId, phone }, 0,
+        `${questionAnswer}\n\nDicho eso, te propongo agendar una llamada de 30 min con Walo para que charlen tranquilos sobre tu proyecto 😊 Elegí el horario que más te quede bien:\n\n`,
+      )
+    } else {
+      // No question detected — re-engage warmly and re-offer slots
+      await startBookingFlow(admin, { leadId, conversationId, phone }, 0,
+        '¡Qué bueno saber de vos! 🙂 Quedamos en agendar una llamada con Walo para charlar sobre tu proyecto. ¿Cuál de estos horarios te queda bien?\n\n',
+      )
+    }
     return
   }
 
