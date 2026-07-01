@@ -43,6 +43,10 @@ const DIRECT_SAVE_FIELDS = new Set<QuestionField>(['nombre', 'consulta_detallada
 // (e.g. "no tengo" to the email question) and moving on. After one retry we
 // accept whatever comes back, so we never loop forever on it.
 const VALIDATORS: Partial<Record<QuestionField, { isValid: (text: string) => boolean; pushback: string }>> = {
+  nombre: {
+    isValid: (t) => t.trim().split(/\s+/).length <= 5 && t.trim().length <= 50,
+    pushback: '¿Me podés decir solo tu nombre? 😊',
+  },
   email: {
     isValid: (t) => /\S+@\S+\.\S+/.test(t),
     pushback: 'Te pido el email puntualmente porque es importante para que el equipo te pueda hacer seguimiento — ¿tenés alguno que me puedas pasar? 🙏',
@@ -52,6 +56,10 @@ const VALIDATORS: Partial<Record<QuestionField, { isValid: (text: string) => boo
     pushback: '¿Me podés contar un poco más en detalle? Cuanto más contexto me das, mejor te puede ayudar el equipo 🙏',
   },
 }
+
+// Detect farewell / disengagement messages so Lidia doesn't keep qualifying
+// someone who is saying goodbye or postponing.
+const DISENGAGEMENT_RE = /\b(postergar|posponer|pausar el proyecto|cancelar|lo dejamos|lo pausamos|no vamos a poder|no podemos continuar|no voy a poder|decidimos no|por el momento no|por ahora no|hasta pronto|hasta luego|gracias por todo|agradecemos tu gestión|agradecemos la gestión|inconveniente económico|inconveniente economico|dificultades económicas|no seguir|no continuar)\b/i
 
 const QUESTION_TEXT: Record<QuestionField, string> = {
   nombre:                '¿Cómo te llamás?',
@@ -157,6 +165,16 @@ async function advanceQualifyingBot(
     : (botNextQuestion as QuestionField | null)
 
   const trimmed = text?.trim() || ''
+
+  // If the lead is saying goodbye or postponing, respond warmly and stop qualifying.
+  if (trimmed && DISENGAGEMENT_RE.test(trimmed)) {
+    await sendOutboundWhatsAppMessage(admin, {
+      conversationId, leadId, phone,
+      body: '¡Entendido, sin problema! Lamentamos no poder ayudarte por ahora. Cuando estés listo/a para retomar, escribinos tranquilo — acá vamos a estar 💛 ¡Mucho ánimo!',
+    })
+    await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
+    return
+  }
 
   // Push back once on a non-answer to a validated field instead of silently
   // moving on (e.g. "no tengo" to the email question).
