@@ -193,25 +193,35 @@ async function advanceQualifyingBot(
 
   const nextField = QUESTION_ORDER.slice(startIdx).find((f) => !isFieldFilled(lead, f))
 
-  // When the lead mentions pricing or asks if services are free, acknowledge briefly
-  // before continuing with the next qualifying question.
-  const mentionsGratis = /\b(gratis|gratuito|gratuita|gratuitos|gratuitas|sin costo|sin cobrar|de onda|free)\b/i.test(trimmed)
-  const asksPricing = /\b(costo|costos|precio|precios|cuánto sale|cuanto sale|cuánto cuesta|cuanto cuesta|cuánto cobran|cuanto cobran|tiene costo|tienen costo|es pago|es gratis|cobran|presupuesto|tarifas?)\b/i.test(trimmed)
+  // During qualifying, if the lead asks a question, answer it and then continue.
+  // Priority: gratis/free → pricing → general FAQ → no prefix.
+  // We never escalate during qualifying — just answer what we can and keep going.
+  let questionPrefix = ''
+  if (!isFreshStart && trimmed) {
+    const mentionsGratis = /\b(gratis|gratuito|gratuita|gratuitos|gratuitas|sin costo|sin cobrar|de onda|free)\b/i.test(trimmed)
+    const asksPricing   = /\b(costo|costos|precio|precios|cuánto sale|cuanto sale|cuánto cuesta|cuanto cuesta|cuánto cobran|cuanto cobran|tiene costo|tienen costo|es pago|cobran|presupuesto|tarifas?)\b/i.test(trimmed)
+    const looksLikeQuestion =
+      trimmed.includes('?') ||
+      /^(qué|que|cómo|como|cuánto|cuanto|cuándo|cuando|tienen|hacen|ofrecen|trabajan|pueden|hay |es posible|me gustaría saber|quisiera saber|quiero saber|me podés|podés decirme|podrian)\b/i.test(trimmed) ||
+      /\b(me gustaría saber|quisiera saber|quiero saber|necesito saber)\b/i.test(trimmed)
 
-  let gratisPrefix = ''
-  if (!isFreshStart) {
     if (mentionsGratis) {
-      gratisPrefix = 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios tienen un costo 🙂 En la llamada con Walo van a charlar sobre qué necesitás y cuánto implicaría — te aseguro que vale la pena.\n\n'
+      questionPrefix = 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios tienen un costo 🙂 En la llamada con Walo van a charlar sobre qué necesitás y cuánto implicaría.\n\n'
     } else if (asksPricing) {
-      gratisPrefix = '¡Muy buena pregunta! Los costos dependen del proyecto puntual, así que en la llamada con Walo van a ver juntos qué solución se adapta mejor y qué invertiría 🙂\n\n'
+      questionPrefix = '¡Buena pregunta! Los costos dependen del proyecto, así que en la llamada con Walo van a ver juntos qué solución se adapta mejor y cuánto implicaría 🙂\n\n'
+    } else if (looksLikeQuestion) {
+      const faqResult = await matchFaqOrEscalate(admin, trimmed)
+      if (faqResult.action === 'answer' && faqResult.answer) {
+        questionPrefix = faqResult.answer + '\n\n'
+      }
     }
   }
 
   if (!nextField) {
     // Nothing left to ask — start the booking flow (or fall back to link).
     if (!isFreshStart) {
-      if (gratisPrefix) {
-        await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: gratisPrefix.trim() })
+      if (questionPrefix) {
+        await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: questionPrefix.trim() })
       }
       await startBookingFlow(admin, { leadId, conversationId, phone })
     } else {
@@ -248,7 +258,7 @@ async function advanceQualifyingBot(
     conversationId,
     leadId,
     phone,
-    body: `${gratisPrefix}${QUESTION_TEXT[nextField]}`,
+    body: `${questionPrefix}${QUESTION_TEXT[nextField]}`,
   })
 
   await admin
