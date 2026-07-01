@@ -433,9 +433,31 @@ async function handleBookingPhase(
 
   if (isNaN(num) || idx < 0 || idx >= slots.length) {
     const validNums = slots.map((_, i) => `*${i + 1}*`).join(', ')
+    const slotPrompt = `Respondé con el número del horario (${validNums}) o escribí *"otros"* para ver más fechas 🙂`
+
+    // If the lead asked a question instead of picking a slot, answer it first
+    const mentionsGratisB = /\b(gratis|gratuito|gratuita|sin costo|sin cobrar|free)\b/i.test(trimmed)
+    const asksPricingB    = /\b(costo|costos|precio|precios|cuánto sale|cuanto sale|cuánto cuesta|cuanto cuesta|cuánto cobran|cuanto cobran|a cuanto|a cuánto|tiene costo|tienen costo|es pago|cobran|presupuesto|tarifas?)\b/i.test(trimmed)
+    const looksLikeQuestionB =
+      trimmed.includes('?') ||
+      /^(qué|que|cómo|como|cuánto|cuanto|cuándo|cuando|tienen|hacen|ofrecen|trabajan|pueden|hay |es posible|me gustaría saber|quisiera saber|quiero saber)\b/i.test(trimmed) ||
+      /\b(me gustaría saber|quisiera saber|quiero saber|necesito saber)\b/i.test(trimmed)
+
+    let prefix = ''
+    if (mentionsGratisB) {
+      prefix = 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios son pagos 🙂 En la llamada con Walo van a charlar sobre lo que necesitás y los valores.\n\n'
+    } else if (asksPricingB) {
+      prefix = '¡Buena pregunta! Los costos dependen del proyecto — en la llamada con Walo van a ver juntos qué solución se adapta mejor y cuánto implicaría 🙂\n\n'
+    } else if (looksLikeQuestionB) {
+      const faqResult = await matchFaqOrEscalate(admin, trimmed)
+      if (faqResult.action === 'answer' && faqResult.answer) {
+        prefix = faqResult.answer + '\n\n'
+      }
+    }
+
     await sendOutboundWhatsAppMessage(admin, {
       conversationId, leadId, phone,
-      body: `Respondé con el número del horario (${validNums}) o escribí *"otros"* para ver más fechas 🙂`,
+      body: `${prefix}${slotPrompt}`,
     })
     return
   }
