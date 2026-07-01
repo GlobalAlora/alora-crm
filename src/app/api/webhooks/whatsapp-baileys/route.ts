@@ -50,12 +50,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'phone es requerido' }, { status: 400 })
   }
 
-  // Outbound message sent by the team directly from the native WhatsApp app.
-  // Record it and pause the bot so Lidia doesn't restart qualifying when the
-  // lead replies — same effect as sending through the CRM send route.
+  // Outbound message detected by the Baileys worker (fromMe=true).
+  // Could be (a) the team writing from the native WA app → pause the bot,
+  // or (b) the CRM/bot sending via the worker → just an echo, skip it.
+  // The CRM always records its own messages in wa_messages with wa_message_id,
+  // so if the id is already there, this is Lidia's own echo — don't pause.
   if (body.direction === 'outbound') {
     try {
       const phone = body.phone.replace(/\D/g, '')
+
+      if (body.waMessageId) {
+        const { count: alreadyRecorded } = await admin
+          .from('wa_messages')
+          .select('id', { count: 'exact', head: true })
+          .eq('wa_message_id', body.waMessageId)
+        if (alreadyRecorded && alreadyRecorded > 0) {
+          console.log(`[Bot] SKIP outbound echo waMessageId=${body.waMessageId} (CRM-sent)`)
+          return NextResponse.json({ status: 'ok' })
+        }
+      }
+
       const { data: conv } = await admin
         .from('whatsapp_conversations')
         .select('id')
