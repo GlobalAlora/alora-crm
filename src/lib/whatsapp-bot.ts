@@ -585,8 +585,10 @@ async function handleBookingPhase(
     const ar = new Date(slot.getTime() - 3 * 60 * 60 * 1000)
     const fullLabel = `${daysFull[ar.getDay()]} ${ar.getDate()} de ${monthsFull[ar.getMonth()]} a las ${hora} hs`
 
+    const meetLink = result.meetLink ?? result.eventUrl ?? null
     const confirmation = `¡Reunión confirmada! 🎉\n\n📅 ${fullLabel}\n\n`
       + `Walo se va a conectar en ese horario para charlar sobre lo que necesitás 💛\n\n`
+      + (meetLink ? `🔗 Link de la reunión: ${meetLink}\n\n` : '')
       + (lead.email ? `Te mandamos una invitación a ${lead.email} con el detalle de la reunión.\n\n` : '')
       + 'Si necesitás cambiar el horario o tenés alguna duda, escribime tranquilo 🙂'
 

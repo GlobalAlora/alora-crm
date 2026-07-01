@@ -20,7 +20,7 @@ export async function runMeetingReminders(admin: AdminClient) {
   // Fetch leads with upcoming meetings that haven't been reminded yet
   const { data: leads, error } = await admin
     .from('leads')
-    .select('id, nombre, fecha_reunion, reunion_hora, reunion_reminder_24h_at, reunion_reminder_30min_at, telefono')
+    .select('id, nombre, fecha_reunion, reunion_hora, reunion_reminder_24h_at, reunion_reminder_30min_at, telefono, reunion_link')
     .not('fecha_reunion', 'is', null)
     .not('reunion_hora', 'is', null)
     .not('telefono', 'is', null)
@@ -47,7 +47,10 @@ export async function runMeetingReminders(admin: AdminClient) {
       const monthsFull = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
       const label = `${daysFull[meetingAt.getDay()]} ${meetingAt.getDate()} de ${monthsFull[meetingAt.getMonth()]} a las ${lead.reunion_hora} hs`
 
-      const body = `¡Hola ${nombre}! 👋 Te recuerdo que *mañana ${label}* tenés tu llamada de relevamiento con Walo 📞\n\nSi necesitás cambiar el horario, avisame con tiempo 🙂`
+      const link = (lead as Record<string, unknown>).reunion_link as string | null
+      const body = `¡Hola ${nombre}! 👋 Te recuerdo que *mañana ${label}* tenés tu llamada de relevamiento con Walo 📞\n\n`
+        + (link ? `🔗 Link de la reunión: ${link}\n\n` : '')
+        + `Si necesitás cambiar el horario, avisame con tiempo 🙂`
 
       try {
         await sendWhatsAppReminder(phone, body)
@@ -61,7 +64,9 @@ export async function runMeetingReminders(admin: AdminClient) {
 
     // 30min reminder — window: 15min to 45min
     if (diffMin >= 15 && diffMin <= 45 && !lead.reunion_reminder_30min_at) {
+      const link30 = (lead as Record<string, unknown>).reunion_link as string | null
       const body = `¡Hola ${nombre}! 🙂 En *30 minutos* arranca tu llamada con Walo. Preparate tranquilo/a — él se va a conectar en seguida 💛`
+        + (link30 ? `\n\n🔗 Link de la reunión: ${link30}` : '')
 
       try {
         await sendWhatsAppReminder(phone, body)
