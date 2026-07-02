@@ -31,6 +31,15 @@ export async function isClientLead(admin: AdminClient, leadId: string): Promise<
   return !!data
 }
 
+// Strips greeting words from a name answer ("hola soy Nahuel" → "Nahuel")
+function extractName(raw: string): string {
+  const cleaned = raw
+    .replace(/^(hola[,!]?\s*)?(soy|me llamo|mi nombre es|me dicen|soy el|soy la|soy)\s+/i, '')
+    .replace(/^hola[,!]?\s*/i, '')
+    .trim()
+  return cleaned || raw.trim()
+}
+
 // Order in which the qualifying bot asks for missing info.
 // "nombre" and "consulta_detallada" are free-text answers we save directly
 // (no AI inference) and are always asked once, regardless of whether the
@@ -274,7 +283,8 @@ async function advanceQualifyingBot(
   // The field we just asked about isn't AI-inferred — save the raw reply
   // directly (if any) before deciding what's next.
   if (askedField && DIRECT_SAVE_FIELDS.has(askedField) && trimmed) {
-    await admin.from('leads').update({ [askedField]: trimmed }).eq('id', leadId)
+    const valueToSave = askedField === 'nombre' ? extractName(trimmed) : trimmed
+    await admin.from('leads').update({ [askedField]: valueToSave }).eq('id', leadId)
   }
   // Email is otherwise left to AI enrichment, but save it directly here too
   // when it was the literal answer to the email question — no need to wait.
@@ -575,8 +585,10 @@ async function handleBookingPhase(
     const ar = new Date(slot.getTime() - 3 * 60 * 60 * 1000)
     const fullLabel = `${daysFull[ar.getDay()]} ${ar.getDate()} de ${monthsFull[ar.getMonth()]} a las ${hora} hs`
 
+    const meetLink = result.meetLink ?? result.eventUrl ?? null
     const confirmation = `¡Reunión confirmada! 🎉\n\n📅 ${fullLabel}\n\n`
       + `Walo se va a conectar en ese horario para charlar sobre lo que necesitás 💛\n\n`
+      + (meetLink ? `🔗 Link de la reunión: ${meetLink}\n\n` : '')
       + (lead.email ? `Te mandamos una invitación a ${lead.email} con el detalle de la reunión.\n\n` : '')
       + 'Si necesitás cambiar el horario o tenés alguna duda, escribime tranquilo 🙂'
 

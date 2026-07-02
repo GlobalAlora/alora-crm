@@ -124,7 +124,8 @@ export interface Lead {
   drive_folder_url: string | null
   calendar_event_id: string | null             // Google Calendar event created on reunion_reservada
   calendar_event_url: string | null
-  reunion_reminder_sent_at: string | null      // set when 30-min WhatsApp reminder is sent
+  reunion_reminder_24h_at: string | null        // set when 24h WhatsApp reminder is sent
+  reunion_reminder_30min_at: string | null     // set when 30min WhatsApp reminder is sent
   stage_updated_at: string
   last_activity_at: string
   deleted_at: string | null
