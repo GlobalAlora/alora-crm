@@ -241,8 +241,8 @@ async function advanceQualifyingBot(
   const asksPricing    = !!(trimmed && /\b(costo|costos|precio|precios|cuánto sale|cuanto sale|cuánto cuesta|cuanto cuesta|cuánto cobran|cuanto cobran|tiene costo|tienen costo|es pago|cobran|presupuesto|tarifas?)\b/i.test(trimmed))
   const looksLikeQuestion = !!(trimmed && (
     trimmed.includes('?') ||
-    /^(qué|que|cómo|como|cuánto|cuanto|cuándo|cuando|tienen|hacen|ofrecen|trabajan|pueden|hay |es posible|me gustaría saber|quisiera saber|quiero saber|me podés|podés decirme|podrian)\b/i.test(trimmed) ||
-    /\b(me gustaría saber|quisiera saber|quiero saber|necesito saber)\b/i.test(trimmed)
+    /^(qué|que|cómo|como|cuánto|cuanto|cuándo|cuando|tienen|hacen|ofrecen|trabajan|pueden|hay |es posible|me gustaría saber|quisiera saber|quiero saber|me podés|podés decirme|podrian|sos |son |es |está|están|hacen|venden|trabajan|ofrecen|tienen)\b/i.test(trimmed) ||
+    /\b(me gustaría saber|quisiera saber|quiero saber|necesito saber|sos de|son de|es de|trabajan en|son ustedes)\b/i.test(trimmed)
   ))
 
   // If the lead answered consulta_detallada with a question (not an actual description

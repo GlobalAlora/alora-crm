@@ -230,7 +230,8 @@ async function findOrCreateLeadByPhone(
   // 3-word phrases are often sentences/commands, so we reject them here;
   // the qualifying bot will ask for the real name anyway.
   const words = (name ?? '').trim().split(/\s+/)
-  const cleanName = name && words.length <= 2 && name.length <= 30 ? name : null
+  const GREETING_RE = /^(buen[ao]s?|hola|buenas|saludos|greetings|good\s+(morning|afternoon|evening|day)|hi|hey)\b/i
+  const cleanName = name && words.length <= 2 && name.length <= 30 && !GREETING_RE.test(name.trim()) ? name : null
 
   const { data: newLead, error } = await admin
     .from('leads')
