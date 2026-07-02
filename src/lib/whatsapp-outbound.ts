@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendViaBaileysWorker } from '@/lib/whatsapp-baileys-client'
+import { sendViaMetaApi, isMetaConfigured } from '@/lib/whatsapp-meta-client'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -36,7 +37,10 @@ export async function sendOutboundWhatsAppMessage(admin: AdminClient, { conversa
   }
 
   try {
-    const result = await sendViaBaileysWorker({ to: phone, body })
+    // Use Meta Cloud API when configured, fall back to Baileys worker
+    const result = isMetaConfigured()
+      ? await sendViaMetaApi({ to: phone, body })
+      : await sendViaBaileysWorker({ to: phone, body })
 
     await admin
       .from('wa_messages')
