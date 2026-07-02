@@ -242,8 +242,23 @@ async function advanceQualifyingBot(
   const looksLikeQuestion = !!(trimmed && (
     trimmed.includes('?') ||
     /^(qué|que|cómo|como|cuánto|cuanto|cuándo|cuando|tienen|hacen|ofrecen|trabajan|pueden|hay |es posible|me gustaría saber|quisiera saber|quiero saber|me podés|podés decirme|podrian|sos |son |es |está|están|hacen|venden|trabajan|ofrecen|tienen)\b/i.test(trimmed) ||
-    /\b(me gustaría saber|quisiera saber|quiero saber|necesito saber|sos de|son de|es de|trabajan en|son ustedes)\b/i.test(trimmed)
+    /\b(me gustaría saber|quisiera saber|quiero saber|necesito saber|quería saber|queria saber|quería ver si|queria ver si|quería consultar|queria consultar|sos de|son de|es de|trabajan en|son ustedes)\b/i.test(trimmed)
   ))
+
+  // Detect messages clearly unrelated to Alora's services (telecom, retail, etc.)
+  // so Lidia clarifies instead of treating it as a valid project consultation.
+  const isOffTopic = !!(trimmed && /\b(celular(es)?|smartphone|chip|sim card|plan de datos|roaming|claro|personal|movistar|telecom|sacar (un |el )?celular|contra factura|plan prepago|plan pospago|portabilidad|recarga|minutos|linea (de )?celular)\b/i.test(trimmed))
+
+  // If the lead mentioned something clearly outside Alora's services (telecom, phones, etc.),
+  // clarify who we are and ask if there's something digital we can help with.
+  if (askedField === 'consulta_detallada' && !isRetry && trimmed && isOffTopic) {
+    await sendOutboundWhatsAppMessage(admin, {
+      conversationId, leadId, phone,
+      body: 'Parece que puede haber una confusión 😊 Nosotros somos *Alora*, una agencia de tecnología digital — desarrollamos sitios web, apps, redes sociales, branding y marketing digital. No somos una empresa de telefonía ni vendemos celulares.\n\n¿Hay algo relacionado con tecnología o presencia digital en lo que te podamos ayudar?',
+    })
+    await admin.from('whatsapp_conversations').update({ bot_next_question: 'consulta_detallada__retry' }).eq('id', conversationId)
+    return
+  }
 
   // If the lead answered consulta_detallada with a question (not an actual description
   // of their need), answer the question and re-ask consulta_detallada. Don't save it.
@@ -263,7 +278,6 @@ async function advanceQualifyingBot(
       ? `${questionAnswer}\n\nAhora sí, ${QUESTION_TEXT.consulta_detallada.charAt(0).toLowerCase()}${QUESTION_TEXT.consulta_detallada.slice(1)}`
       : VALIDATORS.consulta_detallada!.pushback
     await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body })
-    // Stay on consulta_detallada — treat this turn as a retry so we accept the next answer
     await admin.from('whatsapp_conversations').update({ bot_next_question: 'consulta_detallada__retry' }).eq('id', conversationId)
     return
   }
