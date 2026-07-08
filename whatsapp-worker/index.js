@@ -177,7 +177,13 @@ async function handleIncomingMessage(m) {
     const { text, mediaType } = extractText(m.message)
     if (!text && !mediaType) return // protocol noise, skip
     if (!CRM_WEBHOOK_URL || !BAILEYS_WEBHOOK_SECRET) return
-    const phone = rawJid.split('@')[0].split(':')[0].replace(/\D/g, '')
+    // Apply the same LID resolution as for inbound messages so the phone
+    // matches what the conversation was stored under.
+    const fmIsLid = rawJid.endsWith('@lid')
+    const fmJidDigits = rawJid.split('@')[0].split(':')[0].replace(/\D/g, '')
+    const fmAltJid = m.key.remoteJidAlt || ''
+    const fmAltDigits = fmAltJid ? fmAltJid.split('@')[0].split(':')[0].replace(/\D/g, '') : ''
+    const phone = fmIsLid ? (fmAltDigits || lidToPhone.get(fmJidDigits) || fmJidDigits) : fmJidDigits
     await fetch(CRM_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-webhook-secret': BAILEYS_WEBHOOK_SECRET },
