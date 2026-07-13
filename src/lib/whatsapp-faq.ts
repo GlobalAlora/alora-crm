@@ -71,7 +71,7 @@ export async function matchFaqOrEscalate(admin: AdminClient, message: string): P
     if (!toolUse || toolUse.type !== 'tool_use') return { action: 'escalate' }
 
     const input = toolUse.input as { action: 'answer' | 'escalate'; faq_index?: number; human_requested?: boolean }
-    if (input.action === 'answer' && input.faq_index && faqs[input.faq_index - 1]) {
+    if (input.action === 'answer' && input.faq_index != null && input.faq_index >= 1 && faqs[input.faq_index - 1]) {
       return { action: 'answer', answer: faqs[input.faq_index - 1].respuesta }
     }
     return { action: 'escalate', humanRequested: !!input.human_requested }

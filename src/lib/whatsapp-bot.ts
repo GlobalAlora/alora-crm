@@ -403,7 +403,9 @@ async function advanceQualifyingBot(
 
   const body = [ack, questionPrefix, QUESTION_TEXT[nextField]].filter(Boolean).join('\n\n')
 
-  await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body })
+  const sent = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body })
+
+  if (!sent) return
 
   await admin
     .from('whatsapp_conversations')
@@ -427,8 +429,8 @@ async function startBookingFlow(
   const days = await getAvailableSlotsByDay(2, skipDays)
 
   if (!days.length) {
-    await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: CLOSING_FALLBACK })
-    await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
+    const sent = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: CLOSING_FALLBACK })
+    if (sent) await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
     return
   }
 
@@ -459,7 +461,8 @@ async function startBookingFlow(
     + `\n\nRespondé con el número del horario que más te quede bien (${validNums}) 🗓️`
     + '\nO si ninguno te sirve, escribí *"otros"* para ver más fechas.'
 
-  await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body })
+  const sentSlots = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body })
+  if (!sentSlots) return
   await admin
     .from('whatsapp_conversations')
     .update({ bot_phase: 'booking', bot_next_question: `${BOOKING_SLOTS_PREFIX}${encoded}` })
@@ -606,8 +609,8 @@ async function handleBookingPhase(
       + (lead.email ? `Te mandamos una invitación a ${lead.email} con el detalle de la reunión.\n\n` : '')
       + 'Si necesitás cambiar el horario o tenés alguna duda, escribime tranquilo 🙂'
 
-    await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: confirmation })
-    await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
+    const sentConf = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: confirmation })
+    if (sentConf) await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
 
     // Push notification to the team
     notifyAll({
@@ -688,8 +691,8 @@ async function handleBookingPhase(
   } catch (err) {
     console.error('[Booking] Failed to create calendar event:', err)
     // Fall back to external link
-    await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: CLOSING_FALLBACK })
-    await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
+    const sentFallback = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: CLOSING_FALLBACK })
+    if (sentFallback) await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
   }
 }
 
@@ -736,7 +739,8 @@ async function handleFaqPhase(
   // else that didn't match a FAQ just gets no reply — Lidia stays in FAQ mode
   // and keeps trying on the next message, instead of going silent for good.
   if (result.humanRequested) {
-    await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: HANDOFF })
+    const sentHandoff = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: HANDOFF })
+    if (!sentHandoff) return
     await admin
       .from('whatsapp_conversations')
       .update({ bot_active: false })
