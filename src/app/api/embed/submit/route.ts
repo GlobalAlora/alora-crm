@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendNewLeadAlert } from '@/lib/lead-alerts'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -163,6 +164,20 @@ export async function POST(req: NextRequest) {
       form_data,
       tags: body.tags ?? null,
     },
+  })
+
+  // Await (not fire-and-forget): on Vercel the function can be frozen right
+  // after the response is sent, so an un-awaited call risks never running.
+  // sendNewLeadAlert never throws — a failure here won't block the response.
+  await sendNewLeadAlert({
+    id: lead.id,
+    nombre: body.nombre.trim(),
+    email: body.email || null,
+    telefono: body.telefono || null,
+    empresa: body.empresa || null,
+    pais: body.pais || null,
+    fuente: body.fuente ?? 'formulario',
+    mensaje: body.mensaje || body.notas || null,
   })
 
   return NextResponse.json({ data: lead }, { status: 201, headers: CORS_HEADERS })
