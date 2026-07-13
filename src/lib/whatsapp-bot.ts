@@ -136,7 +136,8 @@ const CLOSING_FALLBACK = '¡Listo, ya tengo todo lo que necesitaba! 🎉 Gracias
   + 'Mientras tanto, si tenés alguna otra duda, escribime tranquilo que te ayudo 🙂'
 const HANDOFF  = 'Dejame que te conecte con alguien del equipo para ayudarte mejor con esto 🙂 En breve te responden.'
 
-const BOOKING_SLOTS_PREFIX = 'booking_slots:::'
+const BOOKING_SLOTS_PREFIX   = 'booking_slots:::'
+const BOOKING_CONFIRM_PREFIX = 'booking_confirm:::'
 
 interface LeadSnapshot {
   nombre: string | null
@@ -492,6 +493,11 @@ async function handleBookingPhase(
     return
   }
 
+  if (botNextQuestion?.startsWith(BOOKING_CONFIRM_PREFIX)) {
+    await handleBookingConfirmation(admin, { leadId, conversationId, phone, text, botNextQuestion })
+    return
+  }
+
   if (!botNextQuestion?.startsWith(BOOKING_SLOTS_PREFIX)) {
     await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
     return
@@ -559,7 +565,27 @@ async function handleBookingPhase(
   }
 
   const slot = slots[idx]
-  const { fecha, hora, label } = formatSlotAR(slot)
+  const { hora } = formatSlotAR(slot)
+
+  const daysFull   = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+  const monthsFull = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+  const ar = new Date(slot.getTime() - 3 * 60 * 60 * 1000)
+  const fullLabel = `${daysFull[ar.getDay()]} ${ar.getDate()} de ${monthsFull[ar.getMonth()]} a las ${hora} hs`
+
+  const confirmState = `${BOOKING_CONFIRM_PREFIX}${slot.toISOString()}:::${nextSkip}:::${slotsStr}`
+  const sentQ = await sendOutboundWhatsAppMessage(admin, {
+    conversationId, leadId, phone,
+    body: `Elegiste el *${fullLabel}* 🗓️\n\n¿Confirmamos esa fecha? Respondé *Sí* para agendar, o *Otros* para ver otros horarios.`,
+  })
+  if (!sentQ) return
+  await admin.from('whatsapp_conversations').update({ bot_next_question: confirmState }).eq('id', conversationId)
+}
+
+async function bookConfirmedSlot(
+  admin: AdminClient,
+  { leadId, conversationId, phone, slot }: { leadId: string; conversationId: string; phone: string; slot: Date },
+): Promise<void> {
+  const { fecha, hora } = formatSlotAR(slot)
 
   const { data: lead } = await admin
     .from('leads')
@@ -694,6 +720,65 @@ async function handleBookingPhase(
     const sentFallback = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: CLOSING_FALLBACK })
     if (sentFallback) await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
   }
+}
+
+async function handleBookingConfirmation(
+  admin: AdminClient,
+  { leadId, conversationId, phone, text, botNextQuestion }: {
+    leadId: string; conversationId: string; phone: string; text: string | null; botNextQuestion: string
+  },
+): Promise<void> {
+  const raw = botNextQuestion.slice(BOOKING_CONFIRM_PREFIX.length)
+  // format: SELECTED_ISO:::NEXT_SKIP:::SLOTS_STR
+  const firstSep  = raw.indexOf(':::')
+  if (firstSep === -1) {
+    await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
+    return
+  }
+  const selectedISO = raw.slice(0, firstSep)
+  const rest        = raw.slice(firstSep + 3)
+  const secondSep   = rest.indexOf(':::')
+  const nextSkip    = secondSep !== -1 ? parseInt(rest.slice(0, secondSep), 10) || 0 : 0
+  const slotsStr    = secondSep !== -1 ? rest.slice(secondSep + 3) : rest
+
+  const trimmed = text?.trim() ?? ''
+
+  if (trimmed && DISENGAGEMENT_RE.test(trimmed)) {
+    await sendOutboundWhatsAppMessage(admin, {
+      conversationId, leadId, phone,
+      body: '¡Entendido, sin problema! Cuando quieras retomar, escribime tranquilo 💛',
+    })
+    await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
+    return
+  }
+
+  const wantsChange = /^(no\b|otros|cambiar|otro|otra|diferente|ver m[aá]s|quiero otro|ninguno)\b/i.test(trimmed)
+    || /\b(otro horario|otra fecha|cambiar horario|cambiar fecha|otros horarios|m[aá]s opciones)\b/i.test(trimmed)
+
+  if (wantsChange) {
+    await startBookingFlow(admin, { leadId, conversationId, phone }, nextSkip)
+    return
+  }
+
+  const confirmed = /^(s[ií]i*|dale|confirmo|confirmado|ok|listo|perfecto|va|b[aá]rbaro|de una|buen[ií]simo|claro|genial|excelente|re bien)\b/i.test(trimmed)
+
+  if (!confirmed) {
+    // Re-ask — the lead said something unexpected
+    const slot = new Date(selectedISO)
+    const { hora } = formatSlotAR(slot)
+    const daysFull   = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+    const monthsFull = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+    const ar = new Date(slot.getTime() - 3 * 60 * 60 * 1000)
+    const fullLabel = `${daysFull[ar.getDay()]} ${ar.getDate()} de ${monthsFull[ar.getMonth()]} a las ${hora} hs`
+    await sendOutboundWhatsAppMessage(admin, {
+      conversationId, leadId, phone,
+      body: `Para confirmar el *${fullLabel}*, respondé *Sí* — o si preferís otro horario, escribí *Otros* 🙂`,
+    })
+    // Keep the same bot_next_question so we wait again
+    return
+  }
+
+  await bookConfirmedSlot(admin, { leadId, conversationId, phone, slot: new Date(selectedISO) })
 }
 
 /**
