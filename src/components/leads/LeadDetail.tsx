@@ -6,7 +6,7 @@ import {
   X, Mail, Building2, Tag as TagIcon, Globe, Calendar,
   MessageSquare, FileText, History, ExternalLink,
   Check, AlertCircle, MessageCircle, ChevronDown, Users,
-  Edit2,
+  Edit2, List as ListIcon,
 } from 'lucide-react'
 import { leadsApi, usersApi } from '@/lib/api'
 import { cn, formatUSD, formatARS, timeAgo, getProjectStatus, getDaysUntil } from '@/lib/utils'
@@ -18,11 +18,13 @@ import { UnifiedTimeline } from './UnifiedTimeline'
 import { EmailsSection } from './EmailsSection'
 import { PropuestasSection } from './PropuestasSection'
 import { TagsSection } from './TagsSection'
+import { ListsSection } from './ListsSection'
 import { StageHistorySection } from './StageHistorySection'
 import { ServiciosEdit } from './ServiciosEdit'
 import { FormDataSection } from './FormDataSection'
 import { MeetingStatusCheck } from './MeetingStatusCheck'
 import { RichTextEditor } from '@/components/shared/RichTextEditor'
+import { LeadSummary } from './LeadSummary'
 import toast from 'react-hot-toast'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -34,13 +36,14 @@ interface LeadDetailProps {
   fullPage?: boolean
 }
 
-type Tab = 'actividad' | 'emails' | 'propuestas' | 'tags' | 'historial' | 'formulario'
+type Tab = 'actividad' | 'emails' | 'propuestas' | 'tags' | 'listas' | 'historial' | 'formulario'
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'actividad',   label: 'Actividad',   icon: MessageSquare },
   { id: 'emails',      label: 'Emails',      icon: Mail          },
   { id: 'propuestas',  label: 'Propuestas',  icon: FileText      },
   { id: 'tags',        label: 'Etiquetas',   icon: TagIcon       },
+  { id: 'listas',      label: 'Listas',      icon: ListIcon      },
   { id: 'historial',   label: 'Historial',   icon: History       },
   { id: 'formulario',  label: 'Formulario',  icon: Globe         },
 ]
@@ -374,6 +377,9 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
               )}
             </div>
 
+            {/* AI Summary */}
+            <LeadSummary leadId={lead.id} />
+
             {/* Stage selector + valor */}
             <div className="flex items-center gap-2 flex-wrap">
               <StageSelector lead={lead} onStageChange={onStageChange} />
@@ -413,6 +419,29 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                 Sin respuesta hace {lead.dias_sin_respuesta} días
               </div>
             )}
+            {lead.next_followup_at && lead.estado_pipeline !== 'reunion_reservada' && (() => {
+              const followupDate = new Date(lead.next_followup_at)
+              const now = new Date()
+              const diffMs = followupDate.getTime() - now.getTime()
+              const isPast = diffMs < 0
+              const absDiff = Math.abs(diffMs)
+              const mins = Math.floor(absDiff / 60_000)
+              const hours = Math.floor(absDiff / 3_600_000)
+              const days = Math.floor(absDiff / 86_400_000)
+              const label = isPast
+                ? 'Follow-up pendiente (cron aún no disparó)'
+                : days >= 1
+                  ? `Follow-up de Lidia en ${days}d ${Math.floor((absDiff % 86_400_000) / 3_600_000)}h`
+                  : hours >= 1
+                    ? `Follow-up de Lidia en ${hours}h ${Math.floor((absDiff % 3_600_000) / 60_000)}min`
+                    : `Follow-up de Lidia en ${mins} min`
+              return (
+                <div className="flex items-center gap-2 text-xs text-violet-700 bg-violet-50 border border-violet-200 rounded-lg px-3 py-2">
+                  <MessageCircle size={13} />
+                  {label}
+                </div>
+              )
+            })()}
 
             {/* Contact fields */}
             <div className="space-y-4">
@@ -682,6 +711,16 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
               </div>
             )}
 
+            {/* Consulta detallada — only show in left panel when NOT fullPage */}
+            {!fullPage && (
+              <LongTextField
+                key={`consulta-${lead.id}`}
+                label="Consulta detallada (Lidia)"
+                value={lead.consulta_detallada ?? ''}
+                onSave={(v) => patch({ consulta_detallada: v || null })}
+              />
+            )}
+
             {/* Notes — only show in left panel when NOT fullPage */}
             {!fullPage && (
               <div className="space-y-2">
@@ -746,6 +785,7 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
             {activeTab === 'emails'     && <EmailsSection leadId={lead.id} leadEmail={lead.email} />}
             {activeTab === 'propuestas' && <PropuestasSection leadId={lead.id} propuestas={lead.propuestas} />}
             {activeTab === 'tags'       && <TagsSection leadId={lead.id} />}
+            {activeTab === 'listas'     && <ListsSection leadId={lead.id} />}
             {activeTab === 'historial'  && <StageHistorySection history={lead.stage_history} />}
             {activeTab === 'formulario' && <FormDataSection formData={lead.form_data} />}
           </div>
@@ -920,6 +960,14 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                 </div>
               )}
 
+              {/* Consulta detallada */}
+              <LongTextField
+                key={`right-consulta-${lead.id}`}
+                label="Consulta detallada (Lidia)"
+                value={lead.consulta_detallada ?? ''}
+                onSave={(v) => patch({ consulta_detallada: v || null })}
+              />
+
               {/* Notes */}
               <div className="space-y-2">
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Notas</p>
@@ -934,6 +982,55 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
         )}
       </div>
     </>
+  )
+}
+
+// ── Long plain-text field (e.g. consulta_detallada) ───────────────────────────
+
+function LongTextField({ label, value, onSave, placeholder = 'Sin datos' }: {
+  label: string
+  value: string
+  onSave: (v: string) => void
+  placeholder?: string
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+
+  useEffect(() => { setDraft(value) }, [value])
+
+  if (editing) {
+    return (
+      <div className="space-y-2">
+        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
+        <textarea
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={4}
+          className="w-full text-sm border border-blue-400 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+        />
+        <div className="flex gap-2 justify-end">
+          <button onClick={() => { setDraft(value); setEditing(false) }} className="text-xs px-3 py-1.5 text-slate-600 hover:bg-slate-100 rounded-md">
+            Cancelar
+          </button>
+          <button onClick={() => { onSave(draft); setEditing(false) }} className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+            Guardar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="group space-y-0.5">
+      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
+      <button
+        onClick={() => { setDraft(value); setEditing(true) }}
+        className="w-full text-left text-sm text-slate-700 hover:text-blue-600 group-hover:underline decoration-dashed underline-offset-2 transition-colors whitespace-pre-wrap"
+      >
+        {value || <span className="text-slate-300">{placeholder}</span>}
+      </button>
+    </div>
   )
 }
 
