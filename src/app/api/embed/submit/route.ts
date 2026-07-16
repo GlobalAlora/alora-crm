@@ -105,16 +105,24 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Only save telefono if it looks like an actual phone number (digits/+/spaces/dashes)
+  const rawPhone = body.telefono || null
+  const phoneIsValid = rawPhone && /^[\d\s+\-().]{6,}$/.test(rawPhone.trim())
+  const telefono = phoneIsValid ? rawPhone.trim() : null
+
+  const consulta = body.consulta_detallada || body.mensaje || body.consulta || body.notas || null
+
   const { data: lead, error } = await supabase
     .from('leads')
     .insert({
       nombre: body.nombre.trim(),
       email: body.email || null,
-      telefono: body.telefono || null,
+      telefono,
       empresa: body.empresa || null,
       pais: body.pais || null,
       servicio_interesado: body.servicio_interesado || null,
-      notas: body.notas || body.mensaje || null,
+      consulta_detallada: consulta,
+      notas: consulta,
       fuente: body.fuente ?? 'formulario',
       form_id: body.formId || null,
       form_data: Object.keys(form_data).length > 0 ? form_data : null,
