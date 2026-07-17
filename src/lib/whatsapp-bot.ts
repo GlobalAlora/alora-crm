@@ -237,11 +237,16 @@ export async function runBot(
 
   console.log(`[Bot] START phone=${phone} phase=${convo.bot_phase ?? 'qualifying'} next_q=${convo.bot_next_question ?? 'null'}`)
 
-  // Language persistence: once a conversation is detected as English it stays
-  // English; only switches back if the lead clearly writes in Spanish again.
+  // Language persistence: once detected as English it stays English.
+  // Explicit requests ("hablame en español" / "in english please") override the stored value.
   const storedLang = (convo.bot_language ?? 'es') as Lang
   const detectedLang = detectLanguage(text ?? '')
-  const lang: Lang = storedLang === 'en' ? 'en' : detectedLang
+  const explicitSpanish = /\b(en espa[nñ]ol|hablame en espa[nñ]ol|hablemos en espa[nñ]ol|por favor en espa[nñ]ol|prefiero espa[nñ]ol|podes? hablar en espa[nñ]ol|en castellano|hablame en castellano)\b/i.test(text ?? '')
+  const explicitEnglish = /\b(in english|speak english|please in english|respond in english|english please|prefer english|can you speak english)\b/i.test(text ?? '')
+  let lang: Lang
+  if (explicitSpanish) lang = 'es'
+  else if (explicitEnglish) lang = 'en'
+  else lang = storedLang === 'en' ? 'en' : detectedLang
   if (lang !== storedLang) {
     await admin.from('whatsapp_conversations').update({ bot_language: lang }).eq('id', conversationId)
   }
@@ -285,6 +290,25 @@ async function advanceQualifyingBot(
     : (botNextQuestion as QuestionField | null)
 
   const trimmed = text?.trim() || ''
+
+  // If the lead is asking to switch languages, acknowledge and re-ask the current question
+  // in the new language. Don't save this message as a field answer.
+  const isLangSwitch = trimmed && (
+    /\b(en espa[nñ]ol|hablame en espa[nñ]ol|hablemos en espa[nñ]ol|por favor en espa[nñ]ol|prefiero espa[nñ]ol|en castellano)\b/i.test(trimmed) ||
+    /\b(in english|speak english|please in english|respond in english|english please|prefer english)\b/i.test(trimmed)
+  )
+  if (isLangSwitch && askedField) {
+    const ack = lang === 'es' ? '¡Claro, continuamos en español! 😊' : 'Of course, switching to English! 😊'
+    await sendOutboundWhatsAppMessage(admin, {
+      conversationId, leadId, phone,
+      body: `${ack}\n\n${getQuestionText(askedField, lang)}`,
+    })
+    // Reset retry sentinel if we were on one, so the validator runs fresh
+    if (isRetry) {
+      await admin.from('whatsapp_conversations').update({ bot_next_question: askedField }).eq('id', conversationId)
+    }
+    return
+  }
 
   // If the lead is saying goodbye or postponing, respond warmly and stop qualifying.
   if (trimmed && (DISENGAGEMENT_RE.test(trimmed) || DISENGAGEMENT_RE_EN.test(trimmed))) {
