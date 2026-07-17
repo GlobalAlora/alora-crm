@@ -226,7 +226,7 @@ export async function runBot(
 
   const { data: convo } = await admin
     .from('whatsapp_conversations')
-    .select('bot_active, bot_phase, bot_next_question')
+    .select('bot_active, bot_phase, bot_next_question, bot_language')
     .eq('id', conversationId)
     .single()
 
@@ -237,7 +237,14 @@ export async function runBot(
 
   console.log(`[Bot] START phone=${phone} phase=${convo.bot_phase ?? 'qualifying'} next_q=${convo.bot_next_question ?? 'null'}`)
 
-  const lang = detectLanguage(text ?? '')
+  // Language persistence: once a conversation is detected as English it stays
+  // English; only switches back if the lead clearly writes in Spanish again.
+  const storedLang = (convo.bot_language ?? 'es') as Lang
+  const detectedLang = detectLanguage(text ?? '')
+  const lang: Lang = storedLang === 'en' ? 'en' : detectedLang
+  if (lang !== storedLang) {
+    await admin.from('whatsapp_conversations').update({ bot_language: lang }).eq('id', conversationId)
+  }
 
   if (convo.bot_phase === 'faq') {
     await handleFaqPhase(admin, { leadId, conversationId, phone, text, lang })
