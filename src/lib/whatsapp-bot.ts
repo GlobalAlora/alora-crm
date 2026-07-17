@@ -291,6 +291,18 @@ async function advanceQualifyingBot(
 
   const trimmed = text?.trim() || ''
 
+  // If no readable text arrived (audio, document, image) and we're mid-qualifying,
+  // tell the lead we can't read/listen and stay on the same question.
+  if (!trimmed && askedField) {
+    await sendOutboundWhatsAppMessage(admin, {
+      conversationId, leadId, phone,
+      body: lang === 'en'
+        ? "I can't listen to audios or read files 😊 Could you write your answer in text?"
+        : 'No puedo escuchar audios ni leer archivos 😊 ¿Me podés escribir tu respuesta por texto?',
+    })
+    return
+  }
+
   // If the lead is asking to switch languages, acknowledge and re-ask the current question
   // in the new language. Don't save this message as a field answer.
   const isLangSwitch = trimmed && (
