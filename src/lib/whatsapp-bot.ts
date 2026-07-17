@@ -35,10 +35,21 @@ export async function isClientLead(admin: AdminClient, leadId: string): Promise<
 function extractName(raw: string): string {
   const cleaned = raw
     .replace(/^(hola[,!]?\s*)?(soy|me llamo|mi nombre es|me dicen|soy el|soy la|soy)\s+/i, '')
+    .replace(/^(hi[,!]?\s*)?(i am|i'm|my name is|they call me)\s+/i, '')
     .replace(/^hola[,!]?\s*/i, '')
+    .replace(/^hi[,!]?\s*/i, '')
     .trim()
   return cleaned || raw.trim()
 }
+
+// Detect whether a message is written in English.
+// Returns 'en' if 2+ English indicator words are found, otherwise 'es'.
+function detectLanguage(text: string): 'en' | 'es' {
+  if (!text) return 'es'
+  const hits = text.match(/\b(i am|i'm|i'd|i've|i'll|i would|i need|i want|hello|hi there|hey there|my name is|please|thank you|thanks|what are|how do|can you|do you|are you|services|website|marketing|design|looking for|interested in|recently|submitted|let me know|your team|find out|more about|we are|we're|our company|our business|my company|my business|we need|we want|we would|could you|would you|digital marketing|web design|social media|branding)\b/gi)
+  return hits && hits.length >= 2 ? 'en' : 'es'
+}
+type Lang = 'en' | 'es'
 
 // Order in which the qualifying bot asks for missing info.
 // "nombre" and "consulta_detallada" are free-text answers we save directly
@@ -69,6 +80,7 @@ const VALIDATORS: Partial<Record<QuestionField, { isValid: (text: string) => boo
 // Detect farewell / disengagement messages so Lidia doesn't keep qualifying
 // someone who is saying goodbye or postponing.
 const DISENGAGEMENT_RE = /\b(postergar|posponer|pausar el proyecto|cancelar|lo dejamos|lo pausamos|no vamos a poder|no podemos continuar|no voy a poder|decidimos no|por el momento no|por ahora no|hasta pronto|hasta luego|gracias por todo|agradecemos tu gestión|agradecemos la gestión|inconveniente económico|inconveniente economico|dificultades económicas|no seguir|no continuar|no tengo nada|no tengo proyecto|era mentira|te mentí|te menti|me equivoqué|me equivoque|era un chiste|era broma|estaba probando|lo dejo|dejalo|no me interesa|no estoy interesado|no estoy interesada|no voy a contratar|no vamos a contratar)\b/i
+const DISENGAGEMENT_RE_EN = /\b(postpone|putting on hold|pause the project|cancel|hold off|not moving forward|not going to proceed|decided not to|not for now|not at this time|goodbye|bye for now|thanks for everything|financial difficulties|budget issues|can't continue|won't be able to|no longer interested|leaving it|dropping it|not interested|not going to hire|going with someone else)\b/i
 
 const QUESTION_TEXT: Record<QuestionField, string> = {
   nombre:                '¿Cómo te llamás?',
@@ -79,62 +91,102 @@ const QUESTION_TEXT: Record<QuestionField, string> = {
   pais:                  '¿Desde qué país nos escribís?',
   servicios_interesados: '¿En qué servicio estás pensando? (diseño web, apps, redes sociales, branding, marketing... lo que sea 😊)',
 }
+const QUESTION_TEXT_EN: Record<QuestionField, string> = {
+  nombre:                "What's your name?",
+  consulta_detallada:    "Tell me a bit more about what you need — so the team can better understand your project 🙂",
+  email:                 "Could I get your email? That way the team can follow up with you 📧",
+  empresa:               "Do you have a company or business? What's it called? 😊",
+  sitio_web:             "Do you already have a website? Share the link if you do — no worries if not 🙂",
+  pais:                  "Which country are you writing from?",
+  servicios_interesados: "Which service are you thinking about? (web design, apps, social media, branding, marketing... anything! 😊)",
+}
+
+function getQuestionText(field: QuestionField, lang: Lang): string {
+  return lang === 'en' ? QUESTION_TEXT_EN[field] : QUESTION_TEXT[field]
+}
+
+function getPushback(field: QuestionField, lang: Lang): string {
+  if (lang === 'en') {
+    switch (field) {
+      case 'nombre': return "Could you share just your name? 😊"
+      case 'email': return "I'm asking for your email specifically because it's important for the team to follow up with you — do you have one you can share? 🙏"
+      case 'consulta_detallada': return "Could you tell me a bit more in detail? The more context you give me, the better the team can help you 🙏"
+    }
+  }
+  return VALIDATORS[field]?.pushback ?? ''
+}
 
 /**
  * Returns a short, natural acknowledgment for the field that was just answered.
- * Varies by field and optionally uses the answer/lead name for personalization.
+ * Varies by field, answer content, and language.
  */
-function getAcknowledgment(field: QuestionField, answer: string, leadNombre?: string | null): string {
-  const name = leadNombre?.split(' ')[0] ?? ''
+function getAcknowledgment(field: QuestionField, answer: string, leadNombre?: string | null, lang: Lang = 'es'): string {
   switch (field) {
     case 'nombre': {
       const firstName = answer.trim().split(/\s+/)[0]
-      const options = [
-        `¡Hola, ${firstName}! Un gusto 😊`,
-        `¡Encantada, ${firstName}! 🙂`,
-        `¡Qué bueno tenerte acá, ${firstName}! 😊`,
-      ]
+      const options = lang === 'en'
+        ? [`Hi, ${firstName}! Great to meet you 😊`, `Nice to meet you, ${firstName}! 🙂`, `Great to have you here, ${firstName}! 😊`]
+        : [`¡Hola, ${firstName}! Un gusto 😊`, `¡Encantada, ${firstName}! 🙂`, `¡Qué bueno tenerte acá, ${firstName}! 😊`]
       return options[Math.floor(Math.random() * options.length)]
     }
     case 'consulta_detallada': {
-      const options = [
-        '¡Copado, me queda claro el proyecto! 🙌',
-        '¡Perfecto, entendido! Suena muy interesante 🙌',
-        '¡Genial, anoto todo! 📝',
-      ]
+      const options = lang === 'en'
+        ? ['Got it, the project is clear! 🙌', 'Perfect, understood! Sounds really interesting 🙌', 'Great, noted everything! 📝']
+        : ['¡Copado, me queda claro el proyecto! 🙌', '¡Perfecto, entendido! Suena muy interesante 🙌', '¡Genial, anoto todo! 📝']
       return options[Math.floor(Math.random() * options.length)]
     }
     case 'email': {
-      return '¡Perfecto, lo tomo nota! 📝'
+      return lang === 'en' ? 'Perfect, noted! 📝' : '¡Perfecto, lo tomo nota! 📝'
     }
     case 'empresa': {
+      if (lang === 'en') {
+        if (/no |don't have|none|no company/i.test(answer)) return "No worries! 🙂"
+        return [  'Awesome! 💪', 'Great! 🙌', 'Nice! 😊'][Math.floor(Math.random() * 3)]
+      }
       if (/no |sin |ninguna|no tengo/i.test(answer)) return '¡Tranquilo, no hay problema! 🙂'
-      const options = ['¡Buenísimo! 💪', '¡Genial! 🙌', '¡Qué bien! 😊']
-      return options[Math.floor(Math.random() * options.length)]
+      return ['¡Buenísimo! 💪', '¡Genial! 🙌', '¡Qué bien! 😊'][Math.floor(Math.random() * 3)]
     }
     case 'sitio_web': {
+      if (lang === 'en') {
+        if (/no |don't have|not yet|none/i.test(answer)) return "No problem at all! 🙂"
+        return 'Great, noted! 🙌'
+      }
       if (/no |sin |todavía|aún|no tengo/i.test(answer)) return '¡Sin problema, no hace falta! 🙂'
       return '¡Genial, lo anoto! 🙌'
     }
     case 'pais': {
-      return `¡Buenísimo, un saludo desde acá! 🙌`
+      return lang === 'en' ? 'Awesome, greetings from here! 🙌' : '¡Buenísimo, un saludo desde acá! 🙌'
     }
     case 'servicios_interesados': {
-      const options = ['¡Perfecto! 🙌', '¡Buenísimo, lo tengo en cuenta! 😊', '¡Entendido! 💪']
+      const options = lang === 'en'
+        ? ['Perfect! 🙌', 'Awesome, I\'ll keep that in mind! 😊', 'Got it! 💪']
+        : ['¡Perfecto! 🙌', '¡Buenísimo, lo tengo en cuenta! 😊', '¡Entendido! 💪']
       return options[Math.floor(Math.random() * options.length)]
     }
     default:
-      return '¡Perfecto! 🙌'
+      return lang === 'en' ? 'Perfect! 🙌' : '¡Perfecto! 🙌'
   }
 }
 
 const WELCOME  = '¡Hola! 👋 Soy Lidia, de Alora. ¡Qué alegría que nos escribas! 🙂'
+const WELCOME_EN = "Hi there! 👋 I'm Lidia from Alora. So glad you reached out! 🙂"
+function getWelcome(lang: Lang): string { return lang === 'en' ? WELCOME_EN : WELCOME }
+
 const CLOSING_FALLBACK = '¡Listo, ya tengo todo lo que necesitaba! 🎉 Gracias por tu paciencia.\n\n'
   + 'Te propongo agendar una llamada de relevamiento rápida con Walo, así charlan tranquilos sobre lo que necesitás:\n'
   + 'https://www.globalalora.com/es/llamada-de-relevamiento\n\n'
   + 'Elegí el horario que más te quede cómodo y ahí se conectan 💛\n\n'
   + 'Mientras tanto, si tenés alguna otra duda, escribime tranquilo que te ayudo 🙂'
+const CLOSING_FALLBACK_EN = "All set, I have everything I need! 🎉 Thanks for your patience.\n\n"
+  + "I'd like to invite you to schedule a quick discovery call with Walo, so you can chat about what you need:\n"
+  + "https://www.globalalora.com/es/llamada-de-relevamiento\n\n"
+  + "Pick the time that works best for you 💛\n\n"
+  + "Meanwhile, if you have any other questions, feel free to ask 🙂"
+function getClosingFallback(lang: Lang): string { return lang === 'en' ? CLOSING_FALLBACK_EN : CLOSING_FALLBACK }
+
 const HANDOFF  = 'Dejame que te conecte con alguien del equipo para ayudarte mejor con esto 🙂 En breve te responden.'
+const HANDOFF_EN = "Let me connect you with someone from the team to better help you with this 🙂 They'll be in touch shortly."
+function getHandoff(lang: Lang): string { return lang === 'en' ? HANDOFF_EN : HANDOFF }
 
 const BOOKING_SLOTS_PREFIX   = 'booking_slots:::'
 const BOOKING_CONFIRM_PREFIX = 'booking_confirm:::'
@@ -185,17 +237,19 @@ export async function runBot(
 
   console.log(`[Bot] START phone=${phone} phase=${convo.bot_phase ?? 'qualifying'} next_q=${convo.bot_next_question ?? 'null'}`)
 
+  const lang = detectLanguage(text ?? '')
+
   if (convo.bot_phase === 'faq') {
-    await handleFaqPhase(admin, { leadId, conversationId, phone, text })
+    await handleFaqPhase(admin, { leadId, conversationId, phone, text, lang })
     return
   }
 
   if (convo.bot_phase === 'booking') {
-    await handleBookingPhase(admin, { leadId, conversationId, phone, text, botNextQuestion: convo.bot_next_question })
+    await handleBookingPhase(admin, { leadId, conversationId, phone, text, botNextQuestion: convo.bot_next_question, lang })
     return
   }
 
-  await advanceQualifyingBot(admin, { leadId, conversationId, phone, text, botNextQuestion: convo.bot_next_question })
+  await advanceQualifyingBot(admin, { leadId, conversationId, phone, text, botNextQuestion: convo.bot_next_question, lang })
 }
 
 /**
@@ -207,12 +261,13 @@ export async function runBot(
  */
 async function advanceQualifyingBot(
   admin: AdminClient,
-  { leadId, conversationId, phone, text, botNextQuestion }: {
+  { leadId, conversationId, phone, text, botNextQuestion, lang }: {
     leadId: string
     conversationId: string
     phone: string
     text: string | null
     botNextQuestion: string | null
+    lang: Lang
   },
 ): Promise<void> {
   // A "<field>__retry" sentinel means we already pushed back once on that
@@ -225,10 +280,12 @@ async function advanceQualifyingBot(
   const trimmed = text?.trim() || ''
 
   // If the lead is saying goodbye or postponing, respond warmly and stop qualifying.
-  if (trimmed && DISENGAGEMENT_RE.test(trimmed)) {
+  if (trimmed && (DISENGAGEMENT_RE.test(trimmed) || DISENGAGEMENT_RE_EN.test(trimmed))) {
     await sendOutboundWhatsAppMessage(admin, {
       conversationId, leadId, phone,
-      body: '¡Entendido, sin problema! Lamentamos no poder ayudarte por ahora. Cuando estés listo/a para retomar, escribinos tranquilo — acá vamos a estar 💛 ¡Mucho ánimo!',
+      body: lang === 'en'
+        ? "Understood, no problem! Sorry we couldn't help right now. Whenever you're ready to pick things back up, just write to us — we'll be here 💛 Best of luck!"
+        : '¡Entendido, sin problema! Lamentamos no poder ayudarte por ahora. Cuando estés listo/a para retomar, escribinos tranquilo — acá vamos a estar 💛 ¡Mucho ánimo!',
     })
     await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
     return
@@ -255,7 +312,9 @@ async function advanceQualifyingBot(
   if (askedField === 'consulta_detallada' && !isRetry && trimmed && isOffTopic) {
     await sendOutboundWhatsAppMessage(admin, {
       conversationId, leadId, phone,
-      body: 'Parece que puede haber una confusión 😊 Nosotros somos *Alora*, una agencia de tecnología digital — desarrollamos sitios web, apps, redes sociales, branding y marketing digital. No somos una empresa de telefonía ni vendemos celulares.\n\n¿Hay algo relacionado con tecnología o presencia digital en lo que te podamos ayudar?',
+      body: lang === 'en'
+        ? "There might be a small mix-up 😊 We're *Alora*, a digital technology agency — we build websites, apps, social media, branding, and digital marketing. We're not a phone company or phone retailer.\n\nIs there anything related to technology or your digital presence we can help with?"
+        : 'Parece que puede haber una confusión 😊 Nosotros somos *Alora*, una agencia de tecnología digital — desarrollamos sitios web, apps, redes sociales, branding y marketing digital. No somos una empresa de telefonía ni vendemos celulares.\n\n¿Hay algo relacionado con tecnología o presencia digital en lo que te podamos ayudar?',
     })
     await admin.from('whatsapp_conversations').update({ bot_next_question: 'consulta_detallada__retry' }).eq('id', conversationId)
     return
@@ -266,18 +325,23 @@ async function advanceQualifyingBot(
   if (askedField === 'consulta_detallada' && !isRetry && trimmed && (mentionsGratis || asksPricing || looksLikeQuestion)) {
     let questionAnswer = ''
     if (mentionsGratis) {
-      questionAnswer = 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios tienen un costo 🙂 En la llamada con Walo van a charlar sobre qué necesitás y cuánto implicaría.'
+      questionAnswer = lang === 'en'
+        ? "Just so you know, at Alora we're a fully professional team and all our services are paid 🙂 In the call with Walo you'll chat about what you need and what it would cost."
+        : 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios tienen un costo 🙂 En la llamada con Walo van a charlar sobre qué necesitás y cuánto implicaría.'
     } else if (asksPricing) {
-      questionAnswer = '¡Buena pregunta! Los costos dependen del proyecto, así que en la llamada con Walo van a ver juntos qué solución se adapta mejor y cuánto implicaría 🙂'
+      questionAnswer = lang === 'en'
+        ? "Great question! Costs depend on the project — you and Walo will figure out the best solution and what it would cost together 🙂"
+        : '¡Buena pregunta! Los costos dependen del proyecto, así que en la llamada con Walo van a ver juntos qué solución se adapta mejor y cuánto implicaría 🙂'
     } else {
       const faqResult = await matchFaqOrEscalate(admin, trimmed)
       if (faqResult.action === 'answer' && faqResult.answer) {
         questionAnswer = faqResult.answer
       }
     }
+    const consultaQ = getQuestionText('consulta_detallada', lang)
     const body = questionAnswer
-      ? `${questionAnswer}\n\nAhora sí, ${QUESTION_TEXT.consulta_detallada.charAt(0).toLowerCase()}${QUESTION_TEXT.consulta_detallada.slice(1)}`
-      : VALIDATORS.consulta_detallada!.pushback
+      ? `${questionAnswer}\n\n${consultaQ.charAt(0).toLowerCase()}${consultaQ.slice(1)}`
+      : getPushback('consulta_detallada', lang)
     await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body })
     await admin.from('whatsapp_conversations').update({ bot_next_question: 'consulta_detallada__retry' }).eq('id', conversationId)
     return
@@ -287,7 +351,7 @@ async function advanceQualifyingBot(
   // moving on (e.g. "no tengo" to the email question).
   const validator = askedField ? VALIDATORS[askedField] : undefined
   if (validator && trimmed && !validator.isValid(trimmed) && !isRetry) {
-    await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: validator.pushback })
+    await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: getPushback(askedField!, lang) })
     await admin
       .from('whatsapp_conversations')
       .update({ bot_next_question: `${askedField}__retry` })
@@ -298,8 +362,15 @@ async function advanceQualifyingBot(
   // The field we just asked about isn't AI-inferred — save the raw reply
   // directly (if any) before deciding what's next.
   if (askedField && DIRECT_SAVE_FIELDS.has(askedField) && trimmed) {
-    const valueToSave = askedField === 'nombre' ? extractName(trimmed) : trimmed
-    await admin.from('leads').update({ [askedField]: valueToSave }).eq('id', leadId)
+    // On retry for nombre: only save if the answer actually looks like a name
+    // (≤5 words, ≤50 chars). If it still doesn't pass, skip the save so we
+    // don't overwrite a prior valid name with a sentence or a spam message.
+    const isNombreRetryNonName = askedField === 'nombre' && isRetry
+      && VALIDATORS.nombre != null && !VALIDATORS.nombre.isValid(trimmed)
+    if (!isNombreRetryNonName) {
+      const valueToSave = askedField === 'nombre' ? extractName(trimmed) : trimmed
+      await admin.from('leads').update({ [askedField]: valueToSave }).eq('id', leadId)
+    }
   }
   // Email is otherwise left to AI enrichment, but save it directly here too
   // when it was the literal answer to the email question — no need to wait.
@@ -329,9 +400,13 @@ async function advanceQualifyingBot(
   let questionPrefix = ''
   if (!isFreshStart && trimmed) {
     if (mentionsGratis) {
-      questionPrefix = 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios tienen un costo 🙂 En la llamada con Walo van a charlar sobre qué necesitás y cuánto implicaría.\n\n'
+      questionPrefix = lang === 'en'
+        ? "Just so you know, at Alora we're a fully professional team and all our services are paid 🙂 In the call with Walo you'll chat about what you need and what it would cost.\n\n"
+        : 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios tienen un costo 🙂 En la llamada con Walo van a charlar sobre qué necesitás y cuánto implicaría.\n\n'
     } else if (asksPricing) {
-      questionPrefix = '¡Buena pregunta! Los costos dependen del proyecto, así que en la llamada con Walo van a ver juntos qué solución se adapta mejor y cuánto implicaría 🙂\n\n'
+      questionPrefix = lang === 'en'
+        ? "Great question! Costs depend on the project — you and Walo will figure out the best solution and what it would cost together 🙂\n\n"
+        : '¡Buena pregunta! Los costos dependen del proyecto, así que en la llamada con Walo van a ver juntos qué solución se adapta mejor y cuánto implicaría 🙂\n\n'
     } else if (looksLikeQuestion) {
       const faqResult = await matchFaqOrEscalate(admin, trimmed)
       if (faqResult.action === 'answer' && faqResult.answer) {
@@ -346,7 +421,7 @@ async function advanceQualifyingBot(
       if (questionPrefix) {
         await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: questionPrefix.trim() })
       }
-      await startBookingFlow(admin, { leadId, conversationId, phone })
+      await startBookingFlow(admin, { leadId, conversationId, phone }, 0, undefined, lang)
     } else {
       await admin
         .from('whatsapp_conversations')
@@ -391,7 +466,7 @@ async function advanceQualifyingBot(
       conversationId,
       leadId,
       phone,
-      body: `${WELCOME}\n\n${QUESTION_TEXT[nextField]}`,
+      body: `${getWelcome(lang)}\n\n${getQuestionText(nextField, lang)}`,
     })
     return
   }
@@ -399,10 +474,10 @@ async function advanceQualifyingBot(
   // Acknowledge the previous answer before asking the next question,
   // unless we already have a questionPrefix that starts the message naturally.
   const ack = askedField && trimmed && !questionPrefix
-    ? getAcknowledgment(askedField, trimmed, lead.nombre)
+    ? getAcknowledgment(askedField, trimmed, lead.nombre, lang)
     : ''
 
-  const body = [ack, questionPrefix, QUESTION_TEXT[nextField]].filter(Boolean).join('\n\n')
+  const body = [ack, questionPrefix, getQuestionText(nextField, lang)].filter(Boolean).join('\n\n')
 
   const sent = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body })
 
@@ -426,11 +501,12 @@ async function startBookingFlow(
   { leadId, conversationId, phone }: { leadId: string; conversationId: string; phone: string },
   skipDays = 0,
   customIntro?: string,
+  lang: Lang = 'es',
 ): Promise<void> {
   const days = await getAvailableSlotsByDay(2, skipDays)
 
   if (!days.length) {
-    const sent = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: CLOSING_FALLBACK })
+    const sent = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: getClosingFallback(lang) })
     if (sent) await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
     return
   }
@@ -452,15 +528,19 @@ async function startBookingFlow(
   const encoded   = `${nextSkip}:::${allSlots.map(s => s.toISOString()).join('|')}`
   const validNums = allSlots.map((_, i) => `*${i + 1}*`).join(', ')
 
-  const intro = customIntro
-    ?? (skipDays === 0
-      ? '¡Perfecto, ya tengo todo! 🎉\n\nPara arrancar, te propongo agendar una llamada de 30 minutos con Walo para charlar sobre lo que necesitás.\n\n'
-      : 'Acá van más horarios disponibles:\n\n')
+  const defaultIntro = skipDays === 0
+    ? (lang === 'en'
+        ? "All set, I have everything! 🎉\n\nTo get started, I'd like to schedule a 30-minute call with Walo so you can chat about what you need.\n\n"
+        : '¡Perfecto, ya tengo todo! 🎉\n\nPara arrancar, te propongo agendar una llamada de 30 minutos con Walo para charlar sobre lo que necesitás.\n\n')
+    : (lang === 'en' ? "Here are more available times:\n\n" : 'Acá van más horarios disponibles:\n\n')
+
+  const intro = customIntro ?? defaultIntro
 
   const body = intro
     + dayLines.join('\n').trim()
-    + `\n\nRespondé con el número del horario que más te quede bien (${validNums}) 🗓️`
-    + '\nO si ninguno te sirve, escribí *"otros"* para ver más fechas.'
+    + (lang === 'en'
+        ? `\n\nReply with the number of the slot that works best for you (${validNums}) 🗓️\nOr if none work, type *"others"* to see more dates.`
+        : `\n\nRespondé con el número del horario que más te quede bien (${validNums}) 🗓️\nO si ninguno te sirve, escribí *"otros"* para ver más fechas.`)
 
   const sentSlots = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body })
   if (!sentSlots) return
@@ -477,24 +557,26 @@ async function startBookingFlow(
  */
 async function handleBookingPhase(
   admin: AdminClient,
-  { leadId, conversationId, phone, text, botNextQuestion }: {
-    leadId: string; conversationId: string; phone: string; text: string | null; botNextQuestion: string | null
+  { leadId, conversationId, phone, text, botNextQuestion, lang }: {
+    leadId: string; conversationId: string; phone: string; text: string | null; botNextQuestion: string | null; lang: Lang
   },
 ): Promise<void> {
   const trimmedEarly = text?.trim() ?? ''
 
   // Detect disengagement before anything else — same as in qualifying
-  if (trimmedEarly && DISENGAGEMENT_RE.test(trimmedEarly)) {
+  if (trimmedEarly && (DISENGAGEMENT_RE.test(trimmedEarly) || DISENGAGEMENT_RE_EN.test(trimmedEarly))) {
     await sendOutboundWhatsAppMessage(admin, {
       conversationId, leadId, phone,
-      body: '¡Entendido, sin problema! Lamentamos no poder ayudarte por ahora. Cuando estés listo/a para retomar, escribinos tranquilo — acá vamos a estar 💛 ¡Mucho ánimo!',
+      body: lang === 'en'
+        ? "Understood, no problem! Sorry we couldn't help right now. Whenever you're ready to pick things back up, just write to us — we'll be here 💛 Best of luck!"
+        : '¡Entendido, sin problema! Lamentamos no poder ayudarte por ahora. Cuando estés listo/a para retomar, escribinos tranquilo — acá vamos a estar 💛 ¡Mucho ánimo!',
     })
     await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
     return
   }
 
   if (botNextQuestion?.startsWith(BOOKING_CONFIRM_PREFIX)) {
-    await handleBookingConfirmation(admin, { leadId, conversationId, phone, text, botNextQuestion })
+    await handleBookingConfirmation(admin, { leadId, conversationId, phone, text, botNextQuestion, lang })
     return
   }
 
@@ -520,9 +602,11 @@ async function handleBookingPhase(
   // Lead wants to see different dates
   const wantsOthers = /^(otro|otros|ninguno|ninguna|no puedo|no me|no sirve|más|mas|ver más|ver mas|otras fechas)/i.test(trimmed)
     || /\b(otro|otros|ninguno|más (fecha|horario|dia|opcion)|otra fecha)\b/i.test(trimmed)
+    || /^(other|others|none|can't make|doesn't work|more options|see more|other dates)/i.test(trimmed)
+    || /\b(other time|other slot|other date|more times|more dates|different time)\b/i.test(trimmed)
 
   if (wantsOthers) {
-    await startBookingFlow(admin, { leadId, conversationId, phone }, nextSkip)
+    await startBookingFlow(admin, { leadId, conversationId, phone }, nextSkip, undefined, lang)
     return
   }
 
@@ -532,17 +616,21 @@ async function handleBookingPhase(
   if (isNaN(num) || idx < 0 || idx >= slots.length) {
     // Detect if the lead asked a question instead of picking a slot
     const mentionsGratisB = /\b(gratis|gratuito|gratuita|sin costo|sin cobrar|free)\b/i.test(trimmed)
-    const asksPricingB    = /\b(costo|costos|precio|precios|cuánto sale|cuanto sale|cuánto cuesta|cuanto cuesta|cuánto cobran|cuanto cobran|a cuanto|a cuánto|tiene costo|tienen costo|es pago|cobran|presupuesto|tarifas?)\b/i.test(trimmed)
+    const asksPricingB    = /\b(costo|costos|precio|precios|cuánto sale|cuanto sale|cuánto cuesta|cuanto cuesta|cuánto cobran|cuanto cobran|a cuanto|a cuánto|tiene costo|tienen costo|es pago|cobran|presupuesto|tarifas?|how much|what does it cost|pricing|price|quote|rates?)\b/i.test(trimmed)
     const looksLikeQuestionB =
       trimmed.includes('?') ||
-      /^(qué|que|cómo|como|cuánto|cuanto|cuándo|cuando|tienen|hacen|ofrecen|trabajan|pueden|hay |es posible|me gustaría saber|quisiera saber|quiero saber)\b/i.test(trimmed) ||
-      /\b(me gustaría saber|quisiera saber|quiero saber|necesito saber)\b/i.test(trimmed)
+      /^(qué|que|cómo|como|cuánto|cuanto|cuándo|cuando|tienen|hacen|ofrecen|trabajan|pueden|hay |es posible|me gustaría saber|quisiera saber|quiero saber|what|how|when|do you|can you)\b/i.test(trimmed) ||
+      /\b(me gustaría saber|quisiera saber|quiero saber|necesito saber|I want to know|I'd like to know|could you tell me)\b/i.test(trimmed)
 
     let questionAnswer = ''
     if (mentionsGratisB) {
-      questionAnswer = 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios son pagos 🙂 En la llamada con Walo van a charlar sobre lo que necesitás y los valores.'
+      questionAnswer = lang === 'en'
+        ? "Just so you know, at Alora we're a fully professional team and all our services are paid 🙂 In the call with Walo you'll chat about what you need and the pricing."
+        : 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios son pagos 🙂 En la llamada con Walo van a charlar sobre lo que necesitás y los valores.'
     } else if (asksPricingB) {
-      questionAnswer = '¡Buena pregunta! Los costos dependen del proyecto — en la llamada con Walo van a ver juntos qué solución se adapta mejor y cuánto implicaría 🙂'
+      questionAnswer = lang === 'en'
+        ? "Great question! Costs depend on the project — you and Walo will figure out the best solution and pricing together in the call 🙂"
+        : '¡Buena pregunta! Los costos dependen del proyecto — en la llamada con Walo van a ver juntos qué solución se adapta mejor y cuánto implicaría 🙂'
     } else if (looksLikeQuestionB) {
       const faqResult = await matchFaqOrEscalate(admin, trimmed)
       if (faqResult.action === 'answer' && faqResult.answer) {
@@ -553,12 +641,18 @@ async function handleBookingPhase(
     // If they asked a question, answer it first and then re-offer slots conversationally
     if (questionAnswer) {
       await startBookingFlow(admin, { leadId, conversationId, phone }, 0,
-        `${questionAnswer}\n\nDicho eso, te propongo agendar una llamada de 30 min con Walo para que charlen tranquilos sobre tu proyecto 😊 Elegí el horario que más te quede bien:\n\n`,
+        lang === 'en'
+          ? `${questionAnswer}\n\nWith that said, I'd like to schedule a 30-min call with Walo so you can chat about your project 😊 Pick the time that works best for you:\n\n`
+          : `${questionAnswer}\n\nDicho eso, te propongo agendar una llamada de 30 min con Walo para que charlen tranquilos sobre tu proyecto 😊 Elegí el horario que más te quede bien:\n\n`,
+        lang,
       )
     } else {
       // No question detected — re-engage warmly and re-offer slots
       await startBookingFlow(admin, { leadId, conversationId, phone }, 0,
-        '¡Qué bueno saber de vos! 🙂 Quedamos en agendar una llamada con Walo para charlar sobre tu proyecto. ¿Cuál de estos horarios te queda bien?\n\n',
+        lang === 'en'
+          ? "Good to hear from you! 🙂 We were about to schedule a call with Walo to chat about your project. Which of these times works for you?\n\n"
+          : '¡Qué bueno saber de vos! 🙂 Quedamos en agendar una llamada con Walo para charlar sobre tu proyecto. ¿Cuál de estos horarios te queda bien?\n\n',
+        lang,
       )
     }
     return
@@ -575,7 +669,9 @@ async function handleBookingPhase(
   const confirmState = `${BOOKING_CONFIRM_PREFIX}${slot.toISOString()}:::${nextSkip}:::${slotsStr}`
   const sentQ = await sendOutboundWhatsAppMessage(admin, {
     conversationId, leadId, phone,
-    body: `Elegiste el *${fullLabel}* 🗓️\n\n¿Confirmamos esa fecha? Respondé *Sí* para agendar, o *Otros* para ver otros horarios.`,
+    body: lang === 'en'
+      ? `You chose *${fullLabel}* 🗓️\n\nShall we confirm that time? Reply *Yes* to book it, or *Others* to see other options.`
+      : `Elegiste el *${fullLabel}* 🗓️\n\n¿Confirmamos esa fecha? Respondé *Sí* para agendar, o *Otros* para ver otros horarios.`,
   })
   if (!sentQ) return
   await admin.from('whatsapp_conversations').update({ bot_next_question: confirmState }).eq('id', conversationId)
@@ -583,7 +679,7 @@ async function handleBookingPhase(
 
 async function bookConfirmedSlot(
   admin: AdminClient,
-  { leadId, conversationId, phone, slot }: { leadId: string; conversationId: string; phone: string; slot: Date },
+  { leadId, conversationId, phone, slot, lang }: { leadId: string; conversationId: string; phone: string; slot: Date; lang: Lang },
 ): Promise<void> {
   const { fecha, hora } = formatSlotAR(slot)
 
@@ -629,11 +725,17 @@ async function bookConfirmedSlot(
     const fullLabel = `${daysFull[ar.getDay()]} ${ar.getDate()} de ${monthsFull[ar.getMonth()]} a las ${hora} hs`
 
     const meetLink = result.meetLink ?? result.eventUrl ?? null
-    const confirmation = `¡Reunión confirmada! 🎉\n\n📅 ${fullLabel}\n\n`
-      + `Walo se va a conectar en ese horario para charlar sobre lo que necesitás 💛\n\n`
-      + (meetLink ? `🔗 Link de la reunión: ${meetLink}\n\n` : '')
-      + (lead.email ? `Te mandamos una invitación a ${lead.email} con el detalle de la reunión.\n\n` : '')
-      + 'Si necesitás cambiar el horario o tenés alguna duda, escribime tranquilo 🙂'
+    const confirmation = lang === 'en'
+      ? `Meeting confirmed! 🎉\n\n📅 ${fullLabel}\n\n`
+        + `Walo will join at that time to chat about what you need 💛\n\n`
+        + (meetLink ? `🔗 Meeting link: ${meetLink}\n\n` : '')
+        + (lead.email ? `We're sending an invite to ${lead.email} with the meeting details.\n\n` : '')
+        + 'If you need to reschedule or have any questions, feel free to write 🙂'
+      : `¡Reunión confirmada! 🎉\n\n📅 ${fullLabel}\n\n`
+        + `Walo se va a conectar en ese horario para charlar sobre lo que necesitás 💛\n\n`
+        + (meetLink ? `🔗 Link de la reunión: ${meetLink}\n\n` : '')
+        + (lead.email ? `Te mandamos una invitación a ${lead.email} con el detalle de la reunión.\n\n` : '')
+        + 'Si necesitás cambiar el horario o tenés alguna duda, escribime tranquilo 🙂'
 
     const sentConf = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: confirmation })
     if (sentConf) await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
@@ -717,15 +819,15 @@ async function bookConfirmedSlot(
   } catch (err) {
     console.error('[Booking] Failed to create calendar event:', err)
     // Fall back to external link
-    const sentFallback = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: CLOSING_FALLBACK })
+    const sentFallback = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: getClosingFallback(lang) })
     if (sentFallback) await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
   }
 }
 
 async function handleBookingConfirmation(
   admin: AdminClient,
-  { leadId, conversationId, phone, text, botNextQuestion }: {
-    leadId: string; conversationId: string; phone: string; text: string | null; botNextQuestion: string
+  { leadId, conversationId, phone, text, botNextQuestion, lang }: {
+    leadId: string; conversationId: string; phone: string; text: string | null; botNextQuestion: string; lang: Lang
   },
 ): Promise<void> {
   const raw = botNextQuestion.slice(BOOKING_CONFIRM_PREFIX.length)
@@ -743,10 +845,12 @@ async function handleBookingConfirmation(
 
   const trimmed = text?.trim() ?? ''
 
-  if (trimmed && DISENGAGEMENT_RE.test(trimmed)) {
+  if (trimmed && (DISENGAGEMENT_RE.test(trimmed) || DISENGAGEMENT_RE_EN.test(trimmed))) {
     await sendOutboundWhatsAppMessage(admin, {
       conversationId, leadId, phone,
-      body: '¡Entendido, sin problema! Cuando quieras retomar, escribime tranquilo 💛',
+      body: lang === 'en'
+        ? "Understood, no worries! Whenever you want to pick it back up, just write to us 💛"
+        : '¡Entendido, sin problema! Cuando quieras retomar, escribime tranquilo 💛',
     })
     await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
     return
@@ -754,13 +858,15 @@ async function handleBookingConfirmation(
 
   const wantsChange = /^(no\b|otros|cambiar|otro|otra|diferente|ver m[aá]s|quiero otro|ninguno)\b/i.test(trimmed)
     || /\b(otro horario|otra fecha|cambiar horario|cambiar fecha|otros horarios|m[aá]s opciones)\b/i.test(trimmed)
+    || /^(no\b|others|change|different|see more|other options)\b/i.test(trimmed)
+    || /\b(other time|other slot|other date|different time|change the time)\b/i.test(trimmed)
 
   if (wantsChange) {
-    await startBookingFlow(admin, { leadId, conversationId, phone }, nextSkip)
+    await startBookingFlow(admin, { leadId, conversationId, phone }, nextSkip, undefined, lang)
     return
   }
 
-  const confirmed = /^(s[ií]i*|dale|confirmo|confirmado|ok|listo|perfecto|va|b[aá]rbaro|de una|buen[ií]simo|claro|genial|excelente|re bien)\b/i.test(trimmed)
+  const confirmed = /^(s[ií]i*|dale|confirmo|confirmado|ok|listo|perfecto|va|b[aá]rbaro|de una|buen[ií]simo|claro|genial|excelente|re bien|yes|yep|yeah|confirmed|confirm|sounds good|sure|great|perfect|absolutely|definitely)\b/i.test(trimmed)
 
   if (!confirmed) {
     // Re-ask — the lead said something unexpected
@@ -772,13 +878,15 @@ async function handleBookingConfirmation(
     const fullLabel = `${daysFull[ar.getDay()]} ${ar.getDate()} de ${monthsFull[ar.getMonth()]} a las ${hora} hs`
     await sendOutboundWhatsAppMessage(admin, {
       conversationId, leadId, phone,
-      body: `Para confirmar el *${fullLabel}*, respondé *Sí* — o si preferís otro horario, escribí *Otros* 🙂`,
+      body: lang === 'en'
+        ? `To confirm *${fullLabel}*, reply *Yes* — or if you'd prefer another time, type *Others* 🙂`
+        : `Para confirmar el *${fullLabel}*, respondé *Sí* — o si preferís otro horario, escribí *Otros* 🙂`,
     })
     // Keep the same bot_next_question so we wait again
     return
   }
 
-  await bookConfirmedSlot(admin, { leadId, conversationId, phone, slot: new Date(selectedISO) })
+  await bookConfirmedSlot(admin, { leadId, conversationId, phone, slot: new Date(selectedISO), lang })
 }
 
 /**
@@ -788,18 +896,20 @@ async function handleBookingConfirmation(
  */
 async function handleFaqPhase(
   admin: AdminClient,
-  { leadId, conversationId, phone, text }: { leadId: string; conversationId: string; phone: string; text: string | null },
+  { leadId, conversationId, phone, text, lang }: { leadId: string; conversationId: string; phone: string; text: string | null; lang: Lang },
 ): Promise<void> {
   const t = text?.trim() ?? ''
 
   // Lead wants to change / pick a different slot → restart booking from scratch
-  const wantsReschedule = /\b(otro|otra|otros|cambiar|reagendar|reprogramar|diferente|distinto|quiero otro|quiero otra|cambio|cambien|no me queda|no puedo ese|otro horario|otra fecha|otro dia|otro día)\b/i.test(t)
+  const wantsReschedule = /\b(otro|otra|otros|cambiar|reagendar|reprogramar|diferente|distinto|quiero otro|quiero otra|cambio|cambien|no me queda|no puedo ese|otro horario|otra fecha|otro dia|otro día|reschedule|change the time|different time|another time|another slot|another date)\b/i.test(t)
   if (wantsReschedule) {
     await sendOutboundWhatsAppMessage(admin, {
       conversationId, leadId, phone,
-      body: '¡Sin problema! Acá van los horarios disponibles para que elijas el que mejor te quede 🗓️',
+      body: lang === 'en'
+        ? "No problem! Here are the available times for you to pick the one that works best 🗓️"
+        : '¡Sin problema! Acá van los horarios disponibles para que elijas el que mejor te quede 🗓️',
     })
-    await startBookingFlow(admin, { leadId, conversationId, phone }, 0)
+    await startBookingFlow(admin, { leadId, conversationId, phone }, 0, undefined, lang)
     return
   }
 
@@ -808,7 +918,9 @@ async function handleFaqPhase(
   if (mentionsGratis) {
     await sendOutboundWhatsAppMessage(admin, {
       conversationId, leadId, phone,
-      body: 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios son pagos 🙂 En la reunión con Walo van a charlar sobre lo que necesitás y los valores — ¡te aseguro que vale la pena! Si tenés alguna duda más, decime 😊',
+      body: lang === 'en'
+        ? "Just so you know, at Alora we're a fully professional team and all our services are paid 🙂 In the meeting with Walo you'll chat about what you need and the pricing — I'm sure it'll be worth it! If you have any more questions, let me know 😊"
+        : 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios son pagos 🙂 En la reunión con Walo van a charlar sobre lo que necesitás y los valores — ¡te aseguro que vale la pena! Si tenés alguna duda más, decime 😊',
     })
     return
   }
@@ -824,7 +936,7 @@ async function handleFaqPhase(
   // else that didn't match a FAQ just gets no reply — Lidia stays in FAQ mode
   // and keeps trying on the next message, instead of going silent for good.
   if (result.humanRequested) {
-    const sentHandoff = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: HANDOFF })
+    const sentHandoff = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: getHandoff(lang) })
     if (!sentHandoff) return
     await admin
       .from('whatsapp_conversations')
