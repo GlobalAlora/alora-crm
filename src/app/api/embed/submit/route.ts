@@ -60,7 +60,6 @@ export async function POST(req: NextRequest) {
       .from('leads')
       .select('id, nombre, estado_pipeline')
       .or(conditions.join(','))
-      .gte('created_at', new Date(Date.now() - 86_400_000).toISOString())
       .is('deleted_at', null)
       .limit(1)
       .maybeSingle()
