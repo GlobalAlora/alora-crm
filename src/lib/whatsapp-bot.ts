@@ -1,9 +1,32 @@
+import Anthropic from '@anthropic-ai/sdk'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendOutboundWhatsAppMessage } from '@/lib/whatsapp-outbound'
 import { matchFaqOrEscalate } from '@/lib/whatsapp-faq'
 import { getAvailableSlotsByDay, formatSlotAR, createCalendarEvent } from '@/lib/google-calendar'
 import { sendGmail } from '@/lib/google-gmail'
 import { notifyAll } from '@/lib/push-notify'
+
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_LEAD_EXTRACT_MODEL || 'claude-haiku-4-5-20251001'
+
+async function extractNameWithAI(raw: string): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return ''
+  try {
+    const client = new Anthropic({ apiKey })
+    const result = await client.messages.create({
+      model: ANTHROPIC_MODEL,
+      max_tokens: 20,
+      messages: [{
+        role: 'user',
+        content: `Extract the person's name from this WhatsApp message. Reply with ONLY the name (e.g. "Raúl" or "María José"). If there is no name, reply with exactly "NONE".\n\nMessage: "${raw}"`,
+      }],
+    })
+    const text = (result.content[0] as { type: string; text: string }).text?.trim() ?? ''
+    return text === 'NONE' || !text ? '' : text
+  } catch {
+    return ''
+  }
+}
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -39,7 +62,8 @@ function extractName(raw: string): string {
     .replace(/^hola[,!]?\s*/i, '')
     .replace(/^hi[,!]?\s*/i, '')
     .trim()
-  return cleaned || raw.trim()
+  const words = (cleaned || raw.trim()).split(/\s+/)
+  return words.slice(0, 2).join(' ')
 }
 
 // Detect whether a message is written in English.
@@ -390,6 +414,27 @@ async function advanceQualifyingBot(
     return
   }
 
+  // If the lead sends a raw URL or says "paso un link" instead of describing their project,
+  // save the URL as sitio_web (when applicable) and explain that Alora always needs
+  // a brief description before quoting — even when they send a link.
+  const isPureUrl = /^https?:\/\/\S+$/i.test(trimmed ?? '')
+  const isLinkDeflection = /\b(paso\s+(un\s+)?link|mando\s+(el\s+|un\s+)?link|te\s+mando\s+(el\s+)?link|no\s+tendr[eé]\s+que\s+explicar|no\s+hace\s+falta\s+explicar)\b/i.test(trimmed ?? '')
+  if (askedField === 'consulta_detallada' && trimmed && (isPureUrl || isLinkDeflection)) {
+    if (isPureUrl) {
+      await admin.from('leads').update({ sitio_web: trimmed }).eq('id', leadId)
+    }
+    const body = isPureUrl
+      ? (lang === 'en'
+        ? "Thanks, I'll pass the link to Walo! 😊 I still need you to tell me briefly what you're looking for — redesign, new features, marketing...?"
+        : '¡Genial, ya anoto el link para Walo! 😊 Igual necesito que me cuentes brevemente qué necesitás: ¿rediseño, funcionalidades nuevas, algo de marketing...?')
+      : (lang === 'en'
+        ? "Sounds great! To make the call with Walo as useful as possible, I need a quick description from you: what do you need or want to build? 😊"
+        : 'Entiendo 😊 Para preparar bien la llamada con Walo, igual necesito que me cuentes brevemente qué necesitás — ¿qué querés hacer o mejorar?')
+    await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body })
+    await admin.from('whatsapp_conversations').update({ bot_next_question: 'consulta_detallada' }).eq('id', conversationId)
+    return
+  }
+
   // Push back once on a non-answer to a validated field instead of silently
   // moving on (e.g. "no tengo" to the email question).
   const validator = askedField ? VALIDATORS[askedField] : undefined
@@ -404,14 +449,16 @@ async function advanceQualifyingBot(
 
   // The field we just asked about isn't AI-inferred — save the raw reply
   // directly (if any) before deciding what's next.
+  const extractedNombre = askedField === 'nombre' && trimmed
+    ? await extractNameWithAI(trimmed)
+    : ''
+
   if (askedField && DIRECT_SAVE_FIELDS.has(askedField) && trimmed) {
-    // On retry for nombre: only save if the answer actually looks like a name
-    // (≤5 words, ≤50 chars). If it still doesn't pass, skip the save so we
-    // don't overwrite a prior valid name with a sentence or a spam message.
-    const isNombreRetryNonName = askedField === 'nombre' && isRetry
-      && VALIDATORS.nombre != null && !VALIDATORS.nombre.isValid(trimmed)
-    if (!isNombreRetryNonName) {
-      const valueToSave = askedField === 'nombre' ? extractName(trimmed) : trimmed
+    // On retry for nombre: only save if AI could identify a name.
+    // If AI returns nothing, skip so we don't overwrite a prior valid name.
+    const isNombreRetryNoName = askedField === 'nombre' && isRetry && !extractedNombre
+    if (!isNombreRetryNoName) {
+      const valueToSave = askedField === 'nombre' ? (extractedNombre || extractName(trimmed)) : trimmed
       await admin.from('leads').update({ [askedField]: valueToSave }).eq('id', leadId)
     }
   }
@@ -517,7 +564,7 @@ async function advanceQualifyingBot(
   // Acknowledge the previous answer before asking the next question,
   // unless we already have a questionPrefix that starts the message naturally.
   const ack = askedField && trimmed && !questionPrefix
-    ? getAcknowledgment(askedField, trimmed, lead.nombre, lang)
+    ? getAcknowledgment(askedField, askedField === 'nombre' ? (extractedNombre || extractName(trimmed)) : trimmed, lead.nombre, lang)
     : ''
 
   const body = [ack, questionPrefix, getQuestionText(nextField, lang)].filter(Boolean).join('\n\n')
