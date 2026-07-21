@@ -67,13 +67,13 @@ export async function GET(req: NextRequest) {
       .from('leads')
       .select('id, nombre, apellido')
         .is('deleted_at', null)
-      .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado,consulta_cliente)')
+      .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado,consulta_cliente,testing)')
       .lt('stage_updated_at', sevenDaysAgo),
     supabase
       .from('leads')
       .select('id, nombre, apellido')
       .is('deleted_at', null)
-      .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado,consulta_cliente)')
+      .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado,consulta_cliente,testing)')
       .lt('stage_updated_at', threeDaysAgo),
     supabase
       .from('leads')
@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
         .from('leads')
         .select('id, nombre, empresa, estado_pipeline, responsable_id, propuestas(valor_usd, valor_ars, moneda, estado)')
         .is('deleted_at', null)
-        .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado,consulta_cliente)')
+        .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado,consulta_cliente,testing)')
         .limit(50)
     ),
     // Proyectos: leads ganados con fecha_cierre_proyecto
@@ -257,7 +257,7 @@ export async function GET(req: NextRequest) {
           .select('id', { count: 'exact', head: true })
           .eq('responsable_id', u.id)
           .is('deleted_at', null)
-          .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado,consulta_cliente)'),
+          .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado,consulta_cliente,testing)'),
         supabase
           .from('leads')
           .select('id', { count: 'exact', head: true })
