@@ -195,15 +195,21 @@ async function findOrCreateLeadByPhone(
   const withPlus = `+${phone}`
   const { data: existing } = await admin
     .from('leads')
-    .select('id, nombre')
+    .select('id, nombre, estado_pipeline')
     .in('telefono', [phone, withPlus])
     .is('deleted_at', null)
     .limit(1)
     .maybeSingle()
 
-  if (existing) {
+  if (existing && existing.estado_pipeline !== 'testing') {
     console.log(`[WhatsApp] Existing lead: ${existing.id} (${existing.nombre})`)
     return existing.id
+  }
+
+  if (existing?.estado_pipeline === 'testing') {
+    console.log(`[WhatsApp] Testing lead ignored — creating new lead for ${phone}`)
+    // Free up the phone number so the new lead can use it
+    await admin.from('leads').update({ telefono: `test_${phone}` }).eq('id', existing.id)
   }
 
   // Assign all incoming leads to Walo
