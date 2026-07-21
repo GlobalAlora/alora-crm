@@ -251,12 +251,33 @@ export async function runBot(
   // Leads in the 'consulta_cliente' stage are existing clients — never engage.
   const { data: leadStage } = await admin
     .from('leads')
-    .select('estado_pipeline')
+    .select('estado_pipeline, nombre, apellido')
     .eq('id', leadId)
     .single()
 
-  if (leadStage?.estado_pipeline === 'consulta_cliente' || leadStage?.estado_pipeline === 'no_cualificado' || leadStage?.estado_pipeline === 'testing') {
+  if (leadStage?.estado_pipeline === 'consulta_cliente' || leadStage?.estado_pipeline === 'testing') {
     console.log(`[Bot] PAUSE reason=${leadStage.estado_pipeline} phone=${phone} conv=${conversationId}`)
+    await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
+    return
+  }
+
+  if (leadStage?.estado_pipeline === 'no_cualificado') {
+    // Lead was disqualified but reached out again — move back to lead_entrante so the
+    // team can review, and fire a push notification so no opportunity is missed.
+    console.log(`[Bot] no_cualificado lead recontacted — moving to lead_entrante phone=${phone}`)
+    await admin.from('leads').update({ estado_pipeline: 'lead_entrante' }).eq('id', leadId)
+    await admin.from('activities').insert({
+      lead_id:     leadId,
+      user_id:     null,
+      tipo:        'nota',
+      descripcion: 'Recontactó por WhatsApp estando en No cualificado — movido a Lead entrante para revisión.',
+    })
+    const leadLabel = [leadStage.nombre, leadStage.apellido].filter(Boolean).join(' ') || `+${phone}`
+    notifyAll({
+      title: `♻️ Recontacto — ${leadLabel}`,
+      body:  'Estaba en "No cualificado" y volvió a escribir. Lo movimos a Lead entrante.',
+      url:   `/leads/${leadId}`,
+    }).catch(() => {})
     await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
     return
   }
