@@ -31,10 +31,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'El nombre es requerido' }, { status: 400, headers: CORS_HEADERS })
   }
 
-  // Test submissions: silently discard without creating a lead
-  if (body.nombre.trim().toLowerCase() === 'prueba') {
-    return NextResponse.json({ data: { id: 'test', nombre: 'Prueba', estado_pipeline: 'lead_entrante' }, test: true }, { status: 200, headers: CORS_HEADERS })
-  }
+  const isTestLead = body.nombre.trim().toLowerCase() === 'prueba'
 
   if (body.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
     return NextResponse.json({ error: 'Email inválido' }, { status: 400, headers: CORS_HEADERS })
@@ -132,7 +129,7 @@ export async function POST(req: NextRequest) {
       form_data: Object.keys(form_data).length > 0 ? form_data : null,
       responsable_id: responsableId,
       created_by: responsableId,
-      estado_pipeline: 'lead_entrante',
+      estado_pipeline: isTestLead ? 'testing' : 'lead_entrante',
       kanban_position: (maxPos?.kanban_position ?? 0) + 1,
     })
     .select('id, nombre, estado_pipeline')

@@ -14,10 +14,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'El nombre es requerido' }, { status: 400 })
   }
 
-  // Test submissions: silently discard without creating a lead
-  if (body.nombre.trim().toLowerCase() === 'prueba') {
-    return NextResponse.json({ data: { id: 'test', nombre: 'Prueba', estado_pipeline: 'lead_entrante' }, test: true }, { status: 200 })
-  }
+  const isTestLead = body.nombre.trim().toLowerCase() === 'prueba'
 
   // Deduplication: email OR phone in last 24h
   if (body.email || body.telefono) {
@@ -68,7 +65,7 @@ export async function POST(req: NextRequest) {
       fuente: body.fuente ?? 'formulario',
       responsable_id: responsableId,
       created_by: responsableId,
-      estado_pipeline: 'lead_entrante',
+      estado_pipeline: isTestLead ? 'testing' : 'lead_entrante',
       kanban_position: (maxPos?.kanban_position ?? 0) + 1,
     })
     .select('id, nombre, estado_pipeline')

@@ -55,7 +55,7 @@ export async function runWhatsAppFollowUps(admin: AdminClient): Promise<{ sent: 
         .eq('id', conv.lead_id)
         .single()
 
-      if (lead?.estado_pipeline === 'no_cualificado' || lead?.estado_pipeline === 'consulta_cliente') {
+      if (lead?.estado_pipeline === 'no_cualificado' || lead?.estado_pipeline === 'consulta_cliente' || lead?.estado_pipeline === 'testing') {
         await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conv.id)
         continue
       }

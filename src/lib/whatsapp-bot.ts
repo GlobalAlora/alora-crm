@@ -255,7 +255,7 @@ export async function runBot(
     .eq('id', leadId)
     .single()
 
-  if (leadStage?.estado_pipeline === 'consulta_cliente' || leadStage?.estado_pipeline === 'no_cualificado') {
+  if (leadStage?.estado_pipeline === 'consulta_cliente' || leadStage?.estado_pipeline === 'no_cualificado' || leadStage?.estado_pipeline === 'testing') {
     console.log(`[Bot] PAUSE reason=${leadStage.estado_pipeline} phone=${phone} conv=${conversationId}`)
     await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
     return
@@ -480,10 +480,10 @@ async function advanceQualifyingBot(
     ? await extractNameWithAI(trimmed)
     : ''
 
-  // Test lead: if the extracted name is "prueba" (case-insensitive), soft-delete
-  // the lead and stop — keeps the CRM clean during testing.
+  // Test lead: move to "testing" stage and stop the bot — lead stays visible in CRM.
   if (askedField === 'nombre' && extractedNombre && extractedNombre.toLowerCase() === 'prueba') {
-    await admin.from('leads').update({ deleted_at: new Date().toISOString() }).eq('id', leadId)
+    await admin.from('leads').update({ nombre: 'Prueba', estado_pipeline: 'testing' }).eq('id', leadId)
+    await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
     return
   }
 

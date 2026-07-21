@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
     query = query.in('estado_pipeline', estadosPipeline)
   } else {
     // Exclude dead/internal stages unless explicitly requested
-    query = query.not('estado_pipeline', 'in', '(no_cualificado,consulta_cliente)')
+    query = query.not('estado_pipeline', 'in', '(no_cualificado,consulta_cliente,testing)')
   }
   if (responsableId) {
     query = query.eq('responsable_id', responsableId)
