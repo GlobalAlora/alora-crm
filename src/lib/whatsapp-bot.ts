@@ -255,8 +255,8 @@ export async function runBot(
     .eq('id', leadId)
     .single()
 
-  if (leadStage?.estado_pipeline === 'consulta_cliente') {
-    console.log(`[Bot] PAUSE reason=consulta_cliente phone=${phone} conv=${conversationId}`)
+  if (leadStage?.estado_pipeline === 'consulta_cliente' || leadStage?.estado_pipeline === 'no_cualificado') {
+    console.log(`[Bot] PAUSE reason=${leadStage.estado_pipeline} phone=${phone} conv=${conversationId}`)
     await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
     return
   }
