@@ -77,8 +77,8 @@ export async function processTidyCalBooking(
   admin: AdminClient,
   booking: TidyCalBooking,
 ): Promise<{ result: 'processed' | 'skipped' | 'error'; reason?: string }> {
-  if (booking.status !== 'active') {
-    return { result: 'skipped', reason: `status=${booking.status}` }
+  if (booking.status === 'cancelled') {
+    return { result: 'skipped', reason: 'cancelled' }
   }
 
   if (await isAlreadyProcessed(admin, booking.id)) {
