@@ -14,6 +14,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'El nombre es requerido' }, { status: 400 })
   }
 
+  // Test submissions: silently discard without creating a lead
+  if (body.nombre.trim().toLowerCase() === 'prueba') {
+    return NextResponse.json({ data: { id: 'test', nombre: 'Prueba', estado_pipeline: 'lead_entrante' }, test: true }, { status: 200 })
+  }
+
   // Deduplication: email OR phone in last 24h
   if (body.email || body.telefono) {
     const conditions: string[] = []
