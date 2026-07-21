@@ -249,6 +249,21 @@ async function findOrCreateLeadByPhone(
     .single()
 
   if (error || !newLead) {
+    // Race condition: another concurrent webhook created the lead a few ms earlier.
+    // The unique index on telefono fires a 23505; re-query and return that lead.
+    if (error?.code === '23505') {
+      const { data: raced } = await admin
+        .from('leads')
+        .select('id, nombre')
+        .in('telefono', [phone, withPlus])
+        .is('deleted_at', null)
+        .limit(1)
+        .maybeSingle()
+      if (raced) {
+        console.log(`[WhatsApp] Race resolved — existing lead: ${raced.id} (${raced.nombre})`)
+        return raced.id
+      }
+    }
     throw new Error(`Failed to create lead: ${error?.message ?? 'unknown'}`)
   }
 
