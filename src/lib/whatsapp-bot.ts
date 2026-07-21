@@ -340,6 +340,20 @@ async function advanceQualifyingBot(
     return
   }
 
+  // Pure greeting mid-conversation (hola, hi, hey, buenas…) — never accept as a field answer.
+  // Re-ask the current question with a friendly greeting prefix.
+  const GREETING_RE = /^(hola|holi|holis|hi|hey|hello|buenas?|buenos\s+d[ií]as?|buen\s+d[ií]a|buenas\s+tardes?|buenas\s+noches?|qu[eé]\s+tal|c[oó]mo\s+and[aá]s?|buen[a]?s)[!.?\s]*$/i
+  const isJustGreeting = !!trimmed && GREETING_RE.test(trimmed)
+  if (isJustGreeting && askedField) {
+    await sendOutboundWhatsAppMessage(admin, {
+      conversationId, leadId, phone,
+      body: lang === 'en'
+        ? `Hi there! 😊 ${getQuestionText(askedField, lang)}`
+        : `¡Hola! 😊 ${getQuestionText(askedField, lang)}`,
+    })
+    return
+  }
+
   // If the lead is asking to switch languages, acknowledge and re-ask the current question
   // in the new language. Don't save this message as a field answer.
   const isLangSwitch = trimmed && (
