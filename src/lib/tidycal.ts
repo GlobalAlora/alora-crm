@@ -5,14 +5,20 @@ type AdminClient = ReturnType<typeof createAdminClient>
 
 export interface TidyCalBooking {
   id: number
-  name: string
-  email: string | null
-  phone?: string | null
   starts_at: string        // ISO 8601 UTC
   ends_at?: string
-  status: 'active' | 'cancelled' | string
+  cancelled_at: string | null
+  meeting_url?: string | null
   booking_type?: { title?: string }
-  note?: string | null
+  contact: {
+    id: number
+    email: string | null
+    name: string
+  }
+  questions?: Array<{
+    question: string
+    answer: string | number | string[] | null
+  }>
   cancel_url?: string | null
   reschedule_url?: string | null
 }
@@ -22,6 +28,12 @@ const TIDYCAL_API = 'https://tidycal.com/api'
 // Stages where it's safe to move the lead forward to reunion_reservada.
 // Don't overwrite stages that come after (reunion_realizada, propuesta_enviada, etc.)
 const BEFORE_REUNION: string[] = ['lead_entrante', 'contactado']
+
+function findQuestion(questions: TidyCalBooking['questions'], regex: RegExp): string | null {
+  const q = questions?.find(q => regex.test(q.question))
+  if (!q || q.answer === null || q.answer === undefined) return null
+  return Array.isArray(q.answer) ? q.answer.join(', ') : String(q.answer).trim() || null
+}
 
 export async function fetchTidyCalBookings(fromDate: string, toDate: string): Promise<TidyCalBooking[]> {
   const apiKey = process.env.TIDYCAL_API_KEY
@@ -77,7 +89,7 @@ export async function processTidyCalBooking(
   admin: AdminClient,
   booking: TidyCalBooking,
 ): Promise<{ result: 'processed' | 'skipped' | 'error'; reason?: string }> {
-  if (booking.status === 'cancelled') {
+  if (booking.cancelled_at !== null) {
     return { result: 'skipped', reason: 'cancelled' }
   }
 
@@ -85,10 +97,15 @@ export async function processTidyCalBooking(
     return { result: 'skipped', reason: 'already_processed' }
   }
 
-  const email = booking.email?.trim().toLowerCase() || null
-  const phone = booking.phone?.replace(/\D/g, '') || null
-  const nombre = booking.name?.trim() || 'Sin nombre'
-  const note = booking.note?.trim() || null
+  const email = booking.contact?.email?.trim().toLowerCase() || null
+  const rawName = booking.contact?.name?.trim() || 'Sin nombre'
+  const qs = booking.questions ?? []
+  const phoneRaw = findQuestion(qs, /tel[eé]fono/i)
+  const phone = phoneRaw ? phoneRaw.replace(/\D/g, '') || null : null
+  const empresa = findQuestion(qs, /empresa/i)
+  const descripcion = findQuestion(qs, /proyecto|consulta|descripci/i)
+  const servicio = findQuestion(qs, /servicio/i)
+  const note = [descripcion, servicio].filter(Boolean).join(' | ') || null
   const startTime = booking.starts_at
 
   if (!email && !phone) {
@@ -158,18 +175,20 @@ export async function processTidyCalBooking(
       .limit(1)
       .maybeSingle()
 
-    const nameParts = nombre.split(/\s+/)
+    const nameParts = rawName.split(/\s+/)
     const { data: newLead, error } = await admin
       .from('leads')
       .insert({
-        nombre:          nameParts[0] ?? nombre,
+        nombre:          nameParts[0] ?? rawName,
         apellido:        nameParts.slice(1).join(' ') || null,
         email,
         telefono:        phone,
+        empresa:         empresa ?? null,
         fuente:          'calendario',
         estado_pipeline: 'reunion_reservada',
         fecha_reunion,
         reunion_hora,
+        reunion_link:    booking.meeting_url ?? null,
         kanban_position: (maxPos?.kanban_position ?? 0) + 1,
         responsable_id:  responsableId,
         created_by:      responsableId,
@@ -200,10 +219,10 @@ export async function processTidyCalBooking(
       leadId = newLead.id
       await sendNewLeadAlert({
         id: leadId,
-        nombre,
+        nombre: rawName,
         email,
         telefono: phone,
-        empresa: null,
+        empresa: empresa ?? null,
         pais: null,
         fuente: 'calendario',
         mensaje: note ?? null,
@@ -252,7 +271,6 @@ export async function runTidyCalSync(
   }
 
   console.log(`[TidyCal] Fetched ${bookings.length} bookings (${from} → ${to})`)
-  if (bookings.length > 0) console.log('[TidyCal] Sample booking:', JSON.stringify(bookings[0]))
 
   let processed = 0
   let skipped = 0
