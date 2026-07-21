@@ -12,6 +12,7 @@ export type PipelineStage =
   | 'cliente_ganado'
   | 'cliente_perdido'
   | 'no_cualificado'
+  | 'consulta_cliente'
 
 export type LeadQuality = 'MQL' | 'SQL' | 'no_calificado'
 
@@ -404,6 +405,7 @@ export const PIPELINE_STAGES: {
   { value: 'cliente_ganado', label: 'Cliente ganado', color: '#22c55e', bgColor: '#f0fdf4', zone: 'cierre' },
   { value: 'cliente_perdido', label: 'Cliente perdido', color: '#ef4444', bgColor: '#fef2f2', zone: 'cierre' },
   { value: 'no_cualificado', label: 'No cualificado', color: '#94a3b8', bgColor: '#f8fafc', zone: 'cierre' },
+  { value: 'consulta_cliente', label: 'Consulta cliente', color: '#a855f7', bgColor: '#faf5ff', zone: 'cierre' },
 ]
 
 export const PIPELINE_STAGE_MAP = Object.fromEntries(

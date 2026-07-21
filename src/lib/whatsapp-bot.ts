@@ -248,6 +248,19 @@ export async function runBot(
     return
   }
 
+  // Leads in the 'consulta_cliente' stage are existing clients — never engage.
+  const { data: leadStage } = await admin
+    .from('leads')
+    .select('estado_pipeline')
+    .eq('id', leadId)
+    .single()
+
+  if (leadStage?.estado_pipeline === 'consulta_cliente') {
+    console.log(`[Bot] PAUSE reason=consulta_cliente phone=${phone} conv=${conversationId}`)
+    await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
+    return
+  }
+
   const { data: convo } = await admin
     .from('whatsapp_conversations')
     .select('bot_active, bot_phase, bot_next_question, bot_language')

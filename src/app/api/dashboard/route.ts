@@ -67,13 +67,13 @@ export async function GET(req: NextRequest) {
       .from('leads')
       .select('id, nombre, apellido')
         .is('deleted_at', null)
-      .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado)')
+      .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado,consulta_cliente)')
       .lt('stage_updated_at', sevenDaysAgo),
     supabase
       .from('leads')
       .select('id, nombre, apellido')
       .is('deleted_at', null)
-      .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado)')
+      .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado,consulta_cliente)')
       .lt('stage_updated_at', threeDaysAgo),
     supabase
       .from('leads')
@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
         .from('leads')
         .select('id, nombre, empresa, estado_pipeline, responsable_id, propuestas(valor_usd, valor_ars, moneda, estado)')
         .is('deleted_at', null)
-        .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado)')
+        .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado,consulta_cliente)')
         .limit(50)
     ),
     // Proyectos: leads ganados con fecha_cierre_proyecto
@@ -241,7 +241,7 @@ export async function GET(req: NextRequest) {
 
   const totalActivos = leads.filter(
     (l: { estado_pipeline: string }) =>
-      !['cliente_ganado', 'cliente_perdido', 'no_cualificado'].includes(l.estado_pipeline)
+      !['cliente_ganado', 'cliente_perdido', 'no_cualificado', 'consulta_cliente'].includes(l.estado_pipeline)
   ).length
   const totalGanados = porEtapaCount['cliente_ganado'] ?? 0
   const tasaConversion = totalActivos + totalGanados > 0
@@ -257,7 +257,7 @@ export async function GET(req: NextRequest) {
           .select('id', { count: 'exact', head: true })
           .eq('responsable_id', u.id)
           .is('deleted_at', null)
-          .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado)'),
+          .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado,consulta_cliente)'),
         supabase
           .from('leads')
           .select('id', { count: 'exact', head: true })
