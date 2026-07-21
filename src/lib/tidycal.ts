@@ -252,6 +252,7 @@ export async function runTidyCalSync(
   }
 
   console.log(`[TidyCal] Fetched ${bookings.length} bookings (${from} → ${to})`)
+  if (bookings.length > 0) console.log('[TidyCal] Sample booking:', JSON.stringify(bookings[0]))
 
   let processed = 0
   let skipped = 0
