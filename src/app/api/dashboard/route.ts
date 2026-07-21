@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
     ] = await Promise.allSettled([
     applyFilters(
       supabase.from('leads').select('estado_pipeline, fuente, fecha_ingreso, valor_propuesta_usd, valor_propuesta_ars, valor_propuesta_moneda, pais, responsable_id, created_at, stage_updated_at, last_activity_at')
+        .not('estado_pipeline', 'in', '(no_cualificado,consulta_cliente,testing)')
     ),
     applyFilters(
       supabase
@@ -79,6 +80,7 @@ export async function GET(req: NextRequest) {
       .from('leads')
       .select('id, nombre, apellido')
       .is('deleted_at', null)
+      .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado,consulta_cliente,testing)')
       .gt('last_activity_at', oneHourAgo),
     supabase.from('users').select('id, full_name, avatar_url').in('role', ['admin', 'sales']),
     supabase
@@ -90,6 +92,7 @@ export async function GET(req: NextRequest) {
       .from('leads')
       .select('id, nombre, estado_pipeline, fuente, created_at, responsable_id')
       .is('deleted_at', null)
+      .not('estado_pipeline', 'in', '(no_cualificado,consulta_cliente,testing)')
       .order('created_at', { ascending: false })
       .limit(8),
     applyFilters(
