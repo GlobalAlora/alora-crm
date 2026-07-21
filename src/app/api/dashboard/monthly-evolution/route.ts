@@ -21,6 +21,8 @@ export async function GET(req: NextRequest) {
       .is('deleted_at', null)
       .gte('created_at', startDate.toISOString())
 
+    query = query.not('estado_pipeline', 'in', '(consulta_cliente,testing)')
+
     if (responsableId) {
       query = query.eq('responsable_id', responsableId)
     }

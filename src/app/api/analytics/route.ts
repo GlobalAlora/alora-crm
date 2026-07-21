@@ -120,6 +120,7 @@ export async function GET(req: NextRequest) {
         propuestas(id, valor_usd, valor_ars, moneda, estado, created_at, updated_at)
       `)
       .is('deleted_at', null)
+      .not('estado_pipeline', 'in', '(no_cualificado,consulta_cliente,testing)')
       .gte('fecha_ingreso', fechaDesde)
       .lte('fecha_ingreso', fechaHasta + 'T23:59:59')
 
@@ -149,7 +150,7 @@ export async function GET(req: NextRequest) {
         .from('leads')
         .select('id, nombre, apellido, pais, fuente, estado_pipeline, stage_updated_at, last_activity_at')
         .is('deleted_at', null)
-        .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado)'),
+        .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado,consulta_cliente,testing)'),
     ])
 
     const leads: LeadRow[] = (leadsResult.data ?? []) as unknown as LeadRow[]
