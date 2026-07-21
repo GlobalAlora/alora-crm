@@ -193,13 +193,25 @@ async function findOrCreateLeadByPhone(
   // with the + prefix. Using two .eq() calls avoids URL-encoding issues with +
   // inside a PostgREST .or() filter.
   const withPlus = `+${phone}`
-  const { data: existing } = await admin
+  // Two separate .eq() calls: .in([phone, withPlus]) URL-encodes the + as space,
+  // causing leads stored with +prefix to not be found (original bug source).
+  const { data: byDigits } = await admin
     .from('leads')
     .select('id, nombre, estado_pipeline')
-    .in('telefono', [phone, withPlus])
+    .eq('telefono', phone)
     .is('deleted_at', null)
     .limit(1)
     .maybeSingle()
+  const existing = byDigits ?? await (async () => {
+    const { data } = await admin
+      .from('leads')
+      .select('id, nombre, estado_pipeline')
+      .eq('telefono', withPlus)
+      .is('deleted_at', null)
+      .limit(1)
+      .maybeSingle()
+    return data
+  })()
 
   if (existing && existing.estado_pipeline !== 'testing') {
     console.log(`[WhatsApp] Existing lead: ${existing.id} (${existing.nombre})`)
