@@ -31,6 +31,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'El nombre es requerido' }, { status: 400, headers: CORS_HEADERS })
   }
 
+  // Test submissions: silently discard without creating a lead
+  if (body.nombre.trim().toLowerCase() === 'prueba') {
+    return NextResponse.json({ data: { id: 'test', nombre: 'Prueba', estado_pipeline: 'lead_entrante' }, test: true }, { status: 200, headers: CORS_HEADERS })
+  }
+
   if (body.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
     return NextResponse.json({ error: 'Email inválido' }, { status: 400, headers: CORS_HEADERS })
   }

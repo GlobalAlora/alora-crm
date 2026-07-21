@@ -453,6 +453,13 @@ async function advanceQualifyingBot(
     ? await extractNameWithAI(trimmed)
     : ''
 
+  // Test lead: if the extracted name is "prueba" (case-insensitive), soft-delete
+  // the lead and stop — keeps the CRM clean during testing.
+  if (askedField === 'nombre' && extractedNombre && extractedNombre.toLowerCase() === 'prueba') {
+    await admin.from('leads').update({ deleted_at: new Date().toISOString() }).eq('id', leadId)
+    return
+  }
+
   if (askedField && DIRECT_SAVE_FIELDS.has(askedField) && trimmed) {
     // On retry for nombre: only save if AI could identify a name.
     // If AI returns nothing, skip so we don't overwrite a prior valid name.
