@@ -20,12 +20,10 @@ export async function POST(req: NextRequest) {
     if (body.email) conditions.push(`email.eq.${body.email}`)
     if (body.telefono) conditions.push(`telefono.eq.${body.telefono}`)
 
-    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     const { data: existing } = await supabase
       .from('leads')
       .select('id, nombre, estado_pipeline')
       .or(conditions.join(','))
-      .gte('created_at', yesterday)
       .is('deleted_at', null)
       .limit(1)
       .maybeSingle()
