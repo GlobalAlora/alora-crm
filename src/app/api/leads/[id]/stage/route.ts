@@ -8,6 +8,7 @@ const VALID_STAGES: PipelineStage[] = [
   'lead_entrante', 'lead_contactado', 'sin_respuesta', 'reunion_reservada',
   'reunion_realizada', 'propuesta_en_armado', 'propuesta_enviada',
   'follow_up', 'cliente_ganado', 'cliente_perdido', 'no_cualificado',
+  'consulta_cliente', 'testing',
 ]
 
 const CLOSING_STAGES: PipelineStage[] = ['cliente_ganado', 'cliente_perdido']
