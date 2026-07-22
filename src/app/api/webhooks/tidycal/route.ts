@@ -24,23 +24,26 @@ export async function POST(req: NextRequest) {
   const b = body.booking ?? {}
   const contact = b.contact ?? {}
 
-  // TidyCal can include extra questions — look for a phone answer
-  const phone: string | null = (() => {
-    const questions: { label?: string; answer?: string }[] = b.questions ?? []
-    const phoneQ = questions.find((q) => /phone|tel[eé]fono|tel\b/i.test(q.label ?? ''))
-    return phoneQ?.answer?.trim() || null
-  })()
+  // Normalize questions: webhook may use `label` instead of `question`
+  const questions: Array<{ question: string; answer: string | number | string[] | null }> =
+    (b.questions ?? []).map((q: Record<string, unknown>) => ({
+      question: String(q.label ?? q.question ?? ''),
+      answer:   (q.answer ?? null) as string | number | string[] | null,
+    }))
 
   const admin = createAdminClient()
   const { result, reason } = await processTidyCalBooking(admin, {
-    id:             b.id,
-    name:           contact.name?.trim() || 'Sin nombre',
-    email:          contact.email?.trim() || null,
-    phone,
-    starts_at:      b.start ?? b.starts_at,
-    status:         'active',
-    booking_type:   b.booking_type ?? null,
-    note:           b.note?.trim() || null,
+    id:           b.id,
+    cancelled_at: null, // webhook only fires on booking.created
+    starts_at:    b.start ?? b.starts_at,
+    meeting_url:  b.meeting_url ?? null,
+    booking_type: b.booking_type ?? null,
+    contact: {
+      id:    contact.id ?? 0,
+      email: contact.email?.trim() || null,
+      name:  contact.name?.trim() || 'Sin nombre',
+    },
+    questions,
     cancel_url:     b.cancel_url ?? null,
     reschedule_url: b.reschedule_url ?? null,
   })
