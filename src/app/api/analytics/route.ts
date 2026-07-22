@@ -70,7 +70,8 @@ type LeadRow = {
   pais: string | null
   fuente: string | null
   estado_pipeline: string
-  fecha_ingreso: string
+  fecha_ingreso: string | null
+  created_at: string
   fecha_contacto: string | null
   fecha_reunion: string | null
   fecha_propuesta: string | null
@@ -110,19 +111,27 @@ export async function GET(req: NextRequest) {
 
     const adminSupabase = createAdminClient()
 
+    // .not().in() silently returns 0 rows in this Supabase version — filter stages in JS.
+    // fecha_ingreso can be null (e.g. TidyCal leads) — fall back to created_at for those.
+    const EXCLUDED = new Set(['no_cualificado', 'consulta_cliente', 'testing'])
+    const ACTIVE_STAGES_OR = [
+      'lead_entrante', 'lead_contactado', 'sin_respuesta', 'reunion_reservada',
+      'reunion_realizada', 'propuesta_en_armado', 'propuesta_enviada', 'follow_up',
+    ].map(s => `estado_pipeline.eq.${s}`).join(',')
+
     // ── Main query: leads in period ─────────────────────────────────────────
+    // Use OR so leads with null fecha_ingreso fall back to created_at for date check
     let leadsQuery = adminSupabase
       .from('leads')
       .select(`
         id, nombre, apellido, pais, fuente, estado_pipeline,
         fecha_ingreso, fecha_contacto, fecha_reunion, fecha_propuesta, fecha_cierre,
-        stage_updated_at, last_activity_at,
+        stage_updated_at, last_activity_at, created_at,
         propuestas(id, valor_usd, valor_ars, moneda, estado, created_at, updated_at)
       `)
       .is('deleted_at', null)
-      .not('estado_pipeline', 'in', '(no_cualificado,consulta_cliente,testing)')
-      .gte('fecha_ingreso', fechaDesde)
-      .lte('fecha_ingreso', fechaHasta + 'T23:59:59')
+      .or(`fecha_ingreso.gte.${fechaDesde},and(fecha_ingreso.is.null,created_at.gte.${fechaDesde})`)
+      .or(`fecha_ingreso.lte.${fechaHasta}T23:59:59,and(fecha_ingreso.is.null,created_at.lte.${fechaHasta}T23:59:59)`)
 
     if (paisFilter) leadsQuery = leadsQuery.eq('pais', paisFilter)
     if (fuenteFilter) leadsQuery = leadsQuery.eq('fuente', fuenteFilter)
@@ -134,7 +143,7 @@ export async function GET(req: NextRequest) {
       .select(`
         id, nombre, apellido, pais, fuente, estado_pipeline,
         fecha_ingreso, fecha_contacto, fecha_reunion, fecha_propuesta, fecha_cierre,
-        stage_updated_at, last_activity_at,
+        stage_updated_at, last_activity_at, created_at,
         propuestas(id, valor_usd, valor_ars, moneda, estado, created_at, updated_at)
       `)
       .is('deleted_at', null)
@@ -142,7 +151,7 @@ export async function GET(req: NextRequest) {
       .gte('fecha_cierre', fechaDesde)
       .lte('fecha_cierre', fechaHasta + 'T23:59:59')
 
-    // Active leads for risk section (no date filter)
+    // Active leads for risk section (no date filter) — use .or() instead of .not().in()
     const [leadsResult, cierresResult, activeResult] = await Promise.all([
       leadsQuery,
       cierresQuery,
@@ -150,10 +159,12 @@ export async function GET(req: NextRequest) {
         .from('leads')
         .select('id, nombre, apellido, pais, fuente, estado_pipeline, stage_updated_at, last_activity_at')
         .is('deleted_at', null)
-        .not('estado_pipeline', 'in', '(cliente_ganado,cliente_perdido,no_cualificado,consulta_cliente,testing)'),
+        .or(ACTIVE_STAGES_OR),
     ])
 
-    const leads: LeadRow[] = (leadsResult.data ?? []) as unknown as LeadRow[]
+    // Filter excluded stages in JS
+    const leads: LeadRow[] = ((leadsResult.data ?? []) as unknown as LeadRow[])
+      .filter(l => !EXCLUDED.has(l.estado_pipeline))
     // Leads closed in period (by fecha_cierre) — used for resumen KPIs
     const cierresEnPeriodo: LeadRow[] = (cierresResult.data ?? []) as unknown as LeadRow[]
     const activeLeads: ActiveLead[] = (activeResult.data ?? []) as ActiveLead[]
