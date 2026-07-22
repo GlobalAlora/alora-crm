@@ -4,13 +4,6 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { PipelineStage } from '@/types'
 import { ensureLeadDriveFolder } from '@/lib/google-drive'
 
-const VALID_STAGES: PipelineStage[] = [
-  'lead_entrante', 'lead_contactado', 'sin_respuesta', 'reunion_reservada',
-  'reunion_realizada', 'propuesta_en_armado', 'propuesta_enviada',
-  'follow_up', 'cliente_ganado', 'cliente_perdido', 'no_cualificado',
-  'consulta_cliente', 'testing',
-]
-
 const CLOSING_STAGES: PipelineStage[] = ['cliente_ganado', 'cliente_perdido']
 
 // fecha_reunion is NOT auto-stamped here — it must be supplied explicitly by the
@@ -36,7 +29,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const body = await req.json()
   const { estado_pipeline, fecha_reunion } = body as { estado_pipeline: PipelineStage; fecha_reunion?: string | null }
 
-  if (!VALID_STAGES.includes(estado_pipeline)) {
+  if (!estado_pipeline) {
+    return NextResponse.json({ error: 'Etapa inválida' }, { status: 400 })
+  }
+  const { data: stageRow } = await supabase
+    .from('pipeline_stages')
+    .select('key')
+    .eq('key', estado_pipeline)
+    .maybeSingle()
+  if (!stageRow) {
     return NextResponse.json({ error: 'Etapa inválida' }, { status: 400 })
   }
 
