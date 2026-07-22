@@ -508,6 +508,15 @@ async function advanceQualifyingBot(
     return
   }
 
+  // If AI couldn't extract a name on the first attempt, push back once instead
+  // of saving the first word(s) verbatim. This catches non-name answers like
+  // "Hace rato estuvimos hablando" that slip past the length-only validator.
+  if (askedField === 'nombre' && !isRetry && trimmed && !extractedNombre) {
+    await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: getPushback('nombre', lang) })
+    await admin.from('whatsapp_conversations').update({ bot_next_question: 'nombre__retry' }).eq('id', conversationId)
+    return
+  }
+
   if (askedField && DIRECT_SAVE_FIELDS.has(askedField) && trimmed) {
     // On retry for nombre: only save if AI could identify a name.
     // If AI returns nothing, skip so we don't overwrite a prior valid name.
