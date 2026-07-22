@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
     // Run all independent queries in parallel with error handling
     const [
       allLeadsResult,
+      nuevosLeadsResult,
       sinRespuestaLeadsResult,
       tareasVencidasResult,
       leadsInactivosLeadsResult,
@@ -51,6 +52,13 @@ export async function GET(req: NextRequest) {
     applyFilters(
       supabase.from('leads').select('estado_pipeline, fuente, fecha_ingreso, valor_propuesta_usd, valor_propuesta_ars, valor_propuesta_moneda, pais, responsable_id, created_at, stage_updated_at, last_activity_at')
         .not('estado_pipeline', 'in', '(no_cualificado,consulta_cliente,testing)')
+    ),
+    // Separate count for "leads ingresados" — includes no_cualificado (they did enter the pipeline)
+    applyFilters(
+      supabase.from('leads').select('fecha_ingreso, created_at')
+        .not('estado_pipeline', 'in', '(consulta_cliente,testing)')
+        .gte('created_at', fechaDesde)
+        .lte('created_at', fechaHasta)
     ),
     applyFilters(
       supabase
@@ -114,6 +122,7 @@ export async function GET(req: NextRequest) {
 
   // Extract data safely from Promise.allSettled results
   const allLeads = allLeadsResult.status === 'fulfilled' ? allLeadsResult.value.data : []
+  const nuevosLeads = nuevosLeadsResult.status === 'fulfilled' ? (nuevosLeadsResult.value.data ?? []) : []
   const sinRespuestaLeads = sinRespuestaLeadsResult.status === 'fulfilled' ? sinRespuestaLeadsResult.value.data : []
   const tareasVencidas = tareasVencidasResult.status === 'fulfilled' ? tareasVencidasResult.value.count : 0
   const leadsInactivosLeads = leadsInactivosLeadsResult.status === 'fulfilled' ? leadsInactivosLeadsResult.value.data : []
@@ -235,12 +244,7 @@ export async function GET(req: NextRequest) {
     ? ganadosConValor.reduce((a, b) => a + b, 0) / ganadosConValor.length
     : 0
 
-  const nuevosPeriodo = leads.filter(
-    (l: { fecha_ingreso?: string; created_at: string }) => {
-      const date = l.fecha_ingreso ?? l.created_at
-      return date >= fechaDesde && date <= fechaHasta
-    }
-  ).length
+  const nuevosPeriodo = nuevosLeads.length
 
   const totalActivos = leads.filter(
     (l: { estado_pipeline: string }) =>
