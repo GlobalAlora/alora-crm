@@ -34,6 +34,15 @@ export async function GET(req: NextRequest) {
     const sevenDaysAgo = toArgentinaISOString(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000))
     const oneHourAgo = toArgentinaISOString(new Date(now.getTime() - 60 * 60 * 1000))
 
+    // Chained .neq() calls on the same column silently return 0 rows in this Supabase
+    // version. Fetch all leads and filter stages in JS instead.
+    const EXCLUDED_MAIN = new Set(['no_cualificado', 'consulta_cliente', 'testing'])
+    const EXCLUDED_FULL = new Set(['no_cualificado', 'consulta_cliente', 'testing', 'cliente_ganado', 'cliente_perdido'])
+    const ACTIVE_STAGES_OR = [
+      'lead_entrante', 'lead_contactado', 'sin_respuesta', 'reunion_reservada',
+      'reunion_realizada', 'propuesta_en_armado', 'propuesta_enviada', 'follow_up',
+    ].map(s => `estado_pipeline.eq.${s}`).join(',')
+
     // Run all independent queries in parallel with error handling
     const [
       allLeadsResult,
@@ -51,15 +60,10 @@ export async function GET(req: NextRequest) {
     ] = await Promise.allSettled([
     applyFilters(
       supabase.from('leads').select('estado_pipeline, fuente, fecha_ingreso, valor_propuesta_usd, valor_propuesta_ars, valor_propuesta_moneda, pais, responsable_id, created_at, stage_updated_at, last_activity_at')
-        .neq('estado_pipeline', 'no_cualificado')
-        .neq('estado_pipeline', 'consulta_cliente')
-        .neq('estado_pipeline', 'testing')
     ),
-    // Separate query for "leads ingresados" — includes no_cualificado, filters date in JS (uses fecha_ingreso ?? created_at)
+    // Separate query for "leads ingresados" — stage and date filtered in JS
     applyFilters(
-      supabase.from('leads').select('fecha_ingreso, created_at')
-        .neq('estado_pipeline', 'consulta_cliente')
-        .neq('estado_pipeline', 'testing')
+      supabase.from('leads').select('fecha_ingreso, created_at, estado_pipeline')
     ),
     applyFilters(
       supabase
@@ -75,21 +79,18 @@ export async function GET(req: NextRequest) {
       .lt('vencimiento', new Date().toISOString()),
     supabase
       .from('leads')
-      .select('id, nombre, apellido')
+      .select('id, nombre, apellido, estado_pipeline')
         .is('deleted_at', null)
-      .neq('estado_pipeline', 'cliente_ganado').neq('estado_pipeline', 'cliente_perdido').neq('estado_pipeline', 'no_cualificado').neq('estado_pipeline', 'consulta_cliente').neq('estado_pipeline', 'testing')
       .lt('stage_updated_at', sevenDaysAgo),
     supabase
       .from('leads')
-      .select('id, nombre, apellido')
+      .select('id, nombre, apellido, estado_pipeline')
       .is('deleted_at', null)
-      .neq('estado_pipeline', 'cliente_ganado').neq('estado_pipeline', 'cliente_perdido').neq('estado_pipeline', 'no_cualificado').neq('estado_pipeline', 'consulta_cliente').neq('estado_pipeline', 'testing')
       .lt('stage_updated_at', threeDaysAgo),
     supabase
       .from('leads')
-      .select('id, nombre, apellido')
+      .select('id, nombre, apellido, estado_pipeline')
       .is('deleted_at', null)
-      .neq('estado_pipeline', 'cliente_ganado').neq('estado_pipeline', 'cliente_perdido').neq('estado_pipeline', 'no_cualificado').neq('estado_pipeline', 'consulta_cliente').neq('estado_pipeline', 'testing')
       .gt('last_activity_at', oneHourAgo),
     supabase.from('users').select('id, full_name, avatar_url').in('role', ['admin', 'sales']),
     supabase
@@ -101,16 +102,14 @@ export async function GET(req: NextRequest) {
       .from('leads')
       .select('id, nombre, estado_pipeline, fuente, created_at, responsable_id')
       .is('deleted_at', null)
-      .neq('estado_pipeline', 'no_cualificado').neq('estado_pipeline', 'consulta_cliente').neq('estado_pipeline', 'testing')
       .order('created_at', { ascending: false })
-      .limit(8),
+      .limit(50),
     applyFilters(
       supabase
         .from('leads')
         .select('id, nombre, empresa, estado_pipeline, responsable_id, propuestas(valor_usd, valor_ars, moneda, estado)')
         .is('deleted_at', null)
-        .neq('estado_pipeline', 'cliente_ganado').neq('estado_pipeline', 'cliente_perdido').neq('estado_pipeline', 'no_cualificado').neq('estado_pipeline', 'consulta_cliente').neq('estado_pipeline', 'testing')
-        .limit(50)
+        .limit(100)
     ),
     // Proyectos: leads ganados con fecha_cierre_proyecto
     supabase
@@ -121,21 +120,28 @@ export async function GET(req: NextRequest) {
       .not('fecha_cierre_proyecto', 'is', null),
   ])
 
-  // Extract data safely from Promise.allSettled results
-  const allLeads = allLeadsResult.status === 'fulfilled' ? allLeadsResult.value.data : []
-  const nuevosLeads = nuevosLeadsResult.status === 'fulfilled' ? (nuevosLeadsResult.value.data ?? []) : []
+  // Extract data safely from Promise.allSettled results; apply stage filters in JS
+  type WithStage = { estado_pipeline: string }
+  const allLeadsRaw = allLeadsResult.status === 'fulfilled' ? allLeadsResult.value.data : []
+  const nuevosLeadsRaw = nuevosLeadsResult.status === 'fulfilled' ? (nuevosLeadsResult.value.data ?? []) : []
   const sinRespuestaLeads = sinRespuestaLeadsResult.status === 'fulfilled' ? sinRespuestaLeadsResult.value.data : []
   const tareasVencidas = tareasVencidasResult.status === 'fulfilled' ? tareasVencidasResult.value.count : 0
-  const leadsInactivosLeads = leadsInactivosLeadsResult.status === 'fulfilled' ? leadsInactivosLeadsResult.value.data : []
-  const leadsEstancadosLeads = leadsEstancadosLeadsResult.status === 'fulfilled' ? leadsEstancadosLeadsResult.value.data : []
-  const leadsCalientesLeads = leadsCalientesLeadsResult.status === 'fulfilled' ? leadsCalientesLeadsResult.value.data : []
+  const leadsInactivosLeads = ((leadsInactivosLeadsResult.status === 'fulfilled' ? leadsInactivosLeadsResult.value.data : []) ?? [])
+    .filter((l: WithStage) => !EXCLUDED_FULL.has(l.estado_pipeline))
+  const leadsEstancadosLeads = ((leadsEstancadosLeadsResult.status === 'fulfilled' ? leadsEstancadosLeadsResult.value.data : []) ?? [])
+    .filter((l: WithStage) => !EXCLUDED_FULL.has(l.estado_pipeline))
+  const leadsCalientesLeads = ((leadsCalientesLeadsResult.status === 'fulfilled' ? leadsCalientesLeadsResult.value.data : []) ?? [])
+    .filter((l: WithStage) => !EXCLUDED_FULL.has(l.estado_pipeline))
   const responsablesRaw = responsablesRawResult.status === 'fulfilled' ? responsablesRawResult.value.data : []
   const actividadRaw = actividadRawResult.status === 'fulfilled' ? actividadRawResult.value.data : []
-  const ultimosLeadsRaw = ultimosLeadsRawResult.status === 'fulfilled' ? ultimosLeadsRawResult.value.data : []
-  const topOportunidadesRaw = topOportunidadesRawResult.status === 'fulfilled' ? topOportunidadesRawResult.value.data : []
+  const ultimosLeadsRaw = ((ultimosLeadsRawResult.status === 'fulfilled' ? ultimosLeadsRawResult.value.data : []) ?? [])
+    .filter((l: WithStage) => !EXCLUDED_MAIN.has(l.estado_pipeline))
+    .slice(0, 8)
+  const topOportunidadesRaw = ((topOportunidadesRawResult.status === 'fulfilled' ? topOportunidadesRawResult.value.data : []) ?? [])
+    .filter((l: WithStage) => !EXCLUDED_FULL.has(l.estado_pipeline))
   const proyectosRaw = proyectosRawResult.status === 'fulfilled' ? proyectosRawResult.value.data : []
 
-  const leads = allLeads ?? []
+  const leads = (allLeadsRaw ?? []).filter((l: WithStage) => !EXCLUDED_MAIN.has(l.estado_pipeline))
 
   // Aggregate por etapa (count + pipeline value USD/ARS)
   const porEtapaCount: Partial<Record<PipelineStage, number>> = {}
@@ -245,7 +251,8 @@ export async function GET(req: NextRequest) {
     ? ganadosConValor.reduce((a, b) => a + b, 0) / ganadosConValor.length
     : 0
 
-  const nuevosPeriodo = nuevosLeads.filter((l: { fecha_ingreso?: string | null; created_at: string }) => {
+  const nuevosPeriodo = nuevosLeadsRaw.filter((l: { fecha_ingreso?: string | null; created_at: string; estado_pipeline: string }) => {
+    if (l.estado_pipeline === 'consulta_cliente' || l.estado_pipeline === 'testing') return false
     const date = l.fecha_ingreso ?? l.created_at
     return date >= fechaDesde && date <= fechaHasta + 'T23:59:59'
   }).length
@@ -268,7 +275,7 @@ export async function GET(req: NextRequest) {
           .select('id', { count: 'exact', head: true })
           .eq('responsable_id', u.id)
           .is('deleted_at', null)
-          .neq('estado_pipeline', 'cliente_ganado').neq('estado_pipeline', 'cliente_perdido').neq('estado_pipeline', 'no_cualificado').neq('estado_pipeline', 'consulta_cliente').neq('estado_pipeline', 'testing'),
+          .or(ACTIVE_STAGES_OR),
         supabase
           .from('leads')
           .select('id', { count: 'exact', head: true })
