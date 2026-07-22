@@ -53,12 +53,10 @@ export async function GET(req: NextRequest) {
       supabase.from('leads').select('estado_pipeline, fuente, fecha_ingreso, valor_propuesta_usd, valor_propuesta_ars, valor_propuesta_moneda, pais, responsable_id, created_at, stage_updated_at, last_activity_at')
         .not('estado_pipeline', 'in', '(no_cualificado,consulta_cliente,testing)')
     ),
-    // Separate count for "leads ingresados" — includes no_cualificado (they did enter the pipeline)
+    // Separate query for "leads ingresados" — includes no_cualificado, filters date in JS (uses fecha_ingreso ?? created_at)
     applyFilters(
       supabase.from('leads').select('fecha_ingreso, created_at')
         .not('estado_pipeline', 'in', '(consulta_cliente,testing)')
-        .gte('created_at', fechaDesde)
-        .lte('created_at', fechaHasta)
     ),
     applyFilters(
       supabase
@@ -244,7 +242,10 @@ export async function GET(req: NextRequest) {
     ? ganadosConValor.reduce((a, b) => a + b, 0) / ganadosConValor.length
     : 0
 
-  const nuevosPeriodo = nuevosLeads.length
+  const nuevosPeriodo = nuevosLeads.filter((l: { fecha_ingreso?: string | null; created_at: string }) => {
+    const date = l.fecha_ingreso ?? l.created_at
+    return date >= fechaDesde && date <= fechaHasta + 'T23:59:59'
+  }).length
 
   const totalActivos = leads.filter(
     (l: { estado_pipeline: string }) =>
