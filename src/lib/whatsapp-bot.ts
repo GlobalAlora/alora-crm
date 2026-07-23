@@ -109,7 +109,7 @@ const VALIDATORS: Partial<Record<QuestionField, { isValid: (text: string) => boo
 
 // Detect farewell / disengagement messages so Lidia doesn't keep qualifying
 // someone who is saying goodbye or postponing.
-const DISENGAGEMENT_RE = /\b(postergar|posponer|pausar el proyecto|cancelar|lo dejamos|lo pausamos|no vamos a poder|no podemos continuar|no voy a poder|decidimos no|por el momento no|por ahora no|hasta pronto|hasta luego|gracias por todo|agradecemos tu gestión|agradecemos la gestión|inconveniente económico|inconveniente economico|dificultades económicas|no seguir|no continuar|no tengo nada|no tengo proyecto|era mentira|te mentí|te menti|me equivoqué|me equivoque|era un chiste|era broma|estaba probando|lo dejo|dejalo|no me interesa|no estoy interesado|no estoy interesada|no voy a contratar|no vamos a contratar)\b/i
+const DISENGAGEMENT_RE = /\b(postergar|posponer|pausar el proyecto|cancelar|lo dejamos|lo pausamos|no vamos a poder|no podemos continuar|no voy a poder|decidimos no|por el momento no|por ahora no|hasta pronto|hasta luego|gracias por todo|gracias por sus servicios|gracias por la atención|gracias por su atención|gracias a todos|agradecemos tu gestión|agradecemos la gestión|inconveniente económico|inconveniente economico|dificultades económicas|no seguir|no continuar|no tengo nada|no tengo proyecto|era mentira|te mentí|te menti|me equivoqué|me equivoque|era un chiste|era broma|estaba probando|lo dejo|dejalo|no me interesa|no estoy interesado|no estoy interesada|no voy a contratar|no vamos a contratar|chau|adios|adiós|bye|hasta ahí|hasta ahi)\b/i
 const DISENGAGEMENT_RE_EN = /\b(postpone|putting on hold|pause the project|cancel|hold off|not moving forward|not going to proceed|decided not to|not for now|not at this time|goodbye|bye for now|thanks for everything|financial difficulties|budget issues|can't continue|won't be able to|no longer interested|leaving it|dropping it|not interested|not going to hire|going with someone else)\b/i
 
 const QUESTION_TEXT: Record<QuestionField, string> = {
@@ -823,6 +823,25 @@ async function handleBookingPhase(
   if (isNaN(num) || idx < 0 || idx >= slots.length) {
     const textIdx = findSlotByDayTime(trimmed, slots)
     if (textIdx >= 0) idx = textIdx
+  }
+
+  // Lead is objecting to the call format itself ("sin realizar llamadas", "prefiero por escrito")
+  if (isNaN(num) || idx < 0 || idx >= slots.length) {
+    const wantsNoCall = /\b(sin (realizar|hacer|tener) (una )?llamadas?|sin llamar|por mensaje|por escrito|por chat|por whatsapp|sin hablar (por tel[eé]fono|con nadie))\b/i.test(trimmed)
+      || /\b(no (quiero|quisiera|me gustar[ií]a) (hacer|tener|realizar|una)?\s*(llamada|hablar))\b/i.test(trimmed)
+      || /\bpref(iero|er[ií]a) (no llamar|no (hacer|tener) llamada|por (escrito|mensaje|chat|whatsapp))\b/i.test(trimmed)
+      || /\b(without (a )?call|no call|prefer (email|message|chat|written))\b/i.test(trimmed)
+
+    if (wantsNoCall) {
+      await sendOutboundWhatsAppMessage(admin, {
+        conversationId, leadId, phone,
+        body: lang === 'en'
+          ? "Totally get it! Just so you know, the call with Walo is only 30 minutes by video — it's really just to understand your project and see how we can help, no commitment at all 😊 If you're open to it, pick a time below; otherwise feel free to share the details of what you need right here."
+          : '¡Te entiendo! La llamada con Walo es de solo 30 minutos por videollamada — es para entender bien tu proyecto y ver cómo podemos ayudarte, sin compromiso 😊 Si estás abierto/a, elegí un horario abajo; o si preferís, contame acá qué es lo que necesitás.',
+      })
+      await startBookingFlow(admin, { leadId, conversationId, phone }, nextSkip, undefined, lang)
+      return
+    }
   }
 
   if (isNaN(num) || idx < 0 || idx >= slots.length) {
