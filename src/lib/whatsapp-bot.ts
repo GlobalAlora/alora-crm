@@ -11,6 +11,12 @@ const ANTHROPIC_MODEL = process.env.ANTHROPIC_LEAD_EXTRACT_MODEL || 'claude-haik
 async function extractNameWithAI(raw: string): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return ''
+
+  // Fast-path: reject obvious non-name phrases without an API call.
+  // Catches temporal/contextual messages like "Hace rato estuvimos hablando".
+  const NON_NAME_RE = /\b(hace\s+(un\s+)?rato|estuvimos\s+habl|ya\s+habl|ya\s+nos\s+|antes\s+habl|para\s+qu[eé]|qu[eé]\s+necesit|no\s+s[eé]|quien\s+(es|sos)|c[oó]mo\s+est[aá]|de\s+d[oó]nde|necesito\s+|quiero\s+|busco\s+|tengo\s+una?\s+|me\s+pueden|pueden\s+|buenas?\s+(d[ií]as?|tardes?|noches?))\b/i
+  if (NON_NAME_RE.test(raw.trim())) return ''
+
   try {
     const client = new Anthropic({ apiKey })
     const result = await client.messages.create({
@@ -18,7 +24,7 @@ async function extractNameWithAI(raw: string): Promise<string> {
       max_tokens: 20,
       messages: [{
         role: 'user',
-        content: `Extract the person's name from this WhatsApp message. Reply with ONLY the name (e.g. "Raúl" or "María José"). If there is no name, reply with exactly "NONE".\n\nMessage: "${raw}"`,
+        content: `You are processing a Spanish WhatsApp reply to the question "¿Cómo te llamás?" (What's your name?). Extract the person's name if and only if they actually gave one. Reply with ONLY the name (e.g. "Raúl" or "María José"). Reply with exactly "NONE" for anything that is not a name: sentences, questions, greetings, phrases like "Hace rato estuvimos hablando", "Para que lo necesitan", "Hola", etc.\n\nMessage: "${raw}"`,
       }],
     })
     const text = (result.content[0] as { type: string; text: string }).text?.trim() ?? ''
