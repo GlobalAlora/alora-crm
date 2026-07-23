@@ -76,6 +76,8 @@ export async function POST(req: NextRequest) {
         .eq('phone_number', phone)
         .maybeSingle()
 
+      console.log(`[Bot] outbound native phone=${phone} conv=${conv?.id ?? 'NOT_FOUND'}`)
+
       if (conv) {
         await admin.from('wa_messages').insert({
           conversation_id: conv.id,
@@ -88,7 +90,11 @@ export async function POST(req: NextRequest) {
         await admin.from('whatsapp_conversations')
           .update({ bot_active: false, last_message_direction: 'outbound', last_message_at: new Date().toISOString() })
           .eq('id', conv.id)
-        console.log(`[Bot] PAUSE reason=native_wa_outbound phone=${phone}`)
+        console.log(`[Bot] PAUSE+RECORD reason=native_wa_outbound phone=${phone}`)
+      } else {
+        // Conversation doesn't exist yet — team sent a cold outbound message.
+        // Nothing to save; just log so we can diagnose.
+        console.log(`[Bot] outbound ignored — no conversation found for phone=${phone}`)
       }
     } catch (err) {
       console.error('[WhatsApp Baileys] Failed to record outbound message:', err)
