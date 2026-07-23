@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { Send, User, X, MessageCircle, Bot } from 'lucide-react'
+import { Send, User, X, MessageCircle, Bot, MailOpen } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
@@ -118,6 +118,19 @@ export function ChatView({ phone, conversation, onClose }: Props) {
     },
   })
 
+  const markUnreadMutation = useMutation({
+    mutationFn: () =>
+      fetch(`/api/whatsapp/conversations/${phone}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ unread_count: 1 }),
+      }).then(r => { if (!r.ok) throw new Error('Error') }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] })
+      onClose?.()
+    },
+  })
+
   // Toggle the qualifying/FAQ bot on or off for this conversation
   const toggleBotMutation = useMutation({
     mutationFn: async (botActive: boolean) => {
@@ -192,6 +205,18 @@ export function ChatView({ phone, conversation, onClose }: Props) {
           >
             <Bot size={12} />
             {conversation.bot_active ? 'Lidia activa' : 'Lidia pausada'}
+          </button>
+        )}
+
+        {conversation && (
+          <button
+            onClick={() => markUnreadMutation.mutate()}
+            disabled={markUnreadMutation.isPending}
+            title="Marcar como no leído"
+            className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors disabled:opacity-50"
+          >
+            <MailOpen size={12} />
+            No leído
           </button>
         )}
 
