@@ -171,24 +171,26 @@ async function handleIncomingMessage(m) {
   if (rawJid.endsWith('@g.us') || rawJid === 'status@broadcast' || rawJid.endsWith('@newsletter')) return
 
   // Outbound message sent from the native WhatsApp app by the team.
-  // Notify the CRM so it can pause the bot — otherwise Lidia restarts
-  // qualifying when the lead replies.
+  // Notify the CRM so it can record the message and pause the bot.
   if (m.key.fromMe) {
     const { text, mediaType } = extractText(m.message)
     if (!text && !mediaType) return // protocol noise, skip
     if (!CRM_WEBHOOK_URL || !BAILEYS_WEBHOOK_SECRET) return
-    // Apply the same LID resolution as for inbound messages so the phone
-    // matches what the conversation was stored under.
     const fmIsLid = rawJid.endsWith('@lid')
     const fmJidDigits = rawJid.split('@')[0].split(':')[0].replace(/\D/g, '')
     const fmAltJid = m.key.remoteJidAlt || ''
     const fmAltDigits = fmAltJid ? fmAltJid.split('@')[0].split(':')[0].replace(/\D/g, '') : ''
     const phone = fmIsLid ? (fmAltDigits || lidToPhone.get(fmJidDigits) || fmJidDigits) : fmJidDigits
-    await fetch(CRM_WEBHOOK_URL, {
+    logger.info({ phone, text: text?.slice(0, 60), mediaType, waMessageId: m.key.id }, '[fromMe] outbound nativo detectado → enviando al CRM')
+    const fmRes = await fetch(CRM_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-webhook-secret': BAILEYS_WEBHOOK_SECRET },
       body: JSON.stringify({ phone, text, waMessageId: m.key.id, mediaType, direction: 'outbound' }),
-    }).catch(err => logger.warn({ err }, 'No se pudo avisar al CRM del mensaje saliente'))
+    }).catch(err => { logger.warn({ err }, 'No se pudo avisar al CRM del mensaje saliente'); return null })
+    if (fmRes && !fmRes.ok) {
+      const body = await fmRes.text().catch(() => '')
+      logger.warn({ status: fmRes.status, body }, '[fromMe] CRM rechazó el mensaje saliente')
+    }
     return
   }
 
