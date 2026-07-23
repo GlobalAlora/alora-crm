@@ -836,8 +836,8 @@ async function handleBookingPhase(
       await sendOutboundWhatsAppMessage(admin, {
         conversationId, leadId, phone,
         body: lang === 'en'
-          ? "Totally get it! Just so you know, the call with Walo is only 30 minutes by video — it's really just to understand your project and see how we can help, no commitment at all 😊 If you're open to it, pick a time below; otherwise feel free to share the details of what you need right here."
-          : '¡Te entiendo! La llamada con Walo es de solo 30 minutos por videollamada — es para entender bien tu proyecto y ver cómo podemos ayudarte, sin compromiso 😊 Si estás abierto/a, elegí un horario abajo; o si preferís, contame acá qué es lo que necesitás.',
+          ? "Understood! Just so you know, without a prior call we're not able to put together a quote — it's a quick 30-minute video call with Walo to understand your project and make sure we can help you properly 😊 If you'd like to move forward, pick a time below."
+          : '¡Entendido! Te cuento que sin una llamada previa no podemos armar un presupuesto — es una videollamada de 30 minutos con Walo para entender bien tu proyecto y asegurarnos de poder ayudarte como corresponde 😊 Si querés avanzar, elegí un horario abajo.',
       })
       await startBookingFlow(admin, { leadId, conversationId, phone }, nextSkip, undefined, lang)
       return
