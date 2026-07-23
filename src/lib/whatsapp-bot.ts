@@ -711,6 +711,47 @@ async function startBookingFlow(
 }
 
 /**
+ * Tries to find a slot index by matching a natural-language time/day phrase.
+ * E.g. "viernes 24 15hs", "el lunes a las 15:30", "15h".
+ * Returns -1 if no match found.
+ */
+function findSlotByDayTime(trimmed: string, slots: Date[]): number {
+  // Extract hour and optional minutes from text like "15hs", "15:30hs", "15h30", "15.30"
+  const timeRe = /\b(\d{1,2})(?:[:.h](\d{2}))?\s*h(?:s|oras?)?\b/i
+  const timeMatch = trimmed.match(timeRe)
+  if (!timeMatch) return -1
+  const targetHour = parseInt(timeMatch[1], 10)
+  const targetMin  = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0
+  if (targetHour < 0 || targetHour > 23) return -1
+
+  const lower = trimmed.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  const DAY_MAP: Record<string, number> = {
+    domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6,
+    sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
+  }
+  let targetDay: number | null = null
+  for (const [name, dayNum] of Object.entries(DAY_MAP)) {
+    if (lower.includes(name)) { targetDay = dayNum; break }
+  }
+
+  // Date number (1-31) — only take one that isn't the hour itself
+  let targetDate: number | null = null
+  const dateNums = [...trimmed.matchAll(/\b(\d{1,2})\b/g)]
+    .map(m => parseInt(m[1], 10))
+    .filter(n => n >= 1 && n <= 31 && n !== targetHour)
+  if (dateNums.length > 0) targetDate = dateNums[0]
+
+  for (let i = 0; i < slots.length; i++) {
+    const ar = new Date(slots[i].getTime() - 3 * 60 * 60 * 1000) // AR UTC-3
+    if (ar.getHours() !== targetHour || ar.getMinutes() !== targetMin) continue
+    if (targetDay !== null && ar.getDay() !== targetDay) continue
+    if (targetDate !== null && ar.getDate() !== targetDate) continue
+    return i
+  }
+  return -1
+}
+
+/**
  * Handles the lead's slot selection or "otros" request.
  * State format in bot_next_question: booking_slots:::NEXT_SKIP:::ISO1|ISO2|...|ISON
  * Legacy format (no NEXT_SKIP segment) is also handled gracefully.
@@ -770,8 +811,19 @@ async function handleBookingPhase(
     return
   }
 
-  const num = parseInt(trimmed, 10)
-  const idx = num - 1
+  let num = parseInt(trimmed, 10)
+  if (isNaN(num)) {
+    // Handle "Viernes 24 1" — extract the last standalone number
+    const m = trimmed.match(/\b(\d+)\b(?![\s\S]*\b\d+\b)/)
+    if (m) num = parseInt(m[1], 10)
+  }
+  let idx = num - 1
+
+  // If still not a valid slot, try matching by day name and/or time ("viernes 24 15hs")
+  if (isNaN(num) || idx < 0 || idx >= slots.length) {
+    const textIdx = findSlotByDayTime(trimmed, slots)
+    if (textIdx >= 0) idx = textIdx
+  }
 
   if (isNaN(num) || idx < 0 || idx >= slots.length) {
     // Detect if the lead asked a question instead of picking a slot
