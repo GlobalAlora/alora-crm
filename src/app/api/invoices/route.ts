@@ -1,23 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-
-async function getUser() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  return user
-}
+import { requireBillingAccess } from '@/lib/billing-auth'
 
 // GET /api/invoices
 export async function GET(req: NextRequest) {
-  const user = await getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const auth = await requireBillingAccess()
+  if (auth.error) return auth.error
 
+  const { admin } = auth
   const { searchParams } = new URL(req.url)
   const estado     = searchParams.get('estado')
   const project_id = searchParams.get('project_id')
 
-  const admin = createAdminClient()
   let q = admin
     .from('invoices')
     .select('*')
@@ -29,10 +22,8 @@ export async function GET(req: NextRequest) {
 
   const { data: invoices, error } = await q
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
   if (!invoices?.length) return NextResponse.json({ data: [] })
 
-  // Fetch items + payments separately (no FK joins)
   const ids = invoices.map(i => i.id)
 
   const [{ data: items }, { data: payments }, { data: projects }] = await Promise.all([
@@ -46,10 +37,8 @@ export async function GET(req: NextRequest) {
   const enriched = invoices.map(inv => {
     const invItems    = (items    ?? []).filter(i => i.invoice_id === inv.id)
     const invPayments = (payments ?? []).filter(p => p.invoice_id === inv.id)
-    const total       = invItems.reduce((s, it) => s + (it.cantidad * it.precio_unitario), 0)
-    const total_pagado = invPayments
-      .filter(p => p.fecha_pago)
-      .reduce((s, p) => s + p.monto, 0)
+    const total       = invItems.reduce((s, it) => s + it.cantidad * it.precio_unitario, 0)
+    const total_pagado = invPayments.filter(p => p.fecha_pago).reduce((s, p) => s + p.monto, 0)
     return {
       ...inv,
       items:    invItems,
@@ -65,22 +54,22 @@ export async function GET(req: NextRequest) {
 
 // POST /api/invoices
 export async function POST(req: NextRequest) {
-  const user = await getUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const auth = await requireBillingAccess()
+  if (auth.error) return auth.error
 
+  const { user, admin } = auth
   const body = await req.json()
   const {
     project_id, cliente_nombre, cliente_email, descripcion,
     moneda = 'USD', estado = 'borrador',
     fecha_emision, fecha_vencimiento, notas,
+    alertas_activas = true, dias_alerta = 3,
     items = [], payments = [],
   } = body
 
   if (!cliente_nombre?.trim()) {
     return NextResponse.json({ error: 'cliente_nombre es requerido' }, { status: 400 })
   }
-
-  const admin = createAdminClient()
 
   // Generate invoice number FAC-YYYY-NNN
   const year = new Date().getFullYear()
@@ -110,6 +99,8 @@ export async function POST(req: NextRequest) {
       fecha_emision:    fecha_emision ?? new Date().toISOString().slice(0, 10),
       fecha_vencimiento: fecha_vencimiento ?? null,
       notas:            notas ?? null,
+      alertas_activas,
+      dias_alerta,
       created_by:       user.id,
     })
     .select()
@@ -119,7 +110,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error?.message ?? 'Error al crear factura' }, { status: 500 })
   }
 
-  // Insert items
   if (items.length > 0) {
     await admin.from('invoice_items').insert(
       items.map((it: { descripcion: string; cantidad: number; precio_unitario: number }, idx: number) => ({
@@ -132,7 +122,6 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Insert payment schedule
   if (payments.length > 0) {
     await admin.from('payments').insert(
       payments.map((p: { descripcion: string; monto: number; fecha_vencimiento?: string }) => ({

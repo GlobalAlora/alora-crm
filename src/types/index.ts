@@ -483,6 +483,7 @@ export interface Payment {
   metodo_pago: PaymentMetodo | null
   comprobante_url: string | null
   notas: string | null
+  alerta_enviada_at: string | null
   created_at: string
 }
 
@@ -498,6 +499,8 @@ export interface Invoice {
   fecha_emision: string
   fecha_vencimiento: string | null
   notas: string | null
+  alertas_activas: boolean
+  dias_alerta: number
   created_by: string | null
   deleted_at: string | null
   created_at: string

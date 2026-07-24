@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import {
@@ -80,10 +80,18 @@ export default function BillingPage() {
   const [tab, setTab]         = useState('all')
   const [showModal, setShowModal] = useState(false)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['invoices'],
     queryFn:  fetchInvoices,
+    retry:    false,
   })
+
+  // Redirect viewers (API returns 403)
+  useEffect(() => {
+    if (error) router.push('/projects')
+  }, [error, router])
+
+  if (error) return null
 
   const invoices = data?.data ?? []
 
