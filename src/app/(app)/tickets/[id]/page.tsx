@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Send, Trash2, FolderKanban, User as UserIcon,
-  Calendar, AlertCircle, CheckCircle2,
+  Calendar, AlertCircle, CheckCircle2, Paperclip, FileVideo,
 } from 'lucide-react'
 import Link from 'next/link'
 import type { Ticket, TicketEstado, TicketPrioridad, TicketCategoria, Project, User } from '@/types'
@@ -200,6 +200,39 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
               </p>
             )}
           </div>
+
+          {/* Attachments */}
+          {ticket.attachments && ticket.attachments.length > 0 && (
+            <div className="bg-card border border-card-border rounded-2xl p-5">
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                <Paperclip size={12} /> Archivos adjuntos ({ticket.attachments.length})
+              </h2>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {ticket.attachments.map((a: { url: string; name: string; type: string }, i: number) => (
+                  <a
+                    key={i}
+                    href={a.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group relative rounded-xl overflow-hidden border border-card-border bg-muted aspect-square flex items-center justify-center hover:border-blue-400 transition-colors"
+                    title={a.name}
+                  >
+                    {a.type.startsWith('image/') ? (
+                      <img src={a.url} alt={a.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="flex flex-col items-center gap-1 p-2 text-center">
+                        <FileVideo size={22} className="text-muted-foreground" />
+                        <span className="text-[9px] text-muted-foreground leading-tight break-all">
+                          {a.name.slice(0, 16)}{a.name.length > 16 ? '…' : ''}
+                        </span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Comments */}
           <div className="bg-card border border-card-border rounded-2xl p-5">

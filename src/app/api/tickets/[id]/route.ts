@@ -108,7 +108,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // Load current ticket before updating (to detect project_id being newly set)
   const { data: current } = await admin
     .from('tickets')
-    .select('numero,titulo,prioridad,project_id,linked_task_id')
+    .select('numero,titulo,prioridad,project_id,linked_task_id,attachments')
     .eq('id', id)
     .is('deleted_at', null)
     .maybeSingle()
@@ -130,10 +130,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (newProjectId && (hadNoProject || current?.project_id !== newProjectId) && hadNoTask) {
     createLinkedTask({
       id,
-      numero:     current?.numero ?? '',
-      titulo:     (updates.titulo as string | undefined) ?? current?.titulo ?? '',
-      prioridad:  (updates.prioridad as string | undefined) ?? current?.prioridad ?? 'media',
-      project_id: newProjectId,
+      numero:      current?.numero ?? '',
+      titulo:      (updates.titulo as string | undefined) ?? current?.titulo ?? '',
+      prioridad:   (updates.prioridad as string | undefined) ?? current?.prioridad ?? 'media',
+      project_id:  newProjectId,
+      attachments: (current?.attachments as { url: string; name: string; type: string }[] | null) ?? [],
     }, admin).catch(() => {})
   }
 
