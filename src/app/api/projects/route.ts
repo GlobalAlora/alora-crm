@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createProjectForLead } from '@/lib/projects'
 import type { ProjectEstado, PmPriority } from '@/types'
 
 const DEFAULT_SECTIONS = [
@@ -17,31 +16,52 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const estado  = searchParams.get('estado') as ProjectEstado | null
-  const page    = Math.max(1, parseInt(searchParams.get('page')  || '1',  10))
-  const limit   = Math.min(100, parseInt(searchParams.get('limit') || '50', 10))
-  const offset  = (page - 1) * limit
+  const estado = searchParams.get('estado') as ProjectEstado | null
+  const page   = Math.max(1, parseInt(searchParams.get('page')  || '1',  10))
+  const limit  = Math.min(100, parseInt(searchParams.get('limit') || '50', 10))
+  const offset = (page - 1) * limit
 
   const admin = createAdminClient()
+
+  // Simple select without FK join to avoid PostgREST schema-cache issues
   let query = admin
     .from('projects')
-    .select(`
-      *,
-      lead:leads!lead_id(id, nombre, apellido, empresa)
-    `, { count: 'exact' })
+    .select('*', { count: 'exact' })
     .is('deleted_at', null)
     .is('archived_at', null)
 
   if (estado) query = query.eq('estado', estado)
 
-  const { data, error, count } = await query
+  const { data: projects, error, count } = await query
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[GET /api/projects]', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // Enrich with lead data via separate query (bypasses FK introspection)
+  const leadIds = (projects ?? []).map(p => p.lead_id).filter(Boolean) as string[]
+  let leadsMap: Record<string, { id: string; nombre: string | null; apellido: string | null; empresa: string | null }> = {}
+
+  if (leadIds.length > 0) {
+    const { data: leads } = await admin
+      .from('leads')
+      .select('id, nombre, apellido, empresa')
+      .in('id', leadIds)
+      .is('deleted_at', null)
+
+    leadsMap = Object.fromEntries((leads ?? []).map(l => [l.id, l]))
+  }
+
+  const data = (projects ?? []).map(p => ({
+    ...p,
+    lead: p.lead_id ? (leadsMap[p.lead_id] ?? null) : null,
+  }))
 
   return NextResponse.json({
-    data: data ?? [],
+    data,
     meta: { total: count ?? 0, page, limit, pages: Math.ceil((count ?? 0) / limit) },
   })
 }
@@ -75,7 +95,10 @@ export async function POST(req: NextRequest) {
     .select('*')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[POST /api/projects]', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   await admin.from('task_sections').insert(
     DEFAULT_SECTIONS.map(s => ({ ...s, project_id: data.id }))
