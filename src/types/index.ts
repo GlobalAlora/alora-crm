@@ -176,6 +176,77 @@ export interface Task {
   asignado?: Pick<User, 'id' | 'full_name' | 'avatar_url'>
 }
 
+// ── Project Management Module ─────────────────────────────
+
+export type ProjectEstado = 'pendiente' | 'en_desarrollo' | 'en_revision' | 'en_pausa' | 'finalizado'
+export type PmPriority    = 'baja' | 'media' | 'alta' | 'urgente'
+export type ProjectTaskEstado = 'pendiente' | 'en_progreso' | 'bloqueada' | 'en_revision' | 'finalizada' | 'cancelada'
+
+export interface Project {
+  id: string
+  nombre: string
+  descripcion: string | null
+  estado: ProjectEstado
+  prioridad: PmPriority
+  lead_id: string | null
+  fecha_inicio: string | null
+  fecha_fin: string | null
+  presupuesto_usd: number | null
+  color: string
+  created_by: string | null
+  archived_at: string | null
+  deleted_at: string | null
+  created_at: string
+  updated_at: string
+  // joined
+  lead?: { id: string; nombre: string | null; apellido: string | null; empresa: string | null } | null
+  members?: ProjectMember[]
+}
+
+export interface ProjectMember {
+  id: string
+  project_id: string
+  user_id: string
+  role: 'pm' | 'member' | 'viewer'
+  created_at: string
+  user?: Pick<User, 'id' | 'full_name' | 'avatar_url'>
+}
+
+export interface TaskSection {
+  id: string
+  project_id: string
+  nombre: string
+  color: string | null
+  position: number
+  is_done: boolean
+  created_at: string
+}
+
+export interface ProjectTask {
+  id: string
+  project_id: string
+  section_id: string | null
+  parent_task_id: string | null
+  titulo: string
+  descripcion: string | null
+  estado: ProjectTaskEstado
+  prioridad: PmPriority
+  assignee_id: string | null
+  created_by: string | null
+  fecha_inicio: string | null
+  fecha_limite: string | null
+  horas_estimadas: number | null
+  position: number
+  custom_fields: Record<string, unknown>
+  deleted_at: string | null
+  created_at: string
+  updated_at: string
+  // joined
+  assignee?: Pick<User, 'id' | 'full_name' | 'avatar_url'> | null
+  section?: Pick<TaskSection, 'id' | 'nombre' | 'color'> | null
+  subtasks?: ProjectTask[]
+}
+
 // ── WhatsApp Inbox ─────────────────────────────────────────
 
 export interface WhatsAppConversation {

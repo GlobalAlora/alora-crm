@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
-import { LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, List, MessageCircle, Smartphone, ContactRound, X, Menu, UserCog, Bot } from 'lucide-react'
+import { LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, List, MessageCircle, Smartphone, ContactRound, X, Menu, UserCog, Bot, FolderKanban } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import type { WhatsAppConversation } from '@/types'
@@ -175,8 +175,9 @@ export function Sidebar() {
         { href: '/leads/tareas', label: 'Tareas', icon: CheckSquare },
       ],
     },
-    { href: '/inbox/whatsapp', label: 'WhatsApp',        icon: MessageCircle, badge: totalUnread || null, sub: undefined },
-    { href: '/email',          label: 'Email Marketing', icon: Mail,          badge: null, sub: undefined },
+    { href: '/inbox/whatsapp', label: 'WhatsApp',        icon: MessageCircle,  badge: totalUnread || null, sub: undefined },
+    { href: '/email',          label: 'Email Marketing', icon: Mail,           badge: null, sub: undefined },
+    { href: '/projects',       label: 'Proyectos',       icon: FolderKanban,   badge: null, sub: undefined },
   ]
 
   return (

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { PipelineStage } from '@/types'
 import { ensureLeadDriveFolder } from '@/lib/google-drive'
+import { createProjectForLead } from '@/lib/projects'
 
 const CLOSING_STAGES: PipelineStage[] = ['cliente_ganado', 'cliente_perdido']
 
@@ -167,6 +168,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     } catch (driveErr) {
       // Non-fatal: log but don't block the stage change
       console.error('[Drive] Failed to create folder for lead', id, driveErr)
+    }
+  }
+
+  // ── Auto-create PM project when lead becomes cliente_ganado ─────────────
+  if (estado_pipeline === 'cliente_ganado') {
+    try {
+      const adminClient = createAdminClient()
+      await createProjectForLead(
+        adminClient,
+        { id, nombre: current.nombre, apellido: current.apellido ?? null, empresa: current.empresa ?? null },
+        user.id,
+      )
+    } catch (projErr) {
+      console.error('[Projects] Auto-create failed for lead', id, projErr)
     }
   }
 
