@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef } from 'react'
 import {
-  CheckCircle2, Copy, ExternalLink, Loader2,
-  Paperclip, X, FileVideo, ImageIcon, AlertTriangle,
+  CheckCircle2, Copy, Loader2,
+  Paperclip, X, FileVideo, AlertTriangle,
   ChevronRight,
 } from 'lucide-react'
 
@@ -123,11 +123,11 @@ export default function PortalSubmitPage() {
     })
   }
 
-  const onDrop = useCallback((e: React.DragEvent) => {
+  function onDrop(e: React.DragEvent) {
     e.preventDefault()
     setDragOver(false)
     addFiles(e.dataTransfer.files)
-  }, [uploads.length])
+  }
 
   // ── Submit ─────────────────────────────────────────────────
 

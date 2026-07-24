@@ -55,8 +55,9 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   const { id } = use(params)
   const router = useRouter()
   const qc = useQueryClient()
-  const [comment, setComment] = useState('')
-  const [editing, setEditing] = useState<{ field: string; value: string } | null>(null)
+  const [comment, setComment]       = useState('')
+  const [isInternal, setIsInternal] = useState(false)
+  const [editing, setEditing]       = useState<{ field: string; value: string } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const { data: res, isLoading } = useQuery<{ data: Ticket }>({
@@ -82,11 +83,12 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   })
 
   const addComment = useMutation({
-    mutationFn: (body: string) =>
-      fetch(`/api/tickets/${id}/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body }) })
+    mutationFn: ({ body, is_internal }: { body: string; is_internal: boolean }) =>
+      fetch(`/api/tickets/${id}/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body, is_internal }) })
         .then(r => r.json()),
     onSuccess: () => {
       setComment('')
+      setIsInternal(false)
       qc.invalidateQueries({ queryKey: ['ticket', id] })
       qc.invalidateQueries({ queryKey: ['tickets'] })
     },
@@ -208,7 +210,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                 <Paperclip size={12} /> Archivos adjuntos ({ticket.attachments.length})
               </h2>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                {ticket.attachments.map((a: { url: string; name: string; type: string }, i: number) => (
+                {ticket.attachments.map((a, i) => (
                   <a
                     key={i}
                     href={a.url}
@@ -261,28 +263,37 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
             </div>
 
             {/* New comment */}
-            <div className="flex gap-3 pt-4 border-t border-card-border">
-              <div className="flex-1 relative">
-                <textarea
-                  ref={textareaRef}
-                  value={comment}
-                  onChange={e => setComment(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && comment.trim()) {
-                      addComment.mutate(comment)
-                    }
-                  }}
-                  rows={2}
-                  placeholder="Agregar comentario... (Ctrl+Enter para enviar)"
-                  className="w-full px-3 py-2 rounded-xl bg-muted border border-card-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                />
+            <div className="pt-4 border-t border-card-border space-y-2">
+              <div className="flex gap-3">
+                <div className="flex-1 relative">
+                  <textarea
+                    ref={textareaRef}
+                    value={comment}
+                    onChange={e => setComment(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && comment.trim()) {
+                        addComment.mutate({ body: comment, is_internal: isInternal })
+                      }
+                    }}
+                    rows={2}
+                    placeholder="Agregar comentario... (Ctrl+Enter para enviar)"
+                    className={`w-full px-3 py-2 rounded-xl bg-muted border text-sm text-foreground focus:outline-none focus:ring-2 resize-none ${isInternal ? 'border-amber-400 focus:ring-amber-400/30' : 'border-card-border focus:ring-blue-500'}`}
+                  />
+                </div>
+                <button
+                  onClick={() => comment.trim() && addComment.mutate({ body: comment, is_internal: isInternal })}
+                  disabled={!comment.trim() || addComment.isPending}
+                  className={`self-end p-2.5 rounded-xl text-white disabled:opacity-40 transition-colors ${isInternal ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-700'}`}
+                >
+                  <Send size={15} />
+                </button>
               </div>
               <button
-                onClick={() => comment.trim() && addComment.mutate(comment)}
-                disabled={!comment.trim() || addComment.isPending}
-                className="self-end p-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 transition-colors"
+                type="button"
+                onClick={() => setIsInternal(v => !v)}
+                className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${isInternal ? 'bg-amber-50 dark:bg-amber-950 border-amber-300 text-amber-700 dark:text-amber-400' : 'border-card-border text-muted-foreground hover:border-amber-300 hover:text-amber-600'}`}
               >
-                <Send size={15} />
+                {isInternal ? '🔒 Nota interna · no notifica al cliente' : 'Nota interna'}
               </button>
             </div>
           </div>
