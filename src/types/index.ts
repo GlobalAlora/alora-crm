@@ -513,6 +513,52 @@ export interface Invoice {
   total_pagado?: number
 }
 
+// ── Tickets ────────────────────────────────────────────────
+
+export type TicketEstado    = 'nuevo' | 'en_progreso' | 'en_espera' | 'resuelto' | 'cerrado'
+export type TicketPrioridad = 'baja' | 'media' | 'alta' | 'urgente'
+export type TicketCategoria = 'bug' | 'soporte' | 'consulta' | 'mejora' | 'otro'
+
+export interface Ticket {
+  id: string
+  numero: string
+  titulo: string
+  descripcion: string | null
+  estado: TicketEstado
+  prioridad: TicketPrioridad
+  categoria: TicketCategoria
+  project_id: string | null
+  lead_id: string | null
+  assignee_id: string | null
+  created_by: string | null
+  ticket_token: string
+  client_nombre: string | null
+  client_email: string | null
+  linked_task_id: string | null
+  resolved_at: string | null
+  deleted_at: string | null
+  created_at: string
+  updated_at: string
+  // joined
+  project?: { id: string; nombre: string; color: string } | null
+  lead?: { id: string; nombre: string; apellido: string | null; empresa: string | null } | null
+  assignee?: Pick<User, 'id' | 'full_name' | 'avatar_url'> | null
+  creator?: Pick<User, 'id' | 'full_name' | 'avatar_url'> | null
+  comments?: TicketComment[]
+  comments_count?: number
+}
+
+export interface TicketComment {
+  id: string
+  ticket_id: string
+  user_id: string | null
+  body: string
+  is_client: boolean
+  client_nombre: string | null
+  created_at: string
+  user?: Pick<User, 'id' | 'full_name' | 'avatar_url'> | null
+}
+
 // ── Pipeline config — single source of truth for labels, colors, order
 export const PIPELINE_STAGES: {
   value: PipelineStage

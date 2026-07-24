@@ -81,6 +81,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+  const admin = createAdminClient()
+  const { data: userRow } = await admin.from('users').select('role').eq('id', user.id).maybeSingle()
+  if (!FULL_ACCESS_ROLES.includes(userRow?.role ?? '')) {
+    return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
+  }
+
   const body = await req.json() as Record<string, unknown>
   const ALLOWED = ['nombre', 'descripcion', 'estado', 'prioridad', 'fecha_inicio', 'fecha_fin', 'presupuesto_usd', 'color']
   const updates: Record<string, unknown> = {}
@@ -92,7 +98,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Sin campos para actualizar' }, { status: 400 })
   }
 
-  const admin = createAdminClient()
   const { data, error } = await admin
     .from('projects')
     .update(updates)
@@ -112,6 +117,11 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const admin = createAdminClient()
+  const { data: userRow } = await admin.from('users').select('role').eq('id', user.id).maybeSingle()
+  if (!FULL_ACCESS_ROLES.includes(userRow?.role ?? '')) {
+    return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
+  }
+
   const { error } = await admin
     .from('projects')
     .update({ deleted_at: new Date().toISOString() })
