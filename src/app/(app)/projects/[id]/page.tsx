@@ -217,7 +217,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       if (ctx?.prev) qc.setQueryData(['project', id], ctx.prev)
       toast.error('Error al actualizar proyecto')
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['project', id] }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['project', id] })
+      qc.invalidateQueries({ queryKey: ['projects'] })
+    },
   })
 
   const addTask = useMutation({
@@ -231,6 +234,34 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     mutationFn: (nombre: string) => apiCreateSection(id, nombre),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['project', id] }),
     onError: (e: Error) => toast.error(e.message),
+  })
+
+  const deleteTask = useMutation({
+    mutationFn: (taskId: string) =>
+      fetch(`/api/project-tasks/${taskId}`, { method: 'DELETE' }).then(r => r.json()),
+    onMutate: async (taskId) => {
+      await qc.cancelQueries({ queryKey: ['project', id] })
+      const prev = qc.getQueryData<{ data: ProjectDetail }>(['project', id])
+      if (prev?.data.sections) {
+        qc.setQueryData(['project', id], {
+          ...prev,
+          data: {
+            ...prev.data,
+            sections: prev.data.sections.map(s => ({
+              ...s,
+              tasks: s.tasks?.map(t => t.id === taskId ? { ...t, deleted_at: new Date().toISOString() } : t),
+            })),
+          },
+        })
+      }
+      return { prev }
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['project', id], ctx.prev)
+      toast.error('Error al eliminar tarea')
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['project', id] }),
+    onSuccess: () => toast.success('Tarea eliminada'),
   })
 
   // ── DnD ──────────────────────────────────────────────
@@ -493,6 +524,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                       patchTask.mutate({ taskId, updates: { estado: isDone ? 'finalizada' : 'pendiente' } })
                     }
                     onAddTask={(titulo) => addTask.mutate({ sectionId: section.id, titulo })}
+                    onDeleteTask={(taskId) => deleteTask.mutate(taskId)}
                     isAddingTask={addTask.isPending}
                   />
                 ))}
@@ -663,7 +695,7 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
 // ─── SectionBlock ─────────────────────────────────────────
 function SectionBlock({
   section, allTasks, selectedTaskId, users,
-  onSelectTask, onToggleTask, onAddTask, isAddingTask,
+  onSelectTask, onToggleTask, onAddTask, onDeleteTask, isAddingTask,
 }: {
   section: TaskSection & { tasks?: ProjectTask[] }
   allTasks: ProjectTask[]
@@ -672,6 +704,7 @@ function SectionBlock({
   onSelectTask: (id: string) => void
   onToggleTask: (id: string, isDone: boolean) => void
   onAddTask: (titulo: string) => void
+  onDeleteTask: (id: string) => void
   isAddingTask: boolean
 }) {
   const [inputVisible, setInputVisible] = useState(false)
@@ -711,6 +744,7 @@ function SectionBlock({
                 users={users}
                 onToggle={(isDone) => onToggleTask(task.id, isDone)}
                 onClick={() => onSelectTask(task.id)}
+                onDelete={() => onDeleteTask(task.id)}
               />
             )
           })}
@@ -747,7 +781,7 @@ function SectionBlock({
 
 // ─── SortableTaskRow ──────────────────────────────────────
 function SortableTaskRow({
-  task, isSelected, subtaskCount, subtaskDone, users, onToggle, onClick,
+  task, isSelected, subtaskCount, subtaskDone, users, onToggle, onClick, onDelete,
 }: {
   task: ProjectTask
   isSelected: boolean
@@ -756,6 +790,7 @@ function SortableTaskRow({
   users: Pick<User, 'id' | 'full_name' | 'avatar_url'>[]
   onToggle: (isDone: boolean) => void
   onClick: () => void
+  onDelete: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.3 : 1 }
@@ -801,6 +836,16 @@ function SortableTaskRow({
           task.prioridad === 'alta'    ? 'bg-amber-500' : 'bg-slate-300'
         )} />
       )}
+      <button
+        onClick={e => {
+          e.stopPropagation()
+          onDelete()
+        }}
+        className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-red-400 hover:bg-red-50 rounded transition-all flex-shrink-0"
+        title="Eliminar tarea"
+      >
+        <Trash2 size={13} />
+      </button>
     </div>
   )
 }
