@@ -458,7 +458,59 @@ export interface DashboardMetrics {
   }
 }
 
-// Pipeline config — single source of truth for labels, colors, order
+// ── Billing / Facturación ──────────────────────────────────
+
+export type InvoiceEstado = 'borrador' | 'enviada' | 'parcialmente_pagada' | 'pagada' | 'vencida' | 'cancelada'
+export type PaymentMetodo = 'transferencia' | 'efectivo' | 'mercadopago' | 'paypal' | 'otro'
+
+export interface InvoiceItem {
+  id: string
+  invoice_id: string
+  descripcion: string
+  cantidad: number
+  precio_unitario: number
+  position: number
+  created_at: string
+}
+
+export interface Payment {
+  id: string
+  invoice_id: string
+  descripcion: string
+  monto: number
+  fecha_vencimiento: string | null
+  fecha_pago: string | null
+  metodo_pago: PaymentMetodo | null
+  comprobante_url: string | null
+  notas: string | null
+  created_at: string
+}
+
+export interface Invoice {
+  id: string
+  project_id: string | null
+  numero: string
+  cliente_nombre: string
+  cliente_email: string | null
+  descripcion: string | null
+  moneda: 'USD' | 'ARS'
+  estado: InvoiceEstado
+  fecha_emision: string
+  fecha_vencimiento: string | null
+  notas: string | null
+  created_by: string | null
+  deleted_at: string | null
+  created_at: string
+  updated_at: string
+  // computed / joined
+  items?: InvoiceItem[]
+  payments?: Payment[]
+  project?: { id: string; nombre: string; color: string } | null
+  total?: number
+  total_pagado?: number
+}
+
+// ── Pipeline config — single source of truth for labels, colors, order
 export const PIPELINE_STAGES: {
   value: PipelineStage
   label: string
