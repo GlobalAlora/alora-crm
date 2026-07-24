@@ -1,43 +1,46 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
 export function middleware(req: NextRequest) {
-  const path = req.nextUrl.pathname
+  const path     = req.nextUrl.pathname
+  const hostname = req.headers.get('host') ?? ''
 
-  console.log(`[Middleware] ${path}`)
-  console.log(`[Middleware] Cookies:`, req.cookies.getAll().map(c => c.name))
+  // ── Subdomain: ticket.globalalora.com → rewrite to /ticket-portal ──
+  const isPortalDomain =
+    hostname === 'ticket.globalalora.com' ||
+    hostname.startsWith('ticket.globalalora.com:')
 
-  // Public routes
+  if (isPortalDomain) {
+    // Rewrite root → /ticket-portal, otherwise /ticket-portal/<path>
+    const portalPath = path === '/' ? '/ticket-portal' : `/ticket-portal${path}`
+    return NextResponse.rewrite(new URL(portalPath, req.url))
+  }
+
+  // ── CRM auth guard ──────────────────────────────────────────────────
+
   const isPublic =
     path === '/login' ||
     path.startsWith('/_next') ||
     path.startsWith('/favicon') ||
     path.startsWith('/api/') ||
     path.startsWith('/embed/') ||
+    path.startsWith('/ticket-portal') ||   // portal público (dev access via path)
     path.endsWith('.html') ||
     path.endsWith('.js') ||
     path.endsWith('.css')
 
-  if (isPublic) {
-    console.log(`[Middleware] Public route, allowing`)
-    return NextResponse.next()
-  }
+  if (isPublic) return NextResponse.next()
 
-  // Check for any Supabase auth cookie (pattern: sb-{project-ref}-auth-token or similar)
   const cookies = req.cookies.getAll()
   const hasAuth = cookies.some(c => c.name.startsWith('sb-') && (c.name.includes('auth') || c.name.includes('token')))
-  console.log(`[Middleware] Has auth: ${hasAuth}`)
 
   if (!hasAuth) {
-    console.log(`[Middleware] Redirecting to /login`)
     return NextResponse.redirect(new URL('/login', req.url))
   }
 
-  // Logged in and accessing /login -> redirect to /leads
   if (hasAuth && path === '/login') {
     return NextResponse.redirect(new URL('/leads', req.url))
   }
 
-  console.log(`[Middleware] Allowing request`)
   return NextResponse.next()
 }
 

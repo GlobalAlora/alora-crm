@@ -6,7 +6,7 @@ import { useState } from 'react'
 import {
   LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, List,
   MessageCircle, Smartphone, ContactRound, X, Menu, UserCog, Bot, FolderKanban,
-  ShieldCheck, Receipt,
+  ShieldCheck, Receipt, Ticket,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
@@ -30,6 +30,7 @@ const FULL_NAV = [
   { href: '/email',          label: 'Email Marketing', icon: Mail,           badge: null, sub: undefined },
   { href: '/projects',       label: 'Proyectos',       icon: FolderKanban,   badge: null, sub: undefined },
   { href: '/billing',        label: 'Facturación',     icon: Receipt,        badge: null, sub: undefined },
+  { href: '/tickets',        label: 'Tickets',          icon: Ticket,         badge: null, sub: undefined },
 ]
 
 const VIEWER_NAV = [
