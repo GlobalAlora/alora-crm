@@ -77,7 +77,7 @@ export default function ProjectsPage() {
   const [form, setForm] = useState<NewProjectForm>(EMPTY_FORM)
   const qc = useQueryClient()
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: queryError } = useQuery({
     queryKey: ['projects', filtro],
     queryFn: () => fetchProjects(filtro),
     staleTime: 30_000,
@@ -161,6 +161,13 @@ export default function ProjectsPage() {
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="h-20 rounded-lg bg-slate-100 animate-pulse" />
             ))}
+          </div>
+        ) : queryError ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <p className="text-red-500 font-medium">Error al cargar proyectos</p>
+            <p className="text-slate-400 text-sm mt-2 font-mono bg-slate-50 px-3 py-2 rounded">
+              {(queryError as Error).message}
+            </p>
           </div>
         ) : projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
