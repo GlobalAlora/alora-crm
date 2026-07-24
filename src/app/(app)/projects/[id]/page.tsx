@@ -8,7 +8,7 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils'
-import type { Project, TaskSection, ProjectTask, ProjectTaskEstado, PmPriority } from '@/types'
+import type { Project, TaskSection, ProjectTask } from '@/types'
 
 const ESTADO_CONFIG: Record<string, { label: string; color: string }> = {
   pendiente:     { label: 'Pendiente',     color: 'text-slate-600 bg-slate-100' },
@@ -16,15 +16,6 @@ const ESTADO_CONFIG: Record<string, { label: string; color: string }> = {
   en_revision:   { label: 'En revisión',   color: 'text-amber-700 bg-amber-50'  },
   en_pausa:      { label: 'En pausa',      color: 'text-red-700   bg-red-50'    },
   finalizado:    { label: 'Finalizado',    color: 'text-green-700 bg-green-50'  },
-}
-
-const TASK_ESTADO_COLORS: Record<ProjectTaskEstado, string> = {
-  pendiente:    'text-slate-400',
-  en_progreso:  'text-blue-500',
-  bloqueada:    'text-red-500',
-  en_revision:  'text-amber-500',
-  finalizada:   'text-green-500',
-  cancelada:    'text-slate-300',
 }
 
 interface ProjectDetail extends Project {
@@ -37,7 +28,7 @@ async function fetchProject(id: string): Promise<{ data: ProjectDetail }> {
   return r.json()
 }
 
-async function createTask(projectId: string, sectionId: string | null, titulo: string): Promise<{ data: ProjectTask }> {
+async function apiCreateTask(projectId: string, sectionId: string | null, titulo: string): Promise<{ data: ProjectTask }> {
   const r = await fetch(`/api/projects/${projectId}/tasks`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -48,12 +39,16 @@ async function createTask(projectId: string, sectionId: string | null, titulo: s
   return json
 }
 
-async function updateTask(taskId: string, updates: Record<string, unknown>): Promise<void> {
-  await fetch(`/api/project-tasks/${taskId}`, {
+async function apiPatchTask(taskId: string, updates: Record<string, unknown>): Promise<void> {
+  const r = await fetch(`/api/project-tasks/${taskId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updates),
   })
+  if (!r.ok) {
+    const json = await r.json().catch(() => ({}))
+    throw new Error((json as { error?: string }).error || 'Error al actualizar tarea')
+  }
 }
 
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -68,11 +63,38 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   const addTaskMutation = useMutation({
     mutationFn: ({ sectionId, titulo }: { sectionId: string | null; titulo: string }) =>
-      createTask(id, sectionId, titulo),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['project', id] })
-    },
+      apiCreateTask(id, sectionId, titulo),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['project', id] }),
     onError: (e: Error) => toast.error(e.message),
+  })
+
+  const toggleTaskMutation = useMutation({
+    mutationFn: ({ taskId, isDone }: { taskId: string; isDone: boolean }) =>
+      apiPatchTask(taskId, { estado: isDone ? 'finalizada' : 'pendiente' }),
+    onMutate: async ({ taskId, isDone }) => {
+      await qc.cancelQueries({ queryKey: ['project', id] })
+      const prev = qc.getQueryData<{ data: ProjectDetail }>(['project', id])
+      if (prev?.data.sections) {
+        qc.setQueryData(['project', id], {
+          ...prev,
+          data: {
+            ...prev.data,
+            sections: prev.data.sections.map(s => ({
+              ...s,
+              tasks: s.tasks?.map(t =>
+                t.id === taskId ? { ...t, estado: isDone ? 'finalizada' : 'pendiente' } : t
+              ),
+            })),
+          },
+        })
+      }
+      return { prev }
+    },
+    onError: (e: Error, _, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['project', id], ctx.prev)
+      toast.error(e.message)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['project', id] }),
   })
 
   if (isLoading) {
@@ -105,10 +127,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const estadoConfig = ESTADO_CONFIG[project.estado]
   const client = project.lead?.empresa || [project.lead?.nombre, project.lead?.apellido].filter(Boolean).join(' ')
   const sections = project.sections ?? []
-  const totalTasks = sections.reduce((sum, s) => sum + (s.tasks?.length ?? 0), 0)
-  const doneTasks  = sections
-    .filter(s => s.is_done)
-    .reduce((sum, s) => sum + (s.tasks?.length ?? 0), 0)
+  const allTasks  = sections.flatMap(s => s.tasks ?? []).filter(t => !t.deleted_at)
+  const totalTasks = allTasks.length
+  const doneTasks  = allTasks.filter(t => t.estado === 'finalizada').length
+  const progress   = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0
 
   return (
     <div className="flex flex-col h-full">
@@ -118,16 +140,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           <Link href="/projects" className="text-slate-400 hover:text-slate-700 transition-colors">
             <ArrowLeft size={18} />
           </Link>
-          <div
-            className="w-3 h-3 rounded-full flex-shrink-0"
-            style={{ background: project.color }}
-          />
+          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: project.color }} />
           <h1 className="text-lg font-semibold text-slate-900 flex-1 min-w-0 truncate">{project.nombre}</h1>
           <span className={cn('px-2.5 py-1 text-xs font-medium rounded-full', estadoConfig.color)}>
             {estadoConfig.label}
           </span>
         </div>
-        <div className="flex items-center gap-4 text-sm text-slate-500 pl-9">
+
+        <div className="flex items-center gap-4 text-sm text-slate-500 pl-9 flex-wrap">
           {client && (
             <span className="flex items-center gap-1.5">
               <FolderKanban size={13} />
@@ -140,24 +160,34 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </span>
           )}
           {project.fecha_fin && (
-            <span>
-              Entrega: {format(new Date(project.fecha_fin), 'd MMM yyyy', { locale: es })}
-            </span>
-          )}
-          {totalTasks > 0 && (
-            <span>{doneTasks}/{totalTasks} tareas</span>
+            <span>Entrega: {format(new Date(project.fecha_fin), 'd MMM yyyy', { locale: es })}</span>
           )}
           {project.descripcion && (
             <span className="text-slate-400 truncate max-w-xs">{project.descripcion}</span>
           )}
         </div>
+
+        {/* Progress bar */}
+        {totalTasks > 0 && (
+          <div className="mt-3 pl-9">
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-green-500 rounded-full transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <span className="text-xs text-slate-400 whitespace-nowrap">{doneTasks}/{totalTasks}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Sections */}
       <div className="flex-1 overflow-auto p-6 space-y-6">
         {sections.length === 0 ? (
           <div className="text-center py-16 text-slate-400">
-            <p>Cargando secciones...</p>
+            <p>Las secciones se cargan desde la base de datos...</p>
           </div>
         ) : (
           sections
@@ -166,8 +196,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <SectionBlock
                 key={section.id}
                 section={section}
-                projectId={id}
                 onAddTask={(titulo) => addTaskMutation.mutate({ sectionId: section.id, titulo })}
+                onToggleTask={(taskId, isDone) => toggleTaskMutation.mutate({ taskId, isDone })}
                 isAdding={addTaskMutation.isPending}
               />
             ))
@@ -179,18 +209,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
 function SectionBlock({
   section,
-  projectId,
   onAddTask,
+  onToggleTask,
   isAdding,
 }: {
   section: TaskSection & { tasks?: ProjectTask[] }
-  projectId: string
   onAddTask: (titulo: string) => void
+  onToggleTask: (taskId: string, isDone: boolean) => void
   isAdding: boolean
 }) {
   const [inputVisible, setInputVisible] = useState(false)
   const [inputVal, setInputVal] = useState('')
-  const tasks = section.tasks ?? []
+  const tasks = (section.tasks ?? []).filter(t => !t.deleted_at).sort((a, b) => a.position - b.position)
 
   function handleSubmit() {
     const title = inputVal.trim()
@@ -202,27 +232,25 @@ function SectionBlock({
 
   return (
     <div>
-      {/* Section header */}
       <div className="flex items-center gap-2 mb-2">
-        <div
-          className="w-2 h-2 rounded-full"
-          style={{ background: section.color ?? '#94A3B8' }}
-        />
+        <div className="w-2 h-2 rounded-full" style={{ background: section.color ?? '#94A3B8' }} />
         <span className="text-sm font-semibold text-slate-700">{section.nombre}</span>
         <span className="text-xs text-slate-400">({tasks.length})</span>
       </div>
 
-      {/* Tasks */}
       <div className="space-y-1 mb-2">
-        {tasks
-          .filter(t => !t.deleted_at)
-          .sort((a, b) => a.position - b.position)
-          .map(task => (
-            <TaskRow key={task.id} task={task} />
-          ))}
+        {tasks.map(task => (
+          <TaskRow
+            key={task.id}
+            task={task}
+            onToggle={(isDone) => onToggleTask(task.id, isDone)}
+          />
+        ))}
+        {tasks.length === 0 && !inputVisible && (
+          <p className="text-xs text-slate-300 px-1 py-1">Sin tareas</p>
+        )}
       </div>
 
-      {/* Add task */}
       {inputVisible ? (
         <div className="flex items-center gap-2 bg-white border border-blue-300 rounded-lg px-3 py-2">
           <input
@@ -264,17 +292,22 @@ function SectionBlock({
   )
 }
 
-function TaskRow({ task }: { task: ProjectTask }) {
+function TaskRow({ task, onToggle }: { task: ProjectTask; onToggle: (isDone: boolean) => void }) {
   const isDone = task.estado === 'finalizada'
-  const iconColor = TASK_ESTADO_COLORS[task.estado]
 
   return (
     <div className="flex items-center gap-2.5 bg-white border border-slate-100 rounded-lg px-3 py-2.5 hover:border-slate-200 transition-colors group">
-      {isDone
-        ? <CheckCircle2 size={15} className={cn(iconColor, 'flex-shrink-0')} />
-        : <Circle        size={15} className={cn(iconColor, 'flex-shrink-0')} />
-      }
-      <span className={cn('text-sm flex-1', isDone ? 'line-through text-slate-400' : 'text-slate-700')}>
+      <button
+        onClick={() => onToggle(!isDone)}
+        className="flex-shrink-0 text-slate-300 hover:text-green-500 transition-colors"
+        aria-label={isDone ? 'Marcar pendiente' : 'Marcar finalizada'}
+      >
+        {isDone
+          ? <CheckCircle2 size={16} className="text-green-500" />
+          : <Circle size={16} />
+        }
+      </button>
+      <span className={cn('text-sm flex-1 min-w-0 truncate', isDone ? 'line-through text-slate-400' : 'text-slate-700')}>
         {task.titulo}
       </span>
       {task.fecha_limite && (
