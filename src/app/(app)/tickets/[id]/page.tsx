@@ -299,6 +299,25 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
             </div>
           </div>
 
+          {/* Cliente (portal tickets) */}
+          {ticket.client_nombre && (
+            <div className="bg-card border border-card-border rounded-2xl p-5 space-y-2">
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Cliente</h2>
+              <p className="text-sm font-medium text-foreground">{ticket.client_nombre}</p>
+              {ticket.client_empresa && (
+                <p className="text-xs text-muted-foreground">{ticket.client_empresa}</p>
+              )}
+              {ticket.client_email && (
+                <a href={`mailto:${ticket.client_email}`} className="text-xs text-blue-500 hover:underline block">
+                  {ticket.client_email}
+                </a>
+              )}
+              {ticket.client_telefono && (
+                <p className="text-xs text-muted-foreground">{ticket.client_telefono}</p>
+              )}
+            </div>
+          )}
+
           {/* Project + Assignee */}
           <div className="bg-card border border-card-border rounded-2xl p-5 space-y-3">
             <div>
