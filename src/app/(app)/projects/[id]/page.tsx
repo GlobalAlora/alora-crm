@@ -13,7 +13,7 @@ import { CSS } from '@dnd-kit/utilities'
 import {
   ArrowLeft, Plus, Circle, CheckCircle2, FolderKanban, ExternalLink,
   GripVertical, LayoutDashboard, List, LayoutGrid, CalendarRange,
-  ChevronDown, Check, SlidersHorizontal, X,
+  ChevronDown, Check, SlidersHorizontal, X, UserPlus, Trash2,
 } from 'lucide-react'
 import Link from 'next/link'
 import { format } from 'date-fns'
@@ -157,6 +157,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     queryFn: () => fetchProject(id),
     staleTime: 30_000,
   })
+
+  const { data: meData } = useQuery({
+    queryKey: ['auth-me'],
+    queryFn:  () => fetch('/api/auth/me').then(r => r.json()),
+    staleTime: 300_000,
+  })
+  const meRole = (meData?.data?.role ?? '') as string
 
   const { data: usersData } = useQuery({
     queryKey: ['users'],
@@ -391,6 +398,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </span>
               )}
             </div>
+
+            {/* Members button (admin/sales only) */}
+            {['admin', 'sales'].includes(meRole) && (
+              <div className="pl-9 mb-1.5">
+                <ProjectMembersMenu projectId={id} users={users} />
+              </div>
+            )}
 
             {/* View tabs */}
             <div className="flex items-center justify-between pl-7">
@@ -829,6 +843,101 @@ function AddSectionRow({ onAdd, isAdding }: { onAdd: (n: string) => void; isAddi
       <button onClick={() => setVisible(true)} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors py-1">
         <Plus size={12} /> Agregar sección
       </button>
+    </div>
+  )
+}
+
+// ─── ProjectMembersMenu ───────────────────────────────────
+function ProjectMembersMenu({
+  projectId, users,
+}: {
+  projectId: string
+  users: Pick<User, 'id' | 'full_name' | 'avatar_url'>[]
+}) {
+  const [open, setOpen] = useState(false)
+  const qc = useQueryClient()
+
+  const { data } = useQuery({
+    queryKey: ['project-members', projectId],
+    queryFn: async () => {
+      const r = await fetch(`/api/projects/${projectId}/members`)
+      return r.json() as Promise<{ data: { id: string; user_id: string; role: string; user: { full_name: string; avatar_url: string | null } | null }[] }>
+    },
+    enabled: open,
+    staleTime: 30_000,
+  })
+  const members = data?.data ?? []
+  const memberIds = members.map(m => m.user_id)
+  const nonMembers = users.filter(u => !memberIds.includes(u.id))
+
+  async function addMember(userId: string) {
+    await fetch(`/api/projects/${projectId}/members`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId }),
+    })
+    qc.invalidateQueries({ queryKey: ['project-members', projectId] })
+  }
+
+  async function removeMember(userId: string) {
+    await fetch(`/api/projects/${projectId}/members?user_id=${userId}`, { method: 'DELETE' })
+    qc.invalidateQueries({ queryKey: ['project-members', projectId] })
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg px-2.5 py-1 hover:border-slate-300 transition-colors"
+      >
+        <UserPlus size={12} />
+        Miembros
+        {members.length > 0 && (
+          <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{members.length}</span>
+        )}
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 w-64 py-2">
+            <p className="text-[10px] text-slate-400 uppercase tracking-wider px-3 py-1">Asignados al proyecto</p>
+
+            {members.length === 0 && (
+              <p className="text-xs text-slate-400 px-3 py-2">Sin miembros aún</p>
+            )}
+
+            {members.map(m => (
+              <div key={m.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50">
+                <Avatar name={m.user?.full_name ?? '?'} url={m.user?.avatar_url ?? null} size={22} />
+                <span className="text-xs text-slate-700 flex-1 truncate">{m.user?.full_name ?? 'Usuario'}</span>
+                <span className="text-[10px] text-slate-400 capitalize">{m.role}</span>
+                <button onClick={() => removeMember(m.user_id)} className="text-slate-300 hover:text-red-500 transition-colors ml-1">
+                  <Trash2 size={11} />
+                </button>
+              </div>
+            ))}
+
+            {nonMembers.length > 0 && (
+              <>
+                <div className="border-t my-1.5" />
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider px-3 py-1">Agregar</p>
+                {nonMembers.map(u => (
+                  <button
+                    key={u.id}
+                    onClick={() => addMember(u.id)}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-blue-50 transition-colors text-left"
+                  >
+                    <Avatar name={u.full_name} url={u.avatar_url} size={22} />
+                    <span className="text-xs text-slate-600">{u.full_name}</span>
+                    <Plus size={11} className="ml-auto text-blue-500" />
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }

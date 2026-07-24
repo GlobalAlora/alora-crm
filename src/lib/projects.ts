@@ -48,5 +48,12 @@ export async function createProjectForLead(
     DEFAULT_SECTIONS.map(s => ({ ...s, project_id: project.id }))
   )
 
+  // Auto-add creator as project manager
+  await admin.from('project_members').insert({
+    project_id: project.id,
+    user_id:    createdBy,
+    role:       'pm',
+  })
+
   return project.id
 }

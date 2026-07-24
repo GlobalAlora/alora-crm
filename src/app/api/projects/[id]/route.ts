@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 type Params = { params: Promise<{ id: string }> }
 
+const FULL_ACCESS_ROLES = ['admin', 'sales']
+
 export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params
   const supabase = await createClient()
@@ -11,6 +13,21 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const admin = createAdminClient()
+
+  // Check role
+  const { data: userRow } = await admin.from('users').select('role').eq('id', user.id).maybeSingle()
+  const isFullAccess = FULL_ACCESS_ROLES.includes(userRow?.role ?? '')
+
+  // Non-admins must be a project member
+  if (!isFullAccess) {
+    const { data: membership } = await admin
+      .from('project_members')
+      .select('id')
+      .eq('project_id', id)
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (!membership) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 })
+  }
 
   const { data: project, error: projErr } = await admin
     .from('projects')

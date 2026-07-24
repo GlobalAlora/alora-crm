@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { ProjectEstado, PmPriority } from '@/types'
 
+const FULL_ACCESS_ROLES = ['admin', 'sales']
+
 const DEFAULT_SECTIONS = [
   { nombre: 'Por hacer',   color: '#94A3B8', position: 0, is_done: false },
   { nombre: 'En progreso', color: '#3B82F6', position: 1, is_done: false },
@@ -23,7 +25,10 @@ export async function GET(req: NextRequest) {
 
   const admin = createAdminClient()
 
-  // Simple select without FK join to avoid PostgREST schema-cache issues
+  // Check role
+  const { data: userRow } = await admin.from('users').select('role').eq('id', user.id).maybeSingle()
+  const isFullAccess = FULL_ACCESS_ROLES.includes(userRow?.role ?? '')
+
   let query = admin
     .from('projects')
     .select('*', { count: 'exact' })
@@ -31,6 +36,19 @@ export async function GET(req: NextRequest) {
     .is('archived_at', null)
 
   if (estado) query = query.eq('estado', estado)
+
+  // Non-admins only see their assigned projects
+  if (!isFullAccess) {
+    const { data: memberships } = await admin
+      .from('project_members')
+      .select('project_id')
+      .eq('user_id', user.id)
+    const ids = (memberships ?? []).map(m => m.project_id)
+    if (ids.length === 0) {
+      return NextResponse.json({ data: [], meta: { total: 0, page, limit, pages: 0 } })
+    }
+    query = query.in('id', ids)
+  }
 
   const { data: projects, error, count } = await query
     .order('created_at', { ascending: false })
@@ -41,7 +59,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Enrich with lead data via separate query (bypasses FK introspection)
   const leadIds = (projects ?? []).map(p => p.lead_id).filter(Boolean) as string[]
   let leadsMap: Record<string, { id: string; nombre: string | null; apellido: string | null; empresa: string | null }> = {}
 
@@ -51,7 +68,6 @@ export async function GET(req: NextRequest) {
       .select('id, nombre, apellido, empresa')
       .in('id', leadIds)
       .is('deleted_at', null)
-
     leadsMap = Object.fromEntries((leads ?? []).map(l => [l.id, l]))
   }
 
@@ -100,9 +116,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // Create default sections
   await admin.from('task_sections').insert(
     DEFAULT_SECTIONS.map(s => ({ ...s, project_id: data.id }))
   )
+
+  // Auto-add creator as project manager
+  await admin.from('project_members').insert({
+    project_id: data.id,
+    user_id:    user.id,
+    role:       'pm',
+  })
 
   return NextResponse.json({ data }, { status: 201 })
 }

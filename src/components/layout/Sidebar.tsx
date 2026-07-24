@@ -3,54 +3,82 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
-import { LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, List, MessageCircle, Smartphone, ContactRound, X, Menu, UserCog, Bot, FolderKanban } from 'lucide-react'
+import {
+  LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, List,
+  MessageCircle, Smartphone, ContactRound, X, Menu, UserCog, Bot, FolderKanban,
+  ShieldCheck,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import type { WhatsAppConversation } from '@/types'
 import { PushSubscription } from '@/components/PushSubscription'
 
-const settingsNav = [
-  { href: '/settings/equipo',    label: 'Equipo',      icon: UserCog        },
-  { href: '/settings/pipeline',  label: 'Pipeline',    icon: LayoutDashboard },
-  { href: '/settings/forms',     label: 'Formularios', icon: FileCode2      },
-  { href: '/settings/tags',      label: 'Etiquetas',   icon: Tag            },
-  { href: '/settings/lists',     label: 'Listas',      icon: List           },
-  { href: '/settings/whatsapp',  label: 'WhatsApp',    icon: Smartphone     },
-  { href: '/settings/whatsapp-faqs', label: 'FAQs de Lidia', icon: Bot      },
+// ─── constants ─────────────────────────────────────────────
+const FULL_ACCESS_ROLES = ['admin', 'sales']
+
+const FULL_NAV = [
+  { href: '/dashboard',     label: 'Dashboard',       icon: LayoutDashboard, badge: null, sub: undefined },
+  { href: '/contactos',     label: 'Leads',            icon: ContactRound,    badge: null, sub: undefined },
+  {
+    href: '/leads',
+    label: 'Pipeline',
+    icon: Users,
+    badge: null,
+    sub: [{ href: '/leads/tareas', label: 'Tareas', icon: CheckSquare }],
+  },
+  { href: '/inbox/whatsapp', label: 'WhatsApp',        icon: MessageCircle,  badge: null, sub: undefined },
+  { href: '/email',          label: 'Email Marketing', icon: Mail,           badge: null, sub: undefined },
+  { href: '/projects',       label: 'Proyectos',       icon: FolderKanban,   badge: null, sub: undefined },
 ]
 
-// Componente separado para evitar error de render
+const VIEWER_NAV = [
+  { href: '/projects', label: 'Proyectos', icon: FolderKanban, badge: null, sub: undefined },
+]
+
+const SETTINGS_NAV = [
+  { href: '/settings/usuarios',    label: 'Usuarios',      icon: ShieldCheck    },
+  { href: '/settings/equipo',      label: 'Equipo',        icon: UserCog        },
+  { href: '/settings/pipeline',    label: 'Pipeline',      icon: LayoutDashboard },
+  { href: '/settings/forms',       label: 'Formularios',   icon: FileCode2      },
+  { href: '/settings/tags',        label: 'Etiquetas',     icon: Tag            },
+  { href: '/settings/lists',       label: 'Listas',        icon: List           },
+  { href: '/settings/whatsapp',    label: 'WhatsApp',      icon: Smartphone     },
+  { href: '/settings/whatsapp-faqs', label: 'FAQs Lidia',  icon: Bot            },
+]
+
+// ─── helpers ───────────────────────────────────────────────
+function avatarInitials(name: string) {
+  return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+}
+
+// ─── NavContent ────────────────────────────────────────────
 interface NavContentProps {
-  pathname: string
-  nav: Array<{
-    href: string
-    label: string
-    icon: React.ElementType
-    badge: number | null
-    sub?: Array<{ href: string; label: string; icon: React.ElementType }>
-  }>
-  inSettings: boolean
-  settingsNav: Array<{ href: string; label: string; icon: React.ElementType }>
+  pathname:    string
+  nav:         typeof FULL_NAV
+  inSettings:  boolean
+  isAdmin:     boolean
+  totalUnread: number
+  me:          { full_name: string; avatar_url: string | null; role: string; email: string } | null
   onCloseMobile: () => void
 }
 
-function NavContent({ pathname, nav, inSettings, settingsNav, onCloseMobile }: NavContentProps) {
+function NavContent({ pathname, nav, inSettings, isAdmin, totalUnread, me, onCloseMobile }: NavContentProps) {
+  const navWithBadge = nav.map(n =>
+    n.href === '/inbox/whatsapp' ? { ...n, badge: totalUnread || null } : n
+  )
+
   return (
     <>
       <div className="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
         <span className="text-white font-semibold text-lg tracking-tight">Alora CRM</span>
-        <button
-          onClick={onCloseMobile}
-          className="md:hidden text-slate-400 hover:text-white transition-colors"
-        >
+        <button onClick={onCloseMobile} className="md:hidden text-slate-400 hover:text-white transition-colors">
           <X size={20} />
         </button>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
-        {nav.map(({ href, label, icon: Icon, badge, sub }) => {
-          const isParentActive = pathname.startsWith(href)
-
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        {navWithBadge.map(({ href, label, icon: Icon, badge, sub }) => {
+          const isActive = pathname.startsWith(href)
           return (
             <div key={href}>
               <Link
@@ -58,9 +86,7 @@ function NavContent({ pathname, nav, inSettings, settingsNav, onCloseMobile }: N
                 onClick={onCloseMobile}
                 className={cn(
                   'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
-                  isParentActive
-                    ? 'bg-slate-800 text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  isActive ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 )}
               >
                 <Icon size={16} />
@@ -72,23 +98,20 @@ function NavContent({ pathname, nav, inSettings, settingsNav, onCloseMobile }: N
                 )}
               </Link>
 
-              {/* Sub-nav shown when parent is active */}
-              {sub && isParentActive && (
+              {sub && isActive && (
                 <div className="pl-4 mt-0.5 space-y-0.5">
-                  {sub.map(({ href: subHref, label: subLabel, icon: SubIcon }) => (
+                  {sub.map(({ href: sh, label: sl, icon: SI }) => (
                     <Link
-                      key={subHref}
-                      href={subHref}
+                      key={sh}
+                      href={sh}
                       onClick={onCloseMobile}
                       className={cn(
                         'flex items-center gap-2.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                        pathname.startsWith(subHref)
-                          ? 'text-white bg-slate-700'
-                          : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                        pathname.startsWith(sh) ? 'text-white bg-slate-700' : 'text-slate-400 hover:text-white hover:bg-slate-800'
                       )}
                     >
-                      <SubIcon size={13} />
-                      {subLabel}
+                      <SI size={13} />
+                      {sl}
                     </Link>
                   ))}
                 </div>
@@ -99,90 +122,90 @@ function NavContent({ pathname, nav, inSettings, settingsNav, onCloseMobile }: N
       </nav>
 
       <div className="px-3 pb-4 border-t border-slate-800 pt-4 space-y-1">
-        {/* Settings link */}
-        <Link
-          href="/settings/forms"
-          onClick={onCloseMobile}
-          className={cn(
-            'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
-            inSettings
-              ? 'bg-slate-800 text-white'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800'
-          )}
-        >
-          <Settings size={16} />
-          Configuración
-        </Link>
+        {/* Settings (admin only) */}
+        {isAdmin && (
+          <>
+            <Link
+              href="/settings/usuarios"
+              onClick={onCloseMobile}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                inSettings ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              )}
+            >
+              <Settings size={16} />
+              Configuración
+            </Link>
 
-        {/* Settings sub-nav */}
-        {inSettings && (
-          <div className="pl-4 space-y-0.5">
-            {settingsNav.map(({ href, label, icon: Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                onClick={onCloseMobile}
-                className={cn(
-                  'flex items-center gap-2.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                  pathname.startsWith(href)
-                    ? 'text-white bg-slate-700'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                )}
-              >
-                <Icon size={13} />
-                {label}
-              </Link>
-            ))}
-          </div>
+            {inSettings && (
+              <div className="pl-4 space-y-0.5">
+                {SETTINGS_NAV.map(({ href, label, icon: Icon }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={onCloseMobile}
+                    className={cn(
+                      'flex items-center gap-2.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                      pathname.startsWith(href) ? 'text-white bg-slate-700' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    )}
+                  >
+                    <Icon size={13} />
+                    {label}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </>
         )}
 
         <PushSubscription />
 
+        {/* Current user */}
         <div className="flex items-center gap-3 px-3 py-2 mt-1">
-          <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
-            A
+          {me?.avatar_url ? (
+            <img src={me.avatar_url} alt={me.full_name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+              {me ? avatarInitials(me.full_name) : 'A'}
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="text-white text-xs font-medium truncate">{me?.full_name ?? 'Cargando...'}</p>
+            <p className="text-slate-500 text-[10px] truncate capitalize">{me?.role ?? ''}</p>
           </div>
-          <span className="text-slate-400 text-sm truncate">Admin</span>
         </div>
       </div>
     </>
   )
 }
 
+// ─── Sidebar ───────────────────────────────────────────────
 export function Sidebar() {
-  const pathname = usePathname()
+  const pathname     = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const inSettings = pathname.startsWith('/settings')
+  const inSettings   = pathname.startsWith('/settings')
 
-  // Unread WhatsApp count for the sidebar badge
+  const { data: meData } = useQuery<{ data: { full_name: string; avatar_url: string | null; role: string; email: string } }>({
+    queryKey: ['auth-me'],
+    queryFn:  () => fetch('/api/auth/me').then(r => r.json()),
+    staleTime: 300_000,
+  })
+  const me      = meData?.data ?? null
+  const isAdmin = FULL_ACCESS_ROLES.includes(me?.role ?? '')
+
   const { data: waData } = useQuery<{ data: WhatsAppConversation[] }>({
     queryKey: ['whatsapp-conversations'],
-    queryFn: () => fetch('/api/whatsapp/conversations').then(r => r.json()),
+    queryFn:  () => fetch('/api/whatsapp/conversations').then(r => r.json()),
     refetchInterval: 60_000,
     staleTime: 30_000,
+    enabled: isAdmin,
   })
   const totalUnread = (waData?.data ?? []).reduce((sum, c) => sum + c.unread_count, 0)
 
-  const nav = [
-    { href: '/dashboard',    label: 'Dashboard',       icon: LayoutDashboard, badge: null, sub: undefined },
-    { href: '/contactos',    label: 'Leads',            icon: ContactRound,    badge: null, sub: undefined },
-    {
-      href: '/leads',
-      label: 'Pipeline',
-      icon: Users,
-      badge: null,
-      sub: [
-        { href: '/leads/tareas', label: 'Tareas', icon: CheckSquare },
-      ],
-    },
-    { href: '/inbox/whatsapp', label: 'WhatsApp',        icon: MessageCircle,  badge: totalUnread || null, sub: undefined },
-    { href: '/email',          label: 'Email Marketing', icon: Mail,           badge: null, sub: undefined },
-    { href: '/projects',       label: 'Proyectos',       icon: FolderKanban,   badge: null, sub: undefined },
-  ]
+  const nav = isAdmin ? FULL_NAV : VIEWER_NAV
 
   return (
     <>
-      {/* Mobile hamburger button */}
       <button
         onClick={() => setMobileOpen(true)}
         className="md:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition-colors"
@@ -190,15 +213,10 @@ export function Sidebar() {
         <Menu size={20} />
       </button>
 
-      {/* Mobile overlay */}
       {mobileOpen && (
-        <div
-          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
-          onClick={() => setMobileOpen(false)}
-        />
+        <div className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => setMobileOpen(false)} />
       )}
 
-      {/* Sidebar */}
       <aside className={cn(
         'fixed md:static inset-y-0 left-0 z-50 md:z-auto w-60 flex-shrink-0 flex flex-col h-full transform transition-transform duration-200 ease-in-out',
         'md:translate-x-0',
@@ -208,7 +226,9 @@ export function Sidebar() {
           pathname={pathname}
           nav={nav}
           inSettings={inSettings}
-          settingsNav={settingsNav}
+          isAdmin={isAdmin}
+          totalUnread={totalUnread}
+          me={me}
           onCloseMobile={() => setMobileOpen(false)}
         />
       </aside>
