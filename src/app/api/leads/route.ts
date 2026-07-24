@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   const sortBy          = searchParams.get('sort_by') || 'created_at'
   const sortOrder       = searchParams.get('sort_order') || 'desc'
   const page            = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
-  const limit           = Math.min(200, parseInt(searchParams.get('limit') || '50', 10))
+  const limit           = Math.min(500, parseInt(searchParams.get('limit') || '50', 10))
   const offset          = (page - 1) * limit
 
   let query = supabase
