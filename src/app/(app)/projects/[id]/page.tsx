@@ -4,25 +4,39 @@ import { useState, use, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
-  type DragStartEvent, type DragEndEvent, type DragOverEvent,
+  type DragStartEvent, type DragEndEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { ArrowLeft, Plus, Circle, CheckCircle2, FolderKanban, ExternalLink, GripVertical, Settings } from 'lucide-react'
+import {
+  ArrowLeft, Plus, Circle, CheckCircle2, FolderKanban,
+  ExternalLink, GripVertical, LayoutDashboard, List, LayoutGrid, CalendarRange,
+} from 'lucide-react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils'
-import type { Project, TaskSection, ProjectTask } from '@/types'
-import { TaskPanel } from '@/components/projects/TaskPanel'
+import type { Project, TaskSection, ProjectTask, User } from '@/types'
+import { TaskPanel, Avatar } from '@/components/projects/TaskPanel'
+import { BoardView } from '@/components/projects/BoardView'
+import { ResumenView } from '@/components/projects/ResumenView'
+import { CronogramaView } from '@/components/projects/CronogramaView'
 
 // ─── types ────────────────────────────────────────────────
 interface ProjectDetail extends Project {
   sections?: (TaskSection & { tasks?: ProjectTask[] })[]
 }
+type ViewMode = 'resumen' | 'lista' | 'tablero' | 'cronograma'
+
+const VIEWS: { id: ViewMode; label: string; icon: React.ElementType }[] = [
+  { id: 'resumen',    label: 'Resumen',    icon: LayoutDashboard },
+  { id: 'lista',      label: 'Lista',      icon: List            },
+  { id: 'tablero',    label: 'Tablero',    icon: LayoutGrid      },
+  { id: 'cronograma', label: 'Cronograma', icon: CalendarRange   },
+]
 
 // ─── API helpers ─────────────────────────────────────────
 async function fetchProject(id: string): Promise<{ data: ProjectDetail }> {
@@ -34,6 +48,12 @@ async function fetchProject(id: string): Promise<{ data: ProjectDetail }> {
   return r.json()
 }
 
+async function fetchUsers(): Promise<{ data: Pick<User, 'id' | 'full_name' | 'avatar_url'>[] }> {
+  const r = await fetch('/api/users')
+  if (!r.ok) return { data: [] }
+  return r.json()
+}
+
 async function apiPatchTask(taskId: string, updates: Record<string, unknown>) {
   const r = await fetch(`/api/project-tasks/${taskId}`, {
     method: 'PATCH',
@@ -42,15 +62,23 @@ async function apiPatchTask(taskId: string, updates: Record<string, unknown>) {
   })
   if (!r.ok) {
     const j = await r.json().catch(() => ({}))
-    throw new Error((j as { error?: string }).error ?? 'Error al actualizar tarea')
+    throw new Error((j as { error?: string }).error ?? 'Error al actualizar')
   }
 }
 
-async function apiCreateTask(projectId: string, sectionId: string | null, titulo: string) {
+async function apiCreateTask(projectId: string, opts: {
+  sectionId: string | null
+  titulo: string
+  parentTaskId?: string | null
+}) {
   const r = await fetch(`/api/projects/${projectId}/tasks`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ titulo, section_id: sectionId }),
+    body: JSON.stringify({
+      titulo:         opts.titulo,
+      section_id:     opts.sectionId,
+      parent_task_id: opts.parentTaskId ?? null,
+    }),
   })
   const j = await r.json()
   if (!r.ok) throw new Error((j as { error?: string }).error ?? 'Error al crear tarea')
@@ -68,7 +96,7 @@ async function apiCreateSection(projectId: string, nombre: string) {
   return j
 }
 
-// ─── Estado config ────────────────────────────────────────
+// ─── Status config ────────────────────────────────────────
 const ESTADO_CONFIG: Record<string, { label: string; color: string }> = {
   pendiente:     { label: 'Pendiente',     color: 'text-slate-600 bg-slate-100' },
   en_desarrollo: { label: 'En desarrollo', color: 'text-blue-700  bg-blue-50'   },
@@ -83,12 +111,20 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const qc = useQueryClient()
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [activeTask, setActiveTask] = useState<ProjectTask | null>(null)
+  const [view, setView] = useState<ViewMode>('lista')
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['project', id],
     queryFn: () => fetchProject(id),
     staleTime: 30_000,
   })
+
+  const { data: usersData } = useQuery({
+    queryKey: ['users'],
+    queryFn: fetchUsers,
+    staleTime: 300_000,
+  })
+  const users = usersData?.data ?? []
 
   // ── mutations ──────────────────────────────────────────
   const patchTask = useMutation({
@@ -119,8 +155,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   })
 
   const addTask = useMutation({
-    mutationFn: ({ sectionId, titulo }: { sectionId: string | null; titulo: string }) =>
-      apiCreateTask(id, sectionId, titulo),
+    mutationFn: (opts: { sectionId: string | null; titulo: string; parentTaskId?: string | null }) =>
+      apiCreateTask(id, opts),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['project', id] }),
     onError: (e: Error) => toast.error(e.message),
   })
@@ -135,47 +171,45 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const handleDragStart = useCallback(({ active }: DragStartEvent) => {
-    const sections = data?.data.sections ?? []
-    const task = sections.flatMap(s => s.tasks ?? []).find(t => t.id === active.id)
+    const task = (data?.data.sections ?? []).flatMap(s => s.tasks ?? []).find(t => t.id === active.id)
     setActiveTask(task ?? null)
   }, [data])
 
   const handleDragEnd = useCallback(({ active, over }: DragEndEvent) => {
     setActiveTask(null)
     if (!over || active.id === over.id) return
-
     const sections = data?.data.sections ?? []
     const allTasks = sections.flatMap(s => s.tasks ?? [])
     const draggedTask = allTasks.find(t => t.id === active.id)
     if (!draggedTask) return
 
-    // Determine target section
-    const overTask = allTasks.find(t => t.id === over.id)
+    const overTask    = allTasks.find(t => t.id === over.id)
     const overSection = sections.find(s => s.id === over.id)
     const targetSectionId = overSection?.id ?? overTask?.section_id ?? draggedTask.section_id
 
     if (targetSectionId !== draggedTask.section_id) {
-      // Cross-section move
       patchTask.mutate({ taskId: draggedTask.id, updates: { section_id: targetSectionId, position: 9999 } })
     } else {
-      // Same-section reorder
-      const sectionTasks = (sections.find(s => s.id === draggedTask.section_id)?.tasks ?? [])
-        .filter(t => !t.deleted_at)
+      const sectionTasks = (sections.find(s => s.id === draggedTask.section_id)?.tasks ?? []).filter(t => !t.deleted_at)
       const oldIdx = sectionTasks.findIndex(t => t.id === draggedTask.id)
       const newIdx = sectionTasks.findIndex(t => t.id === over.id)
       if (oldIdx === -1 || newIdx === -1) return
       const reordered = arrayMove(sectionTasks, oldIdx, newIdx)
       const prev = reordered[newIdx - 1]?.position ?? 0
-      const next = reordered[newIdx + 1]?.position ?? (reordered[newIdx - 1]?.position ?? 0) + 2
-      const newPos = (prev + next) / 2
-      patchTask.mutate({ taskId: draggedTask.id, updates: { position: newPos } })
+      const next = reordered[newIdx + 1]?.position ?? prev + 2
+      patchTask.mutate({ taskId: draggedTask.id, updates: { position: (prev + next) / 2 } })
     }
   }, [data, patchTask])
 
-  // ── selected task ────────────────────────────────────
-  const sections = data?.data.sections ?? []
-  const allTasks = sections.flatMap(s => s.tasks ?? [])
+  // ── data ─────────────────────────────────────────────
+  const sections  = data?.data.sections ?? []
+  const allTasks  = sections.flatMap(s => s.tasks ?? [])
   const selectedTask = selectedTaskId ? allTasks.find(t => t.id === selectedTaskId) ?? null : null
+
+  const allActiveTasks = allTasks.filter(t => !t.deleted_at && !t.parent_task_id)
+  const totalTasks = allActiveTasks.length
+  const doneTasks  = allActiveTasks.filter(t => t.estado === 'finalizada').length
+  const progress   = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0
 
   // ── render ───────────────────────────────────────────
   if (isLoading) {
@@ -203,18 +237,17 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const project = data.data
   const estadoConfig = ESTADO_CONFIG[project.estado] ?? ESTADO_CONFIG.pendiente
   const client = project.lead?.empresa || [project.lead?.nombre, project.lead?.apellido].filter(Boolean).join(' ')
-  const allActiveTasks = allTasks.filter(t => !t.deleted_at)
-  const totalTasks = allActiveTasks.length
-  const doneTasks  = allActiveTasks.filter(t => t.estado === 'finalizada').length
-  const progress   = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="flex h-full overflow-hidden">
-        {/* ── Main content ── */}
+
+        {/* ── Main ── */}
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+
           {/* Header */}
-          <div className="px-6 py-4 border-b bg-white flex-shrink-0">
+          <div className="px-6 pt-4 pb-0 border-b bg-white flex-shrink-0">
+            {/* Top row */}
             <div className="flex items-center gap-3 mb-2">
               <Link href="/projects" className="text-slate-400 hover:text-slate-700 transition-colors">
                 <ArrowLeft size={18} />
@@ -225,75 +258,134 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 {estadoConfig.label}
               </span>
             </div>
-            <div className="flex items-center gap-4 text-sm text-slate-500 pl-9 flex-wrap">
+
+            {/* Meta row */}
+            <div className="flex items-center gap-4 text-sm text-slate-500 flex-wrap pl-9 mb-2">
               {client && (
                 <span className="flex items-center gap-1.5">
                   <FolderKanban size={13} />
-                  {project.lead_id ? (
-                    <Link href={`/leads?lead=${project.lead_id}`} className="hover:text-blue-600 flex items-center gap-1">
-                      {client} <ExternalLink size={11} />
-                    </Link>
-                  ) : client}
+                  {project.lead_id
+                    ? <Link href={`/leads?lead=${project.lead_id}`} className="hover:text-blue-600 flex items-center gap-1">{client} <ExternalLink size={11} /></Link>
+                    : client}
                 </span>
               )}
               {project.fecha_fin && (
                 <span>Entrega: {format(new Date(project.fecha_fin), 'd MMM yyyy', { locale: es })}</span>
               )}
+              {totalTasks > 0 && (
+                <span className="flex items-center gap-2">
+                  <span className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden inline-block">
+                    <span className="block h-full bg-green-500 rounded-full" style={{ width: `${progress}%` }} />
+                  </span>
+                  <span className="text-xs text-slate-400">{doneTasks}/{totalTasks}</span>
+                </span>
+              )}
             </div>
-            {totalTasks > 0 && (
-              <div className="mt-3 pl-9 flex items-center gap-3">
-                <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-green-500 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
-                </div>
-                <span className="text-xs text-slate-400 whitespace-nowrap">{doneTasks}/{totalTasks}</span>
-              </div>
-            )}
+
+            {/* View tabs — Asana style */}
+            <div className="flex items-center gap-0 pl-7">
+              {VIEWS.map(v => {
+                const Icon = v.icon
+                const active = view === v.id
+                return (
+                  <button
+                    key={v.id}
+                    onClick={() => setView(v.id)}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px',
+                      active
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                    )}
+                  >
+                    <Icon size={14} />
+                    {v.label}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
-          {/* Sections */}
-          <div className="flex-1 overflow-auto p-6 space-y-6">
-            {sections
-              .sort((a, b) => a.position - b.position)
-              .map(section => (
-                <SectionBlock
-                  key={section.id}
-                  section={section}
-                  selectedTaskId={selectedTaskId}
-                  onSelectTask={setSelectedTaskId}
-                  onToggleTask={(taskId, isDone) =>
-                    patchTask.mutate({ taskId, updates: { estado: isDone ? 'finalizada' : 'pendiente' } })
-                  }
-                  onAddTask={(titulo) => addTask.mutate({ sectionId: section.id, titulo })}
-                  isAddingTask={addTask.isPending}
-                />
-              ))
-            }
+          {/* Content area */}
+          {view === 'resumen' && (
+            <ResumenView project={project} users={users} />
+          )}
 
-            {/* Add section */}
-            <AddSectionRow onAdd={(nombre) => addSection.mutate(nombre)} isAdding={addSection.isPending} />
-          </div>
+          {view === 'lista' && (
+            <div className="flex-1 overflow-auto p-6 space-y-6">
+              {sections
+                .sort((a, b) => a.position - b.position)
+                .map(section => (
+                  <SectionBlock
+                    key={section.id}
+                    section={section}
+                    allTasks={allTasks}
+                    selectedTaskId={selectedTaskId}
+                    users={users}
+                    onSelectTask={setSelectedTaskId}
+                    onToggleTask={(taskId, isDone) =>
+                      patchTask.mutate({ taskId, updates: { estado: isDone ? 'finalizada' : 'pendiente' } })
+                    }
+                    onAddTask={(titulo) => addTask.mutate({ sectionId: section.id, titulo })}
+                    isAddingTask={addTask.isPending}
+                  />
+                ))}
+              <AddSectionRow onAdd={(n) => addSection.mutate(n)} isAdding={addSection.isPending} />
+            </div>
+          )}
+
+          {view === 'tablero' && (
+            <BoardView
+              sections={sections}
+              selectedTaskId={selectedTaskId}
+              users={users}
+              onSelectTask={setSelectedTaskId}
+              onToggleTask={(taskId, isDone) =>
+                patchTask.mutate({ taskId, updates: { estado: isDone ? 'finalizada' : 'pendiente' } })
+              }
+              onAddTask={(sectionId, titulo) => addTask.mutate({ sectionId, titulo })}
+            />
+          )}
+
+          {view === 'cronograma' && (
+            <CronogramaView
+              sections={sections}
+              users={users}
+              selectedTaskId={selectedTaskId}
+              onSelectTask={setSelectedTaskId}
+            />
+          )}
         </div>
 
         {/* ── Task panel ── */}
         {selectedTask && (
-          <div className="w-80 xl:w-96 flex-shrink-0 overflow-hidden flex flex-col">
+          <div className="w-80 xl:w-96 flex-shrink-0 overflow-hidden flex flex-col border-l">
             <TaskPanel
               key={selectedTask.id}
               task={selectedTask}
               sections={sections}
+              allTasks={allTasks}
+              users={users}
+              projectId={id}
               onClose={() => setSelectedTaskId(null)}
               onUpdate={(updates) =>
                 patchTask.mutate({ taskId: selectedTask.id, updates: updates as Record<string, unknown> })
+              }
+              onAddSubtask={(titulo) =>
+                addTask.mutate({ sectionId: selectedTask.section_id, titulo, parentTaskId: selectedTask.id })
+              }
+              onToggleTask={(taskId, isDone) =>
+                patchTask.mutate({ taskId, updates: { estado: isDone ? 'finalizada' : 'pendiente' } })
               }
             />
           </div>
         )}
       </div>
 
-      {/* DnD overlay */}
+      {/* Drag overlay */}
       <DragOverlay>
         {activeTask && (
-          <div className="bg-white border border-slate-200 rounded-lg px-3 py-2.5 shadow-lg opacity-95 text-sm text-slate-700">
+          <div className="bg-white border border-slate-200 rounded-lg px-3 py-2.5 shadow-lg text-sm text-slate-700">
             {activeTask.titulo}
           </div>
         )}
@@ -304,15 +396,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
 // ─── SectionBlock ─────────────────────────────────────────
 function SectionBlock({
-  section,
-  selectedTaskId,
-  onSelectTask,
-  onToggleTask,
-  onAddTask,
-  isAddingTask,
+  section, allTasks, selectedTaskId, users,
+  onSelectTask, onToggleTask, onAddTask, isAddingTask,
 }: {
   section: TaskSection & { tasks?: ProjectTask[] }
+  allTasks: ProjectTask[]
   selectedTaskId: string | null
+  users: Pick<User, 'id' | 'full_name' | 'avatar_url'>[]
   onSelectTask: (id: string) => void
   onToggleTask: (id: string, isDone: boolean) => void
   onAddTask: (titulo: string) => void
@@ -320,7 +410,10 @@ function SectionBlock({
 }) {
   const [inputVisible, setInputVisible] = useState(false)
   const [inputVal, setInputVal] = useState('')
-  const tasks = (section.tasks ?? []).filter(t => !t.deleted_at).sort((a, b) => a.position - b.position)
+
+  const tasks = (section.tasks ?? [])
+    .filter(t => !t.deleted_at && !t.parent_task_id)
+    .sort((a, b) => a.position - b.position)
   const taskIds = tasks.map(t => t.id)
 
   function submit() {
@@ -341,15 +434,22 @@ function SectionBlock({
 
       <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
         <div className="space-y-1 mb-2">
-          {tasks.map(task => (
-            <SortableTaskRow
-              key={task.id}
-              task={task}
-              isSelected={selectedTaskId === task.id}
-              onToggle={(isDone) => onToggleTask(task.id, isDone)}
-              onClick={() => onSelectTask(task.id)}
-            />
-          ))}
+          {tasks.map(task => {
+            const subtaskCount = allTasks.filter(t => t.parent_task_id === task.id && !t.deleted_at).length
+            const subtaskDone  = allTasks.filter(t => t.parent_task_id === task.id && !t.deleted_at && t.estado === 'finalizada').length
+            return (
+              <SortableTaskRow
+                key={task.id}
+                task={task}
+                isSelected={selectedTaskId === task.id}
+                subtaskCount={subtaskCount}
+                subtaskDone={subtaskDone}
+                users={users}
+                onToggle={(isDone) => onToggleTask(task.id, isDone)}
+                onClick={() => onSelectTask(task.id)}
+              />
+            )
+          })}
           {tasks.length === 0 && !inputVisible && (
             <div className="text-xs text-slate-300 px-1 py-1">Sin tareas</div>
           )}
@@ -369,15 +469,12 @@ function SectionBlock({
             placeholder="Nombre de la tarea"
             className="flex-1 text-sm outline-none"
           />
-          <button onClick={submit} disabled={!inputVal.trim() || isAddingTask} className="text-sm font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50">
-            Agregar
-          </button>
-          <button onClick={() => { setInputVisible(false); setInputVal('') }} className="text-sm text-slate-400 hover:text-slate-600">✕</button>
+          <button onClick={submit} disabled={!inputVal.trim() || isAddingTask} className="text-sm font-medium text-blue-600 disabled:opacity-50">Agregar</button>
+          <button onClick={() => { setInputVisible(false); setInputVal('') }} className="text-sm text-slate-400">✕</button>
         </div>
       ) : (
         <button onClick={() => setInputVisible(true)} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors py-1 px-1">
-          <Plus size={12} />
-          Agregar tarea
+          <Plus size={12} /> Agregar tarea
         </button>
       )}
     </div>
@@ -386,26 +483,22 @@ function SectionBlock({
 
 // ─── SortableTaskRow ──────────────────────────────────────
 function SortableTaskRow({
-  task,
-  isSelected,
-  onToggle,
-  onClick,
+  task, isSelected, subtaskCount, subtaskDone, users, onToggle, onClick,
 }: {
   task: ProjectTask
   isSelected: boolean
+  subtaskCount: number
+  subtaskDone: number
+  users: Pick<User, 'id' | 'full_name' | 'avatar_url'>[]
   onToggle: (isDone: boolean) => void
   onClick: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.3 : 1 }
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.3 : 1,
-  }
-
-  const isDone = task.estado === 'finalizada'
+  const isDone    = task.estado === 'finalizada'
   const isOverdue = task.fecha_limite && !isDone && new Date(task.fecha_limite) < new Date()
+  const assignee  = task.assignee_id ? users.find(u => u.id === task.assignee_id) : null
 
   return (
     <div
@@ -413,49 +506,41 @@ function SortableTaskRow({
       style={style}
       className={cn(
         'flex items-center gap-2 rounded-lg px-3 py-2.5 cursor-pointer transition-colors group border',
-        isSelected
-          ? 'bg-blue-50 border-blue-200'
-          : 'bg-white border-slate-100 hover:border-slate-200'
+        isSelected ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 hover:border-slate-200'
       )}
       onClick={onClick}
     >
-      {/* Drag handle */}
-      <span
-        {...attributes}
-        {...listeners}
-        className="flex-shrink-0 text-slate-200 hover:text-slate-400 cursor-grab active:cursor-grabbing"
-        onClick={e => e.stopPropagation()}
-      >
+      <span {...attributes} {...listeners} className="flex-shrink-0 text-slate-200 hover:text-slate-400 cursor-grab active:cursor-grabbing" onClick={e => e.stopPropagation()}>
         <GripVertical size={13} />
       </span>
 
-      {/* Toggle */}
       <button
         onClick={e => { e.stopPropagation(); onToggle(!isDone) }}
-        className={cn(
-          'flex-shrink-0 transition-colors',
-          isDone ? 'text-green-500' : 'text-slate-300 hover:text-green-500'
-        )}
+        className={cn('flex-shrink-0 transition-colors', isDone ? 'text-green-500' : 'text-slate-300 hover:text-green-500')}
       >
         {isDone ? <CheckCircle2 size={15} /> : <Circle size={15} />}
       </button>
 
-      {/* Title */}
       <span className={cn('text-sm flex-1 min-w-0 truncate', isDone ? 'line-through text-slate-400' : 'text-slate-700')}>
         {task.titulo}
       </span>
 
-      {/* Due date */}
+      {subtaskCount > 0 && (
+        <span className="text-[10px] text-slate-400 whitespace-nowrap hidden sm:block">
+          {subtaskDone}/{subtaskCount}
+        </span>
+      )}
+
       {task.fecha_limite && (
         <span className={cn('text-xs whitespace-nowrap hidden sm:block', isOverdue ? 'text-red-500 font-medium' : 'text-slate-400')}>
           {format(new Date(task.fecha_limite), 'd MMM', { locale: es })}
         </span>
       )}
 
-      {/* Priority dot */}
+      {assignee && <Avatar name={assignee.full_name} url={assignee.avatar_url} size={20} />}
+
       {task.prioridad && task.prioridad !== 'media' && (
-        <span className={cn(
-          'w-1.5 h-1.5 rounded-full flex-shrink-0',
+        <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0',
           task.prioridad === 'urgente' ? 'bg-red-500' :
           task.prioridad === 'alta'    ? 'bg-amber-500' : 'bg-slate-300'
         )} />
@@ -465,7 +550,7 @@ function SortableTaskRow({
 }
 
 // ─── AddSectionRow ────────────────────────────────────────
-function AddSectionRow({ onAdd, isAdding }: { onAdd: (nombre: string) => void; isAdding: boolean }) {
+function AddSectionRow({ onAdd, isAdding }: { onAdd: (n: string) => void; isAdding: boolean }) {
   const [visible, setVisible] = useState(false)
   const [val, setVal] = useState('')
 
@@ -491,22 +576,16 @@ function AddSectionRow({ onAdd, isAdding }: { onAdd: (nombre: string) => void; i
           placeholder="Nombre de la sección"
           className="flex-1 text-sm border border-blue-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
-        <button onClick={submit} disabled={!val.trim() || isAdding} className="text-sm font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50">
-          Crear
-        </button>
-        <button onClick={() => { setVisible(false); setVal('') }} className="text-sm text-slate-400 hover:text-slate-600">✕</button>
+        <button onClick={submit} disabled={!val.trim() || isAdding} className="text-sm font-medium text-blue-600 disabled:opacity-50">Crear</button>
+        <button onClick={() => { setVisible(false); setVal('') }} className="text-sm text-slate-400">✕</button>
       </div>
     )
   }
 
   return (
     <div className="border-t pt-4">
-      <button
-        onClick={() => setVisible(true)}
-        className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors py-1"
-      >
-        <Plus size={12} />
-        Agregar sección
+      <button onClick={() => setVisible(true)} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors py-1">
+        <Plus size={12} /> Agregar sección
       </button>
     </div>
   )
