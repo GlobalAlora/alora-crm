@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Printer, Check, Plus, Trash2, Loader2,
-  Calendar, DollarSign, FileText, ChevronDown,
+  Calendar, DollarSign, FileText, ChevronDown, Bell, BellOff,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -142,6 +142,14 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     onError:   (e: Error) => toast.error(e.message),
   })
 
+  const remindMutation = useMutation({
+    mutationFn: (pid: string) =>
+      fetch(`/api/invoices/${id}/payments/${pid}/remind`, { method: 'POST' })
+        .then(r => r.json().then(j => { if (!r.ok) throw new Error(j.error); return j })),
+    onSuccess: () => { toast.success('Recordatorio enviado a somosglobalalora@gmail.com'); invalidate() },
+    onError:   (e: Error) => toast.error(e.message),
+  })
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -217,6 +225,21 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               </div>
             )}
           </div>
+
+          {/* Alert toggle */}
+          <button
+            onClick={() => patchMutation.mutate({ alertas_activas: !inv.alertas_activas })}
+            title={inv.alertas_activas ? 'Alertas activas — click para desactivar' : 'Alertas desactivadas — click para activar'}
+            className={cn(
+              'flex items-center gap-1.5 text-sm px-3 py-1.5 border rounded-lg transition-colors',
+              inv.alertas_activas
+                ? 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100'
+                : 'text-slate-400 border-slate-200 hover:bg-slate-50'
+            )}
+          >
+            {inv.alertas_activas ? <Bell size={14} /> : <BellOff size={14} />}
+            <span className="hidden sm:inline">{inv.alertas_activas ? 'Alertas ON' : 'Alertas OFF'}</span>
+          </button>
 
           {/* Print */}
           <a
@@ -433,6 +456,25 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                           }
                           isLoading={patchPaymentMutation.isPending}
                         />
+                      )}
+                      {!isPaid && (
+                        <button
+                          onClick={() => remindMutation.mutate(p.id)}
+                          disabled={remindMutation.isPending}
+                          title={p.alerta_enviada_at
+                            ? `Último aviso: ${format(new Date(p.alerta_enviada_at), 'd MMM HH:mm', { locale: es })}`
+                            : 'Enviar aviso interno'}
+                          className={cn(
+                            'flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors',
+                            p.alerta_enviada_at
+                              ? 'text-amber-600 bg-amber-50 hover:bg-amber-100'
+                              : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
+                          )}
+                        >
+                          {remindMutation.isPending
+                            ? <Loader2 size={11} className="animate-spin" />
+                            : <Bell size={11} />}
+                        </button>
                       )}
                       {isPaid && (
                         <button
