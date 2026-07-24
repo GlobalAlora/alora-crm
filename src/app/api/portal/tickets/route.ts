@@ -8,28 +8,38 @@ const PORTAL_URL     = process.env.NEXT_PUBLIC_PORTAL_URL ?? 'https://ticket.glo
 
 function buildTeamNotifHtml(ticket: {
   numero: string; titulo: string; descripcion: string | null
-  client_nombre: string; client_email: string; prioridad: string
+  client_nombre: string; client_email: string; client_empresa?: string | null
+  client_telefono?: string | null; prioridad: string
+  attachments?: { url: string; name: string; type: string }[]
   trackingUrl: string
 }) {
+  const prioLabel: Record<string, string> = { baja: 'Baja', media: 'Normal', alta: 'Alta', urgente: 'URGENTE' }
+  const attachHtml = (ticket.attachments ?? []).length > 0
+    ? `<div style="margin-top:16px"><p style="font-size:12px;color:#64748b;margin:0 0 8px">Archivos adjuntos (${ticket.attachments!.length}):</p>
+       ${ticket.attachments!.map(a => `<a href="${a.url}" style="display:inline-block;margin:2px 4px 2px 0;padding:4px 10px;background:#f1f5f9;border-radius:6px;font-size:12px;color:#3b82f6;text-decoration:none">${a.name}</a>`).join('')}</div>`
+    : ''
   return `
 <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-  <div style="background:#1e293b;padding:24px 32px;border-radius:12px 12px 0 0">
+  <div style="background:#0f172a;padding:24px 32px;border-radius:12px 12px 0 0">
     <h2 style="color:#fff;margin:0;font-size:18px">Nuevo ticket recibido</h2>
     <p style="color:#94a3b8;margin:4px 0 0;font-size:13px">${ticket.numero}</p>
   </div>
   <div style="background:#fff;padding:32px;border:1px solid #e2e8f0;border-top:0;border-radius:0 0 12px 12px">
     <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
-      <tr><td style="padding:6px 0;color:#64748b;font-size:13px;width:120px">Cliente</td><td style="font-size:13px;font-weight:600">${ticket.client_nombre}</td></tr>
-      <tr><td style="padding:6px 0;color:#64748b;font-size:13px">Email</td><td style="font-size:13px">${ticket.client_email}</td></tr>
-      <tr><td style="padding:6px 0;color:#64748b;font-size:13px">Prioridad</td><td style="font-size:13px">${ticket.prioridad}</td></tr>
+      <tr><td style="padding:5px 0;color:#64748b;font-size:13px;width:110px">Cliente</td><td style="font-size:13px;font-weight:600">${ticket.client_nombre}</td></tr>
+      <tr><td style="padding:5px 0;color:#64748b;font-size:13px">Email</td><td style="font-size:13px">${ticket.client_email}</td></tr>
+      ${ticket.client_empresa ? `<tr><td style="padding:5px 0;color:#64748b;font-size:13px">Empresa</td><td style="font-size:13px">${ticket.client_empresa}</td></tr>` : ''}
+      ${ticket.client_telefono ? `<tr><td style="padding:5px 0;color:#64748b;font-size:13px">Teléfono</td><td style="font-size:13px">${ticket.client_telefono}</td></tr>` : ''}
+      <tr><td style="padding:5px 0;color:#64748b;font-size:13px">Urgencia</td><td style="font-size:13px;font-weight:600;color:${ticket.prioridad === 'urgente' ? '#ef4444' : ticket.prioridad === 'alta' ? '#f97316' : '#3b82f6'}">${prioLabel[ticket.prioridad] ?? ticket.prioridad}</td></tr>
     </table>
-
     <h3 style="font-size:15px;color:#1e293b;margin:0 0 8px">${ticket.titulo}</h3>
-    ${ticket.descripcion ? `<p style="font-size:14px;color:#475569;line-height:1.6;margin:0 0 24px">${ticket.descripcion.replace(/\n/g, '<br>')}</p>` : ''}
-
-    <a href="${ticket.trackingUrl}" style="display:inline-block;padding:10px 20px;background:#3b82f6;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">
-      Ver en portal del cliente
-    </a>
+    ${ticket.descripcion ? `<p style="font-size:14px;color:#475569;line-height:1.6;margin:0 0 16px">${ticket.descripcion.replace(/\n/g, '<br>')}</p>` : ''}
+    ${attachHtml}
+    <div style="margin-top:24px">
+      <a href="${ticket.trackingUrl}" style="display:inline-block;padding:10px 20px;background:#3b82f6;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">
+        Ver en portal del cliente
+      </a>
+    </div>
   </div>
 </div>`
 }
@@ -69,9 +79,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json() as {
     client_nombre: string
     client_email: string
+    client_empresa?: string
+    client_telefono?: string
     titulo: string
     descripcion?: string
     prioridad?: TicketPrioridad
+    attachments?: { url: string; name: string; type: string }[]
   }
 
   if (!body.client_nombre?.trim() || !body.client_email?.trim() || !body.titulo?.trim()) {
@@ -98,12 +111,15 @@ export async function POST(req: NextRequest) {
     .from('tickets')
     .insert({
       numero,
-      titulo:        body.titulo.trim(),
-      descripcion:   body.descripcion?.trim() ?? null,
-      prioridad:     body.prioridad ?? 'media',
-      categoria:     'soporte',
-      client_nombre: body.client_nombre.trim(),
-      client_email:  body.client_email.trim().toLowerCase(),
+      titulo:          body.titulo.trim(),
+      descripcion:     body.descripcion?.trim() ?? null,
+      prioridad:       body.prioridad ?? 'media',
+      categoria:       'soporte',
+      client_nombre:   body.client_nombre.trim(),
+      client_email:    body.client_email.trim().toLowerCase(),
+      client_empresa:  body.client_empresa?.trim() ?? null,
+      client_telefono: body.client_telefono?.trim() ?? null,
+      attachments:     body.attachments ?? [],
     })
     .select()
     .single()
@@ -121,7 +137,8 @@ export async function POST(req: NextRequest) {
       html:    buildTeamNotifHtml({
         numero, titulo: body.titulo.trim(), descripcion: body.descripcion?.trim() ?? null,
         client_nombre: body.client_nombre.trim(), client_email: body.client_email.trim(),
-        prioridad: body.prioridad ?? 'media', trackingUrl,
+        client_empresa: body.client_empresa ?? null, client_telefono: body.client_telefono ?? null,
+        prioridad: body.prioridad ?? 'media', attachments: body.attachments ?? [], trackingUrl,
       }),
     }),
     sendGmail({
