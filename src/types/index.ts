@@ -534,6 +534,9 @@ export interface Ticket {
   ticket_token: string
   client_nombre: string | null
   client_email: string | null
+  client_empresa: string | null
+  client_telefono: string | null
+  attachments: { url: string; name: string; type: string }[]
   linked_task_id: string | null
   resolved_at: string | null
   deleted_at: string | null
