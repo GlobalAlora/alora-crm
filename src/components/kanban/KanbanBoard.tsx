@@ -108,7 +108,7 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
 
   const { data, isLoading } = useQuery({
     queryKey: ['leads', { view: 'kanban' }],
-    queryFn: () => leadsApi.list({ view: 'kanban', limit: 200, sort_by: 'created_at', sort_order: 'asc' }),
+    queryFn: () => leadsApi.list({ view: 'kanban', limit: 500, sort_by: 'created_at', sort_order: 'asc' }),
     staleTime: 30_000,
   })
 
