@@ -11,19 +11,51 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const admin = createAdminClient()
-  const { data, error } = await admin
+
+  const { data: project, error: projErr } = await admin
     .from('projects')
-    .select(`
-      *,
-      lead:leads!lead_id(id, nombre, apellido, empresa),
-      sections:task_sections(*, tasks:project_tasks(*))
-    `)
+    .select('*')
     .eq('id', id)
     .is('deleted_at', null)
     .single()
 
-  if (error || !data) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 })
-  return NextResponse.json({ data })
+  if (projErr || !project) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 })
+
+  // Fetch lead separately (avoid FK join schema-cache issues)
+  let lead = null
+  if (project.lead_id) {
+    const { data } = await admin
+      .from('leads')
+      .select('id, nombre, apellido, empresa')
+      .eq('id', project.lead_id)
+      .is('deleted_at', null)
+      .maybeSingle()
+    lead = data
+  }
+
+  // Fetch sections
+  const { data: sections } = await admin
+    .from('task_sections')
+    .select('*')
+    .eq('project_id', id)
+    .order('position', { ascending: true })
+
+  // Fetch all tasks for this project
+  const { data: tasks } = await admin
+    .from('project_tasks')
+    .select('*')
+    .eq('project_id', id)
+    .is('deleted_at', null)
+    .order('position', { ascending: true })
+
+  const sectionsWithTasks = (sections ?? []).map(s => ({
+    ...s,
+    tasks: (tasks ?? []).filter(t => t.section_id === s.id),
+  }))
+
+  return NextResponse.json({
+    data: { ...project, lead, sections: sectionsWithTasks },
+  })
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
