@@ -6,7 +6,10 @@ const PRIORIDAD_MAP: Record<string, string> = {
 }
 
 export async function createLinkedTask(
-  ticket: { id: string; numero: string; titulo: string; prioridad: string; project_id: string },
+  ticket: {
+    id: string; numero: string; titulo: string; prioridad: string; project_id: string
+    attachments?: { url: string; name: string; type: string }[]
+  },
   admin?: SupabaseClient
 ) {
   const db = admin ?? createAdminClient()
@@ -34,7 +37,13 @@ export async function createLinkedTask(
       project_id:  ticket.project_id,
       section_id:  sectionId,
       titulo:      `[${ticket.numero}] ${ticket.titulo}`,
-      descripcion: `Ticket de soporte vinculado automáticamente.\nNúmero: ${ticket.numero}`,
+      descripcion: [
+        `Ticket de soporte vinculado automáticamente.`,
+        `Número: ${ticket.numero}`,
+        ...(ticket.attachments?.length
+          ? [`\nArchivos adjuntos:\n${ticket.attachments.map(a => `- ${a.name}: ${a.url}`).join('\n')}`]
+          : []),
+      ].join('\n'),
       prioridad:   PRIORIDAD_MAP[ticket.prioridad] ?? 'media',
       position:    (count ?? 0) + 1,
     })

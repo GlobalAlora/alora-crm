@@ -144,11 +144,12 @@ export async function POST(req: NextRequest) {
   // Auto-create task if project was matched
   if (autoProjectId) {
     createLinkedTask({
-      id:         ticket.id,
+      id:          ticket.id,
       numero,
-      titulo:     body.titulo.trim(),
-      prioridad:  body.prioridad ?? 'media',
-      project_id: autoProjectId,
+      titulo:      body.titulo.trim(),
+      prioridad:   body.prioridad ?? 'media',
+      project_id:  autoProjectId,
+      attachments: body.attachments ?? [],
     }, admin).catch(() => {})
   }
 
