@@ -1,0 +1,73 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import type { PmPriority, ProjectTaskEstado } from '@/types'
+
+type Params = { params: Promise<{ id: string }> }
+
+export async function GET(_req: NextRequest, { params }: Params) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('project_tasks')
+    .select('*')
+    .eq('project_id', id)
+    .is('deleted_at', null)
+    .is('parent_task_id', null)
+    .order('position', { ascending: true })
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ data: data ?? [] })
+}
+
+export async function POST(req: NextRequest, { params }: Params) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  const body = await req.json() as Record<string, unknown>
+
+  if (!body.titulo || typeof body.titulo !== 'string' || !body.titulo.trim()) {
+    return NextResponse.json({ error: 'El título es requerido' }, { status: 400 })
+  }
+
+  const admin = createAdminClient()
+
+  // Get max position in section to place new task at the end
+  const { data: maxRow } = await admin
+    .from('project_tasks')
+    .select('position')
+    .eq('project_id', id)
+    .eq('section_id', body.section_id as string)
+    .is('deleted_at', null)
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const { data, error } = await admin
+    .from('project_tasks')
+    .insert({
+      project_id:     id,
+      section_id:     body.section_id     || null,
+      titulo:         (body.titulo as string).trim(),
+      descripcion:    body.descripcion     || null,
+      estado:         (body.estado as ProjectTaskEstado) || 'pendiente',
+      prioridad:      (body.prioridad as PmPriority)     || 'media',
+      assignee_id:    body.assignee_id    || null,
+      fecha_inicio:   body.fecha_inicio   || null,
+      fecha_limite:   body.fecha_limite   || null,
+      horas_estimadas: body.horas_estimadas ? Number(body.horas_estimadas) : null,
+      position:       (maxRow?.position ?? 0) + 1,
+      created_by:     user.id,
+    })
+    .select('*')
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ data }, { status: 201 })
+}
