@@ -518,6 +518,7 @@ export interface Invoice {
 export type TicketEstado    = 'nuevo' | 'en_progreso' | 'en_espera' | 'resuelto' | 'cerrado'
 export type TicketPrioridad = 'baja' | 'media' | 'alta' | 'urgente'
 export type TicketCategoria = 'bug' | 'soporte' | 'consulta' | 'mejora' | 'otro'
+export type TicketAttachment = { url: string; name: string; type: string }
 
 export interface Ticket {
   id: string
@@ -536,7 +537,7 @@ export interface Ticket {
   client_email: string | null
   client_empresa: string | null
   client_telefono: string | null
-  attachments: { url: string; name: string; type: string }[]
+  attachments: TicketAttachment[]
   linked_task_id: string | null
   resolved_at: string | null
   deleted_at: string | null
