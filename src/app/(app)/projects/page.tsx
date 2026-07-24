@@ -37,7 +37,10 @@ const FILTER_TABS: { value: ProjectEstado | ''; label: string }[] = [
 async function fetchProjects(estado: string): Promise<{ data: Project[] }> {
   const url = estado ? `/api/projects?estado=${estado}` : '/api/projects'
   const r = await fetch(url)
-  if (!r.ok) throw new Error('Error al cargar proyectos')
+  if (!r.ok) {
+    const json = await r.json().catch(() => ({}))
+    throw new Error((json as { error?: string }).error ?? `HTTP ${r.status}`)
+  }
   return r.json()
 }
 
