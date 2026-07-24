@@ -80,13 +80,12 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
       <header className="bg-slate-900 border-b border-slate-800">
         <div className="max-w-2xl mx-auto px-6 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center">
-              <span className="text-white text-sm font-bold">A</span>
-            </div>
-            <div>
-              <span className="text-white font-semibold text-base">Alora</span>
-              <span className="text-slate-400 text-sm ml-2">Centro de Soporte</span>
-            </div>
+            <img
+              src="https://www.globalalora.com/logo-nav-white.png"
+              alt="Alora"
+              style={{ height: 32, display: 'block', objectFit: 'contain' }}
+            />
+            <span className="text-slate-400 text-sm">Centro de Soporte</span>
           </div>
           {ticket && (
             <span className="font-mono text-slate-400 text-sm">{ticket.numero}</span>

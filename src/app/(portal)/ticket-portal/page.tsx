@@ -9,24 +9,13 @@ import {
 
 // ─── Logo Alora ─────────────────────────────────────────────
 
-function AloraLogo({ dark = false }: { dark?: boolean }) {
-  const text = dark ? '#ffffff' : '#0f172a'
+function AloraLogo() {
   return (
-    <svg viewBox="0 0 148 40" xmlns="http://www.w3.org/2000/svg" style={{ height: 36, display: 'block' }}>
-      {/* Mark: overlapping A shape */}
-      <path d="M18 4 L34 34 H26 L18 16 L10 34 H2 Z" fill="#3b82f6" />
-      <path d="M18 16 L26 34 H10 Z" fill="white" opacity="0.25" />
-      <rect x="9" y="25" width="18" height="3.5" rx="1.5" fill="#3b82f6" />
-      {/* Wordmark */}
-      <text
-        x="44" y="28"
-        fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-        fontSize="22" fontWeight="700" letterSpacing="-0.5"
-        fill={text}
-      >
-        alora
-      </text>
-    </svg>
+    <img
+      src="https://www.globalalora.com/logo-nav-white.png"
+      alt="Alora"
+      style={{ height: 36, display: 'block', objectFit: 'contain' }}
+    />
   )
 }
 
@@ -209,7 +198,7 @@ export default function PortalSubmitPage() {
       {/* ── Header ── */}
       <header style={{ background: '#0f172a', borderBottom: '1px solid #1e293b' }}>
         <div style={{ maxWidth: 660, margin: '0 auto', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <AloraLogo dark />
+          <AloraLogo />
           <span style={{ color: '#64748b', fontSize: 13 }}>Centro de Soporte</span>
         </div>
       </header>
