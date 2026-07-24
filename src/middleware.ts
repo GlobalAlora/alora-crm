@@ -10,9 +10,28 @@ export function middleware(req: NextRequest) {
     hostname.startsWith('ticket.globalalora.com:')
 
   if (isPortalDomain) {
-    // Rewrite root → /ticket-portal, otherwise /ticket-portal/<path>
-    const portalPath = path === '/' ? '/ticket-portal' : `/ticket-portal${path}`
-    return NextResponse.rewrite(new URL(portalPath, req.url))
+    // API calls, static assets and Next.js internals pass through unchanged
+    if (
+      path.startsWith('/api/') ||
+      path.startsWith('/_next/') ||
+      path.startsWith('/favicon') ||
+      path.startsWith('/ticket-portal')  // already correct path (dev access)
+    ) {
+      return NextResponse.next()
+    }
+
+    // / → /ticket-portal (form)
+    // /abc123token → /ticket-portal/abc123token (tracking page)
+    // /login or anything else → redirect to portal root
+    const validPortalPath = /^\/[a-zA-Z0-9_-]+$/.test(path)
+    if (path === '/' || validPortalPath) {
+      const url = req.nextUrl.clone()
+      url.pathname = path === '/' ? '/ticket-portal' : `/ticket-portal${path}`
+      return NextResponse.rewrite(url)
+    }
+
+    // Unknown path on portal domain → redirect to portal home
+    return NextResponse.redirect(new URL('/', req.url))
   }
 
   // ── CRM auth guard ──────────────────────────────────────────────────
