@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendGmail } from '@/lib/google-gmail'
+import { createLinkedTask } from '@/lib/ticket-task'
 import type { TicketPrioridad } from '@/types'
 
 const INTERNAL_EMAIL = 'somosglobalalora@gmail.com'
@@ -107,6 +108,19 @@ export async function POST(req: NextRequest) {
   const seq    = (count ?? 0) + 1
   const numero = `TICK-${year}-${String(seq).padStart(3, '0')}`
 
+  // Auto-match empresa → project (case-insensitive)
+  let autoProjectId: string | null = null
+  if (body.client_empresa?.trim()) {
+    const { data: matchedProject } = await admin
+      .from('projects')
+      .select('id')
+      .ilike('nombre', body.client_empresa.trim())
+      .is('deleted_at', null)
+      .limit(1)
+      .maybeSingle()
+    autoProjectId = matchedProject?.id ?? null
+  }
+
   const { data: ticket, error } = await admin
     .from('tickets')
     .insert({
@@ -120,11 +134,23 @@ export async function POST(req: NextRequest) {
       client_empresa:  body.client_empresa?.trim() ?? null,
       client_telefono: body.client_telefono?.trim() ?? null,
       attachments:     body.attachments ?? [],
+      ...(autoProjectId ? { project_id: autoProjectId } : {}),
     })
     .select()
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Auto-create task if project was matched
+  if (autoProjectId) {
+    createLinkedTask({
+      id:         ticket.id,
+      numero,
+      titulo:     body.titulo.trim(),
+      prioridad:  body.prioridad ?? 'media',
+      project_id: autoProjectId,
+    }, admin).catch(() => {})
+  }
 
   const trackingUrl = `${PORTAL_URL}/${ticket.ticket_token}`
 
