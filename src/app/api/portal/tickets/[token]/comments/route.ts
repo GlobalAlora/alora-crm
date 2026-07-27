@@ -38,6 +38,12 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // Client replied — reset inactivity clock and clear any pending followup
+  await admin
+    .from('tickets')
+    .update({ last_client_activity_at: new Date().toISOString(), followup_sent_at: null })
+    .eq('id', ticket.id)
+
   // Notify internal team
   sendGmail({
     from:    'info@globalalora.com',
