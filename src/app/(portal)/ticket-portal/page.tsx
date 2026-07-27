@@ -159,10 +159,10 @@ export default function PortalSubmitPage() {
       body:    JSON.stringify({
         client_nombre:   nombre,
         client_email:    email,
-        client_empresa:  empresa || undefined,
-        client_telefono: telefono || undefined,
+        client_empresa:  empresa,
+        client_telefono: telefono,
         titulo,
-        descripcion:     descripcion || undefined,
+        descripcion,
         prioridad,
         attachments,
       }),
@@ -283,16 +283,16 @@ export default function PortalSubmitPage() {
                       <input required value={nombre} onChange={e => setNombre(e.target.value)}
                         placeholder="Juan García" className={inputCls} />
                     </Field>
-                    <Field label="Empresa">
-                      <input value={empresa} onChange={e => setEmpresa(e.target.value)}
+                    <Field label="Empresa" required>
+                      <input required value={empresa} onChange={e => setEmpresa(e.target.value)}
                         placeholder="Mi Empresa S.A." className={inputCls} />
                     </Field>
                     <Field label="Email" required>
                       <input required type="email" value={email} onChange={e => setEmail(e.target.value)}
                         placeholder="juan@empresa.com" className={inputCls} />
                     </Field>
-                    <Field label="Teléfono">
-                      <input type="tel" value={telefono} onChange={e => setTelefono(e.target.value)}
+                    <Field label="Teléfono" required>
+                      <input required type="tel" value={telefono} onChange={e => setTelefono(e.target.value)}
                         placeholder="+54 11 1234-5678" className={inputCls} />
                     </Field>
                   </div>
@@ -312,8 +312,9 @@ export default function PortalSubmitPage() {
                         placeholder="Ej: No puedo acceder a mi sitio web"
                         className={inputCls} />
                     </Field>
-                    <Field label="Descripción">
+                    <Field label="Descripción" required>
                       <textarea
+                        required
                         value={descripcion} onChange={e => setDescripcion(e.target.value)}
                         rows={4}
                         placeholder="Contanos con más detalle lo que necesitás. Cuanto más info, mejor podemos ayudarte."
