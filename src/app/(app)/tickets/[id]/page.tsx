@@ -278,7 +278,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                       </span>
                     </div>
                     {c.body && <p className="text-sm text-foreground/80 whitespace-pre-wrap">{c.body}</p>}
-                    {c.attachments?.length > 0 && (
+                    {!!c.attachments?.length && (
                       <div className="flex flex-wrap gap-2 mt-2">
                         {c.attachments.map((a: UploadedFile, i: number) => (
                           a.type?.startsWith('image/') ? (
