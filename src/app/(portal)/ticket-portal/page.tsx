@@ -315,12 +315,22 @@ export default function PortalSubmitPage() {
                     <Field label="Descripción" required>
                       <textarea
                         required
+                        minLength={300}
                         value={descripcion} onChange={e => setDescripcion(e.target.value)}
                         rows={4}
                         placeholder="Contanos con más detalle lo que necesitás. Cuanto más info, mejor podemos ayudarte."
                         className={inputCls}
                         style={{ resize: 'vertical', minHeight: 100 }}
                       />
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 5 }}>
+                        <span style={{
+                          fontSize: 11,
+                          color: descripcion.length === 0 ? '#94a3b8' : descripcion.length < 300 ? '#f97316' : '#16a34a',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}>
+                          {descripcion.length} / 300 caracteres mínimos
+                        </span>
+                      </div>
                     </Field>
                   </div>
                 </div>
