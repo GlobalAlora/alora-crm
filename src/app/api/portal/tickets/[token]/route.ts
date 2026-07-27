@@ -18,7 +18,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const { data: comments } = await admin
     .from('ticket_comments')
-    .select('id,body,is_client,client_nombre,created_at,user_id')
+    .select('id,body,is_client,client_nombre,created_at,user_id,attachments')
     .eq('ticket_id', ticket.id)
     .order('created_at', { ascending: true })
 
@@ -41,6 +41,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     is_client:     c.is_client,
     author_name:   c.is_client ? (c.client_nombre ?? 'Cliente') : (c.user_id ? agentNames[c.user_id] ?? 'Equipo Alora' : 'Equipo Alora'),
     created_at:    c.created_at,
+    attachments:   (c.attachments ?? []) as { url: string; name: string; type: string }[],
   }))
 
   return NextResponse.json({ data: { ...ticket, comments: enrichedComments } })

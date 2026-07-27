@@ -51,12 +51,12 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
   }
 
-  const { body: text, is_internal } = await req.json() as { body: string; is_internal?: boolean }
-  if (!text?.trim()) return NextResponse.json({ error: 'El comentario no puede estar vacío' }, { status: 400 })
+  const { body: text, is_internal, attachments } = await req.json() as { body: string; is_internal?: boolean; attachments?: { url: string; name: string; type: string }[] }
+  if (!text?.trim() && !attachments?.length) return NextResponse.json({ error: 'El comentario no puede estar vacío' }, { status: 400 })
 
   const { data, error } = await admin
     .from('ticket_comments')
-    .insert({ ticket_id: id, user_id: user.id, body: text.trim() })
+    .insert({ ticket_id: id, user_id: user.id, body: text?.trim() ?? '', attachments: attachments ?? [] })
     .select()
     .single()
 
