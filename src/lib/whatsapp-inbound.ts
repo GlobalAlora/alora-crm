@@ -189,29 +189,28 @@ async function findOrCreateLeadByPhone(
   admin: AdminClient,
   { phone, name, text }: { phone: string; name: string | null; text: string | null },
 ): Promise<string> {
-  // Search both "5492644..." and "+5492644..." — old leads may have been stored
-  // with the + prefix. Using two .eq() calls avoids URL-encoding issues with +
-  // inside a PostgREST .or() filter.
+  // Search by phone in multiple formats:
+  // 1. Digits-only (how WhatsApp delivers it)
+  // 2. With + prefix (how old leads were stored)
+  // 3. Normalized via SQL regex (handles any formatting like "+54 9 3772 63-4401")
   const withPlus = `+${phone}`
-  // Two separate .eq() calls: .in([phone, withPlus]) URL-encodes the + as space,
-  // causing leads stored with +prefix to not be found (original bug source).
-  const { data: byDigits } = await admin
-    .from('leads')
-    .select('id, nombre, estado_pipeline')
-    .eq('telefono', phone)
-    .is('deleted_at', null)
-    .limit(1)
-    .maybeSingle()
-  const existing = byDigits ?? await (async () => {
-    const { data } = await admin
-      .from('leads')
-      .select('id, nombre, estado_pipeline')
-      .eq('telefono', withPlus)
-      .is('deleted_at', null)
-      .limit(1)
-      .maybeSingle()
-    return data
-  })()
+
+  const [{ data: byDigits }, { data: byPlus }] = await Promise.all([
+    admin.from('leads').select('id, nombre, estado_pipeline').eq('telefono', phone).is('deleted_at', null).limit(1).maybeSingle(),
+    admin.from('leads').select('id, nombre, estado_pipeline').eq('telefono', withPlus).is('deleted_at', null).limit(1).maybeSingle(),
+  ])
+
+  let existing = byDigits ?? byPlus
+
+  // Fallback: normalize both sides (strips spaces, dashes, parentheses, +)
+  // Catches manually-entered phones like "+54 9 3772 63-4401" vs "5493772634401"
+  if (!existing) {
+    const { data: normalized } = await admin.rpc('find_lead_by_normalized_phone', { p_phone: phone })
+    existing = (normalized as { id: string; nombre: string; estado_pipeline: string }[] | null)?.[0] ?? null
+    if (existing) {
+      console.log(`[WhatsApp] Matched lead by normalized phone: ${existing.id} (${existing.nombre})`)
+    }
+  }
 
   if (existing && existing.estado_pipeline !== 'testing') {
     console.log(`[WhatsApp] Existing lead: ${existing.id} (${existing.nombre})`)
