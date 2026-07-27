@@ -84,6 +84,55 @@ export function buildClientConfirmHtml(ticket: {
   return wrap(HEADER('Alora — Centro de Soporte'), body)
 }
 
+// ─── Followup reminder (2-day inactivity) ──────────────────
+
+export function buildFollowupReminderHtml(ticket: {
+  numero: string; titulo: string; client_nombre: string | null; trackingUrl: string
+}) {
+  const body = `
+    <p style="font-size:15px;color:#1e293b">Hola${ticket.client_nombre ? ` <strong>${ticket.client_nombre}</strong>` : ''},</p>
+    <p style="font-size:14px;color:#475569;line-height:1.6">
+      Quedamos esperando tu respuesta en el ticket <strong>${ticket.numero}</strong>.
+      ¿Pudiste ver nuestra última respuesta?
+    </p>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:20px 0">
+      <p style="margin:0 0 4px;color:#64748b;font-size:12px">Ticket</p>
+      <p style="margin:0;font-size:15px;font-weight:600;color:#1e293b">${ticket.titulo}</p>
+    </div>
+    <a href="${ticket.trackingUrl}" style="display:inline-block;padding:10px 20px;background:#1e293b;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">
+      Ver ticket y responder →
+    </a>
+    <p style="font-size:13px;color:#94a3b8;margin-top:20px">
+      Si ya no necesitás soporte en este tema, podés ignorar este mensaje y el ticket se cerrará automáticamente.
+    </p>`
+
+  return wrap(HEADER('Alora — Seguimiento de ticket', ticket.numero), body)
+}
+
+// ─── Ticket closed by inactivity ───────────────────────────
+
+export function buildTicketClosedInactivityHtml(ticket: {
+  numero: string; titulo: string; client_nombre: string | null; trackingUrl: string
+}) {
+  const body = `
+    <p style="font-size:15px;color:#1e293b">Hola${ticket.client_nombre ? ` <strong>${ticket.client_nombre}</strong>` : ''},</p>
+    <p style="font-size:14px;color:#475569;line-height:1.6">
+      El ticket <strong>${ticket.numero}</strong> fue cerrado automáticamente por no recibir respuesta en 5 días.
+    </p>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:20px 0">
+      <p style="margin:0 0 4px;color:#64748b;font-size:12px">Ticket cerrado</p>
+      <p style="margin:0;font-size:15px;font-weight:600;color:#1e293b">${ticket.titulo}</p>
+    </div>
+    <p style="font-size:14px;color:#475569;line-height:1.6">
+      Si todavía necesitás ayuda, podés abrir un nuevo ticket y lo atenderemos.
+    </p>
+    <a href="${ticket.trackingUrl}" style="display:inline-block;padding:10px 20px;background:#3b82f6;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">
+      Ver ticket →
+    </a>`
+
+  return wrap(HEADER('Alora — Ticket cerrado', ticket.numero), body)
+}
+
 // ─── Client reply notification (team responded) ────────────
 
 export function buildTeamReplyHtml(ticket: {
