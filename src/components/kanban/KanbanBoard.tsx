@@ -225,6 +225,23 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
     }
   }, [displayLeads, grouped, stageMutation, positionMutation])
 
+  // Restore horizontal scroll position when returning via browser back
+  useEffect(() => {
+    if (isLoading) return
+    const saved = sessionStorage.getItem('kanban-scroll-left')
+    if (!saved) return
+    const el = scrollRef.current
+    if (!el) return
+    requestAnimationFrame(() => { el.scrollLeft = Number(saved) })
+  }, [isLoading])
+
+  const handleLeadClickWithScrollSave = useCallback((lead: Lead) => {
+    if (scrollRef.current) {
+      sessionStorage.setItem('kanban-scroll-left', String(scrollRef.current.scrollLeft))
+    }
+    onLeadClick(lead)
+  }, [onLeadClick])
+
   if (isLoading) {
     return (
       <div className="kanban-board">
@@ -256,7 +273,7 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
             key={stage.value}
             stage={stage.value}
             leads={grouped[stage.value] ?? []}
-            onLeadClick={onLeadClick}
+            onLeadClick={handleLeadClickWithScrollSave}
             isOver={overColumnId === stage.value}
           />
         ))}
