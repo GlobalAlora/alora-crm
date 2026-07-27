@@ -2,24 +2,49 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
 import { leadsApi } from '@/lib/api'
 import { LeadDetail } from '@/components/leads/LeadDetail'
 import { useLeadsRealtime } from '@/hooks/useLeadsRealtime'
-import { Suspense } from 'react'
+import { Suspense, useState, useEffect, useCallback } from 'react'
 
 function LeadPageInner() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const searchParams = useSearchParams()
-  // Subscribe to leads/activities realtime so reassignments by other users
-  // appear without a manual refresh.
   useLeadsRealtime()
 
-  // "from" param lets us know where to go back: 'contactos' | 'pipeline' (default)
   const from = searchParams.get('from')
   const backHref = from === 'contactos' ? '/contactos' : '/leads'
   const backLabel = from === 'contactos' ? 'Leads' : 'Pipeline'
+
+  // Prev/next navigation within a kanban stage
+  const [navIds, setNavIds] = useState<string[]>([])
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem('kanban-nav')
+      if (saved) setNavIds(JSON.parse(saved).ids ?? [])
+    } catch {}
+  }, [])
+
+  const currentIndex = navIds.indexOf(id)
+  const prevId = currentIndex > 0 ? navIds[currentIndex - 1] : null
+  const nextId = currentIndex !== -1 && currentIndex < navIds.length - 1 ? navIds[currentIndex + 1] : null
+
+  const goTo = useCallback((targetId: string) => {
+    router.push(`/leads/${targetId}?from=${from ?? 'pipeline'}`)
+  }, [router, from])
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.key === 'ArrowLeft' && prevId) goTo(prevId)
+      if (e.key === 'ArrowRight' && nextId) goTo(nextId)
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [prevId, nextId, goTo])
 
   const { data: lead, isLoading, isError } = useQuery({
     queryKey: ['lead', id],
@@ -58,6 +83,28 @@ function LeadPageInner() {
         </button>
         <span className="text-slate-300">/</span>
         <span className="text-sm text-slate-700 font-medium">{lead.nombre}</span>
+
+        {navIds.length > 0 && currentIndex !== -1 && (
+          <div className="ml-auto flex items-center gap-1">
+            <span className="text-xs text-slate-400 mr-1">{currentIndex + 1} / {navIds.length}</span>
+            <button
+              onClick={() => prevId && goTo(prevId)}
+              disabled={!prevId}
+              title="Lead anterior (←)"
+              className="p-1 rounded hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={16} className="text-slate-600" />
+            </button>
+            <button
+              onClick={() => nextId && goTo(nextId)}
+              disabled={!nextId}
+              title="Lead siguiente (→)"
+              className="p-1 rounded hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight size={16} className="text-slate-600" />
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-1 overflow-hidden">
