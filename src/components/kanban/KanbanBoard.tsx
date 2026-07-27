@@ -239,8 +239,11 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
     if (scrollRef.current) {
       sessionStorage.setItem('kanban-scroll-left', String(scrollRef.current.scrollLeft))
     }
+    // Save ordered IDs for this stage so lead detail can show prev/next arrows
+    const stageLeads = grouped[lead.estado_pipeline] ?? []
+    sessionStorage.setItem('kanban-nav', JSON.stringify({ ids: stageLeads.map(l => l.id) }))
     onLeadClick(lead)
-  }, [onLeadClick])
+  }, [onLeadClick, grouped])
 
   if (isLoading) {
     return (
