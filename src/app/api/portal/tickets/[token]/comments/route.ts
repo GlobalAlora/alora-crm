@@ -22,16 +22,17 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Este ticket está cerrado' }, { status: 400 })
   }
 
-  const { body, client_nombre } = await req.json() as { body: string; client_nombre?: string }
-  if (!body?.trim()) return NextResponse.json({ error: 'El mensaje no puede estar vacío' }, { status: 400 })
+  const { body, client_nombre, attachments } = await req.json() as { body: string; client_nombre?: string; attachments?: { url: string; name: string; type: string }[] }
+  if (!body?.trim() && !attachments?.length) return NextResponse.json({ error: 'El mensaje no puede estar vacío' }, { status: 400 })
 
   const { data: comment, error } = await admin
     .from('ticket_comments')
     .insert({
       ticket_id:     ticket.id,
-      body:          body.trim(),
+      body:          body?.trim() ?? '',
       is_client:     true,
       client_nombre: client_nombre?.trim() ?? ticket.client_nombre ?? 'Cliente',
+      attachments:   attachments ?? [],
     })
     .select()
     .single()

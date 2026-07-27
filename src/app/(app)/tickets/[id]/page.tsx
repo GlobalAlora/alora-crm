@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Send, Trash2, FolderKanban, User as UserIcon,
-  Calendar, AlertCircle, CheckCircle2, Paperclip, FileVideo,
+  Calendar, AlertCircle, CheckCircle2, Paperclip, FileVideo, Loader2, X,
 } from 'lucide-react'
+
+type UploadedFile = { url: string; name: string; type: string }
 import Link from 'next/link'
 import type { Ticket, TicketEstado, TicketPrioridad, TicketCategoria, Project, User } from '@/types'
 
@@ -58,7 +60,10 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   const [comment, setComment]       = useState('')
   const [isInternal, setIsInternal] = useState(false)
   const [editing, setEditing]       = useState<{ field: string; value: string } | null>(null)
+  const [uploads, setUploads]       = useState<UploadedFile[]>([])
+  const [uploading, setUploading]   = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: res, isLoading } = useQuery<{ data: Ticket }>({
     queryKey: ['ticket', id],
@@ -82,13 +87,29 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ticket', id] }),
   })
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    if (!files.length) return
+    setUploading(true)
+    const results = await Promise.all(files.map(async (f) => {
+      const fd = new FormData()
+      fd.append('file', f)
+      const res = await fetch('/api/portal/upload', { method: 'POST', body: fd }).then(r => r.json())
+      return res.url ? { url: res.url, name: res.name ?? f.name, type: res.type ?? f.type } : null
+    }))
+    setUploads(prev => [...prev, ...(results.filter(Boolean) as UploadedFile[])])
+    setUploading(false)
+    e.target.value = ''
+  }
+
   const addComment = useMutation({
-    mutationFn: ({ body, is_internal }: { body: string; is_internal: boolean }) =>
-      fetch(`/api/tickets/${id}/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body, is_internal }) })
+    mutationFn: ({ body, is_internal, attachments }: { body: string; is_internal: boolean; attachments: UploadedFile[] }) =>
+      fetch(`/api/tickets/${id}/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body, is_internal, attachments }) })
         .then(r => r.json()),
     onSuccess: () => {
       setComment('')
       setIsInternal(false)
+      setUploads([])
       qc.invalidateQueries({ queryKey: ['ticket', id] })
       qc.invalidateQueries({ queryKey: ['tickets'] })
     },
@@ -256,7 +277,22 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                         {new Date(c.created_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
-                    <p className="text-sm text-foreground/80 whitespace-pre-wrap">{c.body}</p>
+                    {c.body && <p className="text-sm text-foreground/80 whitespace-pre-wrap">{c.body}</p>}
+                    {c.attachments?.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {c.attachments.map((a: UploadedFile, i: number) => (
+                          a.type?.startsWith('image/') ? (
+                            <a key={i} href={a.url} target="_blank" rel="noopener noreferrer">
+                              <img src={a.url} alt={a.name} className="h-20 w-20 object-cover rounded-lg border border-card-border hover:opacity-90 transition-opacity" />
+                            </a>
+                          ) : (
+                            <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2.5 py-1.5 bg-muted rounded-lg text-xs text-muted-foreground hover:text-foreground border border-card-border transition-colors">
+                              <FileVideo size={12} /> {a.name}
+                            </a>
+                          )
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -264,6 +300,44 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
 
             {/* New comment */}
             <div className="pt-4 border-t border-card-border space-y-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,video/*"
+                className="hidden"
+                onChange={handleFileSelect}
+              />
+
+              {/* Upload preview strip */}
+              {(uploads.length > 0 || uploading) && (
+                <div className="flex flex-wrap gap-2 px-1">
+                  {uploads.map((u, i) => (
+                    <div key={i} className="relative group">
+                      {u.type.startsWith('image/') ? (
+                        <img src={u.url} alt={u.name} className="h-16 w-16 object-cover rounded-lg border border-card-border" />
+                      ) : (
+                        <div className="h-16 w-16 flex flex-col items-center justify-center bg-muted rounded-lg border border-card-border gap-1 px-1">
+                          <FileVideo size={18} className="text-muted-foreground" />
+                          <span className="text-[9px] text-muted-foreground truncate w-full text-center">{u.name.slice(0, 10)}</span>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => setUploads(prev => prev.filter((_, j) => j !== i))}
+                        className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full hidden group-hover:flex items-center justify-center"
+                      >
+                        <X size={9} />
+                      </button>
+                    </div>
+                  ))}
+                  {uploading && (
+                    <div className="h-16 w-16 flex items-center justify-center bg-muted rounded-lg border border-card-border">
+                      <Loader2 size={16} className="animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex gap-3">
                 <div className="flex-1 relative">
                   <textarea
@@ -271,8 +345,8 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                     value={comment}
                     onChange={e => setComment(e.target.value)}
                     onKeyDown={e => {
-                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && comment.trim()) {
-                        addComment.mutate({ body: comment, is_internal: isInternal })
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && (comment.trim() || uploads.length)) {
+                        addComment.mutate({ body: comment, is_internal: isInternal, attachments: uploads })
                       }
                     }}
                     rows={2}
@@ -280,13 +354,23 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                     className={`w-full px-3 py-2 rounded-xl bg-muted border text-sm text-foreground focus:outline-none focus:ring-2 resize-none ${isInternal ? 'border-amber-400 focus:ring-amber-400/30' : 'border-card-border focus:ring-blue-500'}`}
                   />
                 </div>
-                <button
-                  onClick={() => comment.trim() && addComment.mutate({ body: comment, is_internal: isInternal })}
-                  disabled={!comment.trim() || addComment.isPending}
-                  className={`self-end p-2.5 rounded-xl text-white disabled:opacity-40 transition-colors ${isInternal ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-700'}`}
-                >
-                  <Send size={15} />
-                </button>
+                <div className="flex flex-col gap-1.5 self-end">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    title="Adjuntar imagen o video"
+                    className="p-2.5 rounded-xl bg-muted border border-card-border text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+                  >
+                    <Paperclip size={15} />
+                  </button>
+                  <button
+                    onClick={() => (comment.trim() || uploads.length) && addComment.mutate({ body: comment, is_internal: isInternal, attachments: uploads })}
+                    disabled={(!comment.trim() && !uploads.length) || addComment.isPending || uploading}
+                    className={`p-2.5 rounded-xl text-white disabled:opacity-40 transition-colors ${isInternal ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-700'}`}
+                  >
+                    {addComment.isPending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                  </button>
+                </div>
               </div>
               <button
                 type="button"

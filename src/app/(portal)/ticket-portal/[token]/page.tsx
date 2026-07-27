@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, use } from 'react'
+import { useState, use, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Send, CheckCircle2, Clock, AlertCircle, Loader2 } from 'lucide-react'
+import { Send, CheckCircle2, Clock, AlertCircle, Loader2, Paperclip, FileVideo, X } from 'lucide-react'
 import type { TicketEstado } from '@/types'
+
+type UploadedFile = { url: string; name: string; type: string }
 
 // ─── helpers ───────────────────────────────────────────────
 
@@ -42,6 +44,7 @@ interface PortalTicket {
     is_client: boolean
     author_name: string
     created_at: string
+    attachments?: UploadedFile[]
   }[]
 }
 
@@ -50,7 +53,25 @@ interface PortalTicket {
 export default function TicketTrackingPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
   const qc = useQueryClient()
-  const [message, setMessage] = useState('')
+  const [message, setMessage]   = useState('')
+  const [uploads, setUploads]   = useState<UploadedFile[]>([])
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    if (!files.length) return
+    setUploading(true)
+    const results = await Promise.all(files.map(async (f) => {
+      const fd = new FormData()
+      fd.append('file', f)
+      const res = await fetch('/api/portal/upload', { method: 'POST', body: fd }).then(r => r.json())
+      return res.url ? { url: res.url, name: res.name ?? f.name, type: res.type ?? f.type } : null
+    }))
+    setUploads(prev => [...prev, ...(results.filter(Boolean) as UploadedFile[])])
+    setUploading(false)
+    e.target.value = ''
+  }
 
   const { data: res, isLoading, error: fetchErr } = useQuery<{ data: PortalTicket; error?: string }>({
     queryKey: ['portal-ticket', token],
@@ -59,14 +80,15 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
   })
 
   const addComment = useMutation({
-    mutationFn: (body: string) =>
+    mutationFn: ({ body, attachments }: { body: string; attachments: UploadedFile[] }) =>
       fetch(`/api/portal/tickets/${token}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body, client_nombre: res?.data?.client_nombre ?? 'Cliente' }),
+        body: JSON.stringify({ body, attachments, client_nombre: res?.data?.client_nombre ?? 'Cliente' }),
       }).then(r => r.json()),
     onSuccess: () => {
       setMessage('')
+      setUploads([])
       qc.invalidateQueries({ queryKey: ['portal-ticket', token] })
     },
   })
@@ -183,36 +205,99 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
                         )}
                         <span className="text-[10px] text-slate-400 ml-auto">{timeAgo(c.created_at)}</span>
                       </div>
-                      <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap pl-8">{c.body}</p>
+                      {c.body && <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap pl-8">{c.body}</p>}
+                      {(c.attachments ?? []).length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2 pl-8">
+                          {c.attachments!.map((a, i) => (
+                            a.type?.startsWith('image/') ? (
+                              <a key={i} href={a.url} target="_blank" rel="noopener noreferrer">
+                                <img src={a.url} alt={a.name} className="h-24 w-24 object-cover rounded-xl border border-slate-200 dark:border-slate-700 hover:opacity-90 transition-opacity" />
+                              </a>
+                            ) : (
+                              <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors border border-slate-200 dark:border-slate-700">
+                                <FileVideo size={13} /> {a.name}
+                              </a>
+                            )
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
 
                 {/* Reply box */}
                 {!isClosed ? (
-                  <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
-                    <div className="flex gap-3">
+                  <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-3">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      accept="image/*,video/*"
+                      className="hidden"
+                      onChange={handleFileSelect}
+                    />
+
+                    {/* Upload preview strip */}
+                    {(uploads.length > 0 || uploading) && (
+                      <div className="flex flex-wrap gap-2">
+                        {uploads.map((u, i) => (
+                          <div key={i} className="relative group">
+                            {u.type.startsWith('image/') ? (
+                              <img src={u.url} alt={u.name} className="h-16 w-16 object-cover rounded-xl border border-slate-200 dark:border-slate-700" />
+                            ) : (
+                              <div className="h-16 w-16 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 gap-1 px-1">
+                                <FileVideo size={18} className="text-slate-400" />
+                                <span className="text-[9px] text-slate-400 truncate w-full text-center">{u.name.slice(0, 10)}</span>
+                              </div>
+                            )}
+                            <button
+                              onClick={() => setUploads(prev => prev.filter((_, j) => j !== i))}
+                              className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full hidden group-hover:flex items-center justify-center"
+                            >
+                              <X size={9} />
+                            </button>
+                          </div>
+                        ))}
+                        {uploading && (
+                          <div className="h-16 w-16 flex items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <Loader2 size={16} className="animate-spin text-slate-400" />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
                       <textarea
                         value={message}
                         onChange={e => setMessage(e.target.value)}
                         rows={2}
                         placeholder="Escribí tu mensaje..."
                         onKeyDown={e => {
-                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && message.trim()) {
-                            addComment.mutate(message)
+                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && (message.trim() || uploads.length)) {
+                            addComment.mutate({ body: message, attachments: uploads })
                           }
                         }}
                         className="flex-1 px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                       />
-                      <button
-                        onClick={() => message.trim() && addComment.mutate(message)}
-                        disabled={!message.trim() || addComment.isPending}
-                        className="self-end p-3 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-100 disabled:opacity-40 transition-colors"
-                      >
-                        {addComment.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                      </button>
+                      <div className="flex flex-col gap-1.5 self-end">
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={uploading}
+                          title="Adjuntar imagen o video"
+                          className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 disabled:opacity-40 transition-colors"
+                        >
+                          <Paperclip size={15} />
+                        </button>
+                        <button
+                          onClick={() => (message.trim() || uploads.length) && addComment.mutate({ body: message, attachments: uploads })}
+                          disabled={(!message.trim() && !uploads.length) || addComment.isPending || uploading}
+                          className="p-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-100 disabled:opacity-40 transition-colors"
+                        >
+                          {addComment.isPending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-1.5">Ctrl+Enter para enviar</p>
+                    <p className="text-[10px] text-slate-400">Ctrl+Enter para enviar</p>
                   </div>
                 ) : (
                   <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 text-center">
