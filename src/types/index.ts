@@ -560,6 +560,7 @@ export interface TicketComment {
   is_client: boolean
   client_nombre: string | null
   created_at: string
+  attachments?: TicketAttachment[]
   user?: Pick<User, 'id' | 'full_name' | 'avatar_url'> | null
 }
 
