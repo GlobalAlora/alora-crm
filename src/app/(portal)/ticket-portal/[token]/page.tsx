@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, use, useRef } from 'react'
+import { useState, use, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Send, CheckCircle2, Clock, AlertCircle, Loader2, Paperclip, FileVideo, X } from 'lucide-react'
 import type { TicketEstado } from '@/types'
@@ -56,7 +56,15 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
   const [message, setMessage]   = useState('')
   const [uploads, setUploads]   = useState<UploadedFile[]>([])
   const [uploading, setUploading] = useState(false)
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!lightboxUrl) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxUrl(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [lightboxUrl])
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
@@ -210,9 +218,9 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
                         <div className="flex flex-wrap gap-2 mt-2 pl-8">
                           {c.attachments!.map((a, i) => (
                             a.type?.startsWith('image/') ? (
-                              <a key={i} href={a.url} target="_blank" rel="noopener noreferrer">
+                              <button key={i} onClick={() => setLightboxUrl(a.url)} className="cursor-zoom-in">
                                 <img src={a.url} alt={a.name} className="h-24 w-24 object-cover rounded-xl border border-slate-200 dark:border-slate-700 hover:opacity-90 transition-opacity" />
-                              </a>
+                              </button>
                             ) : (
                               <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors border border-slate-200 dark:border-slate-700">
                                 <FileVideo size={13} /> {a.name}
@@ -314,6 +322,27 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
           </p>
         </div>
       </main>
+
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            onClick={() => setLightboxUrl(null)}
+            className="absolute top-4 right-4 text-white/80 hover:text-white bg-black/40 rounded-full p-1.5"
+          >
+            <X size={20} />
+          </button>
+          <img
+            src={lightboxUrl}
+            alt=""
+            className="max-w-full max-h-full rounded-xl shadow-2xl object-contain"
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   )
 }
