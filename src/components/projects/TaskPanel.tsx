@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { X, AlignLeft, CheckCircle2, Circle, Plus, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -31,15 +31,14 @@ interface Props {
   projectId: string
   onClose: () => void
   onUpdate: (updates: Partial<ProjectTask>) => void
-  onAddSubtask: (titulo: string) => void
+  onAddSubtask: (opts: { titulo: string; descripcion?: string; assigneeId?: string; fechaLimite?: string; prioridad?: string }) => void
   onToggleTask: (taskId: string, isDone: boolean) => void
 }
 
 export function TaskPanel({ task, sections, allTasks, users, projectId, onClose, onUpdate, onAddSubtask, onToggleTask }: Props) {
-  const [titulo,      setTitulo]      = useState(task.titulo)
-  const [descripcion, setDescripcion] = useState(task.descripcion ?? '')
-  const [addingSub,   setAddingSub]   = useState(false)
-  const [subInput,    setSubInput]    = useState('')
+  const [titulo,       setTitulo]      = useState(task.titulo)
+  const [descripcion,  setDescripcion] = useState(task.descripcion ?? '')
+  const [showSubModal, setShowSubModal] = useState(false)
 
   useEffect(() => {
     setTitulo(task.titulo)
@@ -59,14 +58,6 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
     const d = descripcion.trim() || null
     if (d !== (task.descripcion ?? null)) onUpdate({ descripcion: d })
   }
-  function submitSub() {
-    const t = subInput.trim()
-    if (!t) return
-    onAddSubtask(t)
-    setSubInput('')
-    setAddingSub(false)
-  }
-
   return (
     <div className="flex flex-col h-full bg-white border-l border-slate-200 shadow-lg">
       {/* Header */}
@@ -208,14 +199,12 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
             <span className="text-xs font-medium text-slate-500">
               Subtareas {subtasks.length > 0 && `(${subtasks.filter(t => t.estado === 'finalizada').length}/${subtasks.length})`}
             </span>
-            {!addingSub && (
-              <button
-                onClick={() => setAddingSub(true)}
-                className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
-              >
-                <Plus size={11} /> Agregar
-              </button>
-            )}
+            <button
+              onClick={() => setShowSubModal(true)}
+              className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+            >
+              <Plus size={11} /> Agregar
+            </button>
           </div>
 
           <div className="space-y-1">
@@ -235,27 +224,20 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
                 </div>
               )
             })}
-            {subtasks.length === 0 && !addingSub && (
+            {subtasks.length === 0 && (
               <p className="text-xs text-slate-300">Sin subtareas</p>
             )}
           </div>
 
-          {addingSub && (
-            <div className="flex items-center gap-2 mt-2">
-              <input
-                autoFocus
-                value={subInput}
-                onChange={e => setSubInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') submitSub()
-                  if (e.key === 'Escape') { setAddingSub(false); setSubInput('') }
-                }}
-                placeholder="Nombre de la subtarea"
-                className="flex-1 text-xs border border-blue-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-              <button onClick={submitSub} disabled={!subInput.trim()} className="text-xs font-medium text-blue-600 disabled:opacity-50">OK</button>
-              <button onClick={() => { setAddingSub(false); setSubInput('') }} className="text-xs text-slate-400">✕</button>
-            </div>
+          {showSubModal && (
+            <SubtaskModal
+              users={users}
+              onClose={() => setShowSubModal(false)}
+              onCreate={(opts) => {
+                onAddSubtask(opts)
+                setShowSubModal(false)
+              }}
+            />
           )}
         </div>
 
@@ -264,6 +246,91 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
           <p className="text-xs text-slate-400">
             Creada {format(new Date(task.created_at), "d 'de' MMM yyyy", { locale: es })}
           </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── SubtaskModal ─────────────────────────────────────────
+function SubtaskModal({
+  users, onClose, onCreate,
+}: {
+  users: Pick<User, 'id' | 'full_name' | 'avatar_url'>[]
+  onClose: () => void
+  onCreate: (opts: { titulo: string; descripcion?: string; assigneeId?: string; fechaLimite?: string; prioridad?: string }) => void
+}) {
+  const [titulo,      setTitulo]      = useState('')
+  const [descripcion, setDescripcion] = useState('')
+  const [assigneeId,  setAssigneeId]  = useState('')
+  const [fechaLimite, setFechaLimite] = useState('')
+  const [prioridad,   setPrioridad]   = useState('media')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { inputRef.current?.focus() }, [])
+
+  function submit() {
+    if (!titulo.trim()) return
+    onCreate({ titulo: titulo.trim(), descripcion: descripcion.trim() || undefined, assigneeId: assigneeId || undefined, fechaLimite: fechaLimite || undefined, prioridad })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-100">
+          <h2 className="text-sm font-semibold text-slate-800">Nueva subtarea</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          <input
+            ref={inputRef}
+            value={titulo}
+            onChange={e => setTitulo(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) submit(); if (e.key === 'Escape') onClose() }}
+            placeholder="Nombre de la subtarea *"
+            className="w-full text-sm font-medium text-slate-800 placeholder-slate-300 outline-none border-b border-slate-200 pb-2 focus:border-blue-400 transition-colors"
+          />
+
+          <textarea
+            value={descripcion}
+            onChange={e => setDescripcion(e.target.value)}
+            placeholder="Descripción (opcional)"
+            rows={2}
+            className="w-full text-sm text-slate-600 placeholder-slate-300 outline-none resize-none bg-slate-50 rounded-lg px-3 py-2 focus:bg-white focus:ring-1 focus:ring-blue-200 transition-all"
+          />
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider block mb-1">Asignado a</label>
+              <select value={assigneeId} onChange={e => setAssigneeId(e.target.value)} className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 text-slate-600">
+                <option value="">Sin asignar</option>
+                {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider block mb-1">Fecha límite</label>
+              <input type="date" value={fechaLimite} onChange={e => setFechaLimite(e.target.value)} className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 text-slate-600" />
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider block mb-1">Prioridad</label>
+              <select value={prioridad} onChange={e => setPrioridad(e.target.value)} className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 text-slate-600">
+                <option value="baja">Baja</option>
+                <option value="media">Media</option>
+                <option value="alta">Alta</option>
+                <option value="urgente">Urgente</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 px-5 pb-5">
+          <button onClick={onClose} className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors">Cancelar</button>
+          <button onClick={submit} disabled={!titulo.trim()} className="px-4 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            Crear subtarea
+          </button>
         </div>
       </div>
     </div>
