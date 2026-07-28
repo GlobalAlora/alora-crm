@@ -304,6 +304,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
     if (targetSectionId !== draggedTask.section_id) {
       patchTask.mutate({ taskId: draggedTask.id, updates: { section_id: targetSectionId, position: 9999 } })
+      getDescendants(allTasksFlat, draggedTask.id).forEach(t => {
+        patchTask.mutate({ taskId: t.id, updates: { section_id: targetSectionId, position: 9999 } })
+      })
     } else {
       const sectionTasks = (sections.find(s => s.id === draggedTask.section_id)?.tasks ?? []).filter(t => !t.deleted_at)
       const oldIdx = sectionTasks.findIndex(t => t.id === draggedTask.id)
