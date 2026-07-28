@@ -12,7 +12,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   ArrowLeft, Plus, Circle, CheckCircle2, FolderKanban, ExternalLink,
-  GripVertical, LayoutDashboard, List, LayoutGrid, CalendarRange,
+  GripVertical, LayoutDashboard, List, LayoutGrid, CalendarRange, ChevronRight,
   ChevronDown, Check, SlidersHorizontal, X, UserPlus, Trash2,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -581,8 +581,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               onUpdate={(updates) =>
                 patchTask.mutate({ taskId: selectedTask.id, updates: updates as Record<string, unknown> })
               }
-              onAddSubtask={(titulo) =>
-                addTask.mutate({ sectionId: selectedTask.section_id, titulo, parentTaskId: selectedTask.id })
+              onAddSubtask={(opts) =>
+                addTask.mutate({ sectionId: selectedTask.section_id, ...opts, parentTaskId: selectedTask.id })
               }
               onToggleTask={(taskId, isDone) =>
                 patchTask.mutate({ taskId, updates: { estado: isDone ? 'finalizada' : 'pendiente' } })
@@ -842,37 +842,68 @@ function SectionBlock({
   onDeleteTask: (id: string) => void
   isAddingTask: boolean
 }) {
-  const tasks   = (section.tasks ?? []).filter(t => !t.deleted_at && !t.parent_task_id).sort((a, b) => a.position - b.position)
-  const taskIds = tasks.map(t => t.id)
+  const rootTasks = (section.tasks ?? []).filter(t => !t.deleted_at && !t.parent_task_id).sort((a, b) => a.position - b.position)
+  const taskIds   = rootTasks.map(t => t.id)
+
+  const getChildren = (parentId: string) =>
+    allTasks.filter(t => t.parent_task_id === parentId && !t.deleted_at).sort((a, b) => a.position - b.position)
 
   return (
     <div>
       <div className="flex items-center gap-2 mb-2">
         <div className="w-2 h-2 rounded-full" style={{ background: section.color ?? '#94A3B8' }} />
         <span className="text-sm font-semibold text-slate-700">{section.nombre}</span>
-        <span className="text-xs text-slate-400">({tasks.length})</span>
+        <span className="text-xs text-slate-400">({rootTasks.length})</span>
       </div>
 
       <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
         <div className="space-y-1 mb-2">
-          {tasks.map(task => {
-            const subtaskCount = allTasks.filter(t => t.parent_task_id === task.id && !t.deleted_at).length
-            const subtaskDone  = allTasks.filter(t => t.parent_task_id === task.id && !t.deleted_at && t.estado === 'finalizada').length
+          {rootTasks.map(task => {
+            const children = getChildren(task.id)
+            const subtaskDone = children.filter(t => t.estado === 'finalizada').length
             return (
-              <SortableTaskRow
-                key={task.id}
-                task={task}
-                isSelected={selectedTaskId === task.id}
-                subtaskCount={subtaskCount}
-                subtaskDone={subtaskDone}
-                users={users}
-                onToggle={(isDone) => onToggleTask(task.id, isDone)}
-                onClick={() => onSelectTask(task.id)}
-                onDelete={() => onDeleteTask(task.id)}
-              />
+              <div key={task.id}>
+                <SortableTaskRow
+                  task={task}
+                  isSelected={selectedTaskId === task.id}
+                  subtaskCount={children.length}
+                  subtaskDone={subtaskDone}
+                  users={users}
+                  onToggle={(isDone) => onToggleTask(task.id, isDone)}
+                  onClick={() => onSelectTask(task.id)}
+                  onDelete={() => onDeleteTask(task.id)}
+                />
+                {/* Level-1 subtasks */}
+                {children.map(sub => {
+                  const grandchildren = getChildren(sub.id)
+                  return (
+                    <div key={sub.id} className="ml-7 mt-1 space-y-1">
+                      <SubtaskRow
+                        task={sub}
+                        isSelected={selectedTaskId === sub.id}
+                        users={users}
+                        onToggle={(isDone) => onToggleTask(sub.id, isDone)}
+                        onClick={() => onSelectTask(sub.id)}
+                      />
+                      {/* Level-2 subtasks */}
+                      {grandchildren.map(sub2 => (
+                        <div key={sub2.id} className="ml-7 mt-1">
+                          <SubtaskRow
+                            task={sub2}
+                            isSelected={selectedTaskId === sub2.id}
+                            users={users}
+                            onToggle={(isDone) => onToggleTask(sub2.id, isDone)}
+                            onClick={() => onSelectTask(sub2.id)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })}
+              </div>
             )
           })}
-          {tasks.length === 0 && (
+          {rootTasks.length === 0 && (
             <div className="text-xs text-slate-300 px-1 py-1">Sin tareas</div>
           )}
         </div>
@@ -885,6 +916,48 @@ function SectionBlock({
       >
         <Plus size={12} /> Agregar tarea
       </button>
+    </div>
+  )
+}
+
+// ─── SubtaskRow ───────────────────────────────────────────
+function SubtaskRow({
+  task, isSelected, users, onToggle, onClick,
+}: {
+  task: ProjectTask
+  isSelected: boolean
+  users: Pick<User, 'id' | 'full_name' | 'avatar_url'>[]
+  onToggle: (isDone: boolean) => void
+  onClick: () => void
+}) {
+  const isDone    = task.estado === 'finalizada'
+  const isOverdue = task.fecha_limite && !isDone && new Date(task.fecha_limite) < new Date()
+  const assignee  = task.assignee_id ? users.find(u => u.id === task.assignee_id) : null
+
+  return (
+    <div
+      onClick={onClick}
+      className={cn(
+        'flex items-center gap-2 rounded-lg px-2.5 py-2 cursor-pointer transition-colors group border',
+        isSelected ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 hover:border-slate-200'
+      )}
+    >
+      <ChevronRight size={10} className="text-slate-300 flex-shrink-0" />
+      <button
+        onClick={e => { e.stopPropagation(); onToggle(!isDone) }}
+        className={cn('flex-shrink-0 transition-colors', isDone ? 'text-green-500' : 'text-slate-300 hover:text-green-500')}
+      >
+        {isDone ? <CheckCircle2 size={13} /> : <Circle size={13} />}
+      </button>
+      <span className={cn('text-xs flex-1 min-w-0 truncate', isDone ? 'line-through text-slate-400' : 'text-slate-600')}>
+        {task.titulo}
+      </span>
+      {task.fecha_limite && (
+        <span className={cn('text-[10px] whitespace-nowrap hidden sm:block', isOverdue ? 'text-red-500 font-medium' : 'text-slate-400')}>
+          {format(new Date(task.fecha_limite), 'd MMM', { locale: es })}
+        </span>
+      )}
+      {assignee && <Avatar name={assignee.full_name} url={assignee.avatar_url} size={16} />}
     </div>
   )
 }
