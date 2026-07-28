@@ -4,8 +4,9 @@ import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, FolderKanban, Calendar, Search, ChevronRight,
-  MoreHorizontal, Archive, ArchiveRestore, Trash2,
+  MoreHorizontal, Archive, ArchiveRestore, Trash2, Upload, FileJson, AlertCircle, CheckCircle2,
 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -76,6 +77,17 @@ async function patchProject(projectId: string, updates: Record<string, unknown>)
   return json
 }
 
+async function importProject(body: Record<string, unknown>): Promise<{ data: { id: string } }> {
+  const r = await fetch('/api/projects/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const json = await r.json()
+  if (!r.ok) throw new Error((json as { error?: string }).error ?? 'Error al importar proyecto')
+  return json
+}
+
 async function deleteProject(projectId: string) {
   const r = await fetch(`/api/projects/${projectId}`, { method: 'DELETE' })
   const json = await r.json()
@@ -105,8 +117,10 @@ export default function ProjectsPage() {
   const [filtro, setFiltro] = useState<ProjectEstado | '' | 'archivados'>('')
   const [buscar, setBuscar] = useState('')
   const [showModal, setShowModal] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [form, setForm] = useState<NewProjectForm>(EMPTY_FORM)
   const qc = useQueryClient()
+  const router = useRouter()
 
   const { data, isLoading, error: queryError } = useQuery({
     queryKey: ['projects', filtro],
@@ -121,6 +135,17 @@ export default function ProjectsPage() {
       qc.invalidateQueries({ queryKey: ['projects'] })
       setShowModal(false)
       setForm(EMPTY_FORM)
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  const importMutation = useMutation({
+    mutationFn: importProject,
+    onSuccess: (res) => {
+      toast.success('Proyecto importado')
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      setShowImport(false)
+      router.push(`/projects/${res.data.id}`)
     },
     onError: (e: Error) => toast.error(e.message),
   })
@@ -167,13 +192,22 @@ export default function ProjectsPage() {
             <span className="text-sm text-slate-400">({projects.length})</span>
           )}
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 py-1.5 rounded-md transition-colors"
-        >
-          <Plus size={15} />
-          Nuevo proyecto
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-1.5 border border-slate-200 hover:border-slate-300 text-slate-600 hover:text-slate-900 text-sm font-medium px-3 py-1.5 rounded-md transition-colors"
+          >
+            <Upload size={14} />
+            Importar JSON
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 py-1.5 rounded-md transition-colors"
+          >
+            <Plus size={15} />
+            Nuevo proyecto
+          </button>
+        </div>
       </div>
 
       {/* Toolbar */}
@@ -361,6 +395,121 @@ export default function ProjectsPage() {
           </div>
         </div>
       )}
+
+      {/* Import modal */}
+      {showImport && (
+        <ImportModal
+          onClose={() => setShowImport(false)}
+          onImport={(json) => importMutation.mutate(json)}
+          isPending={importMutation.isPending}
+        />
+      )}
+    </div>
+  )
+}
+
+function ImportModal({
+  onClose, onImport, isPending,
+}: {
+  onClose: () => void
+  onImport: (json: Record<string, unknown>) => void
+  isPending: boolean
+}) {
+  const [text, setText] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [parsed, setParsed] = useState<Record<string, unknown> | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  function handleTextChange(val: string) {
+    setText(val)
+    setError(null)
+    setParsed(null)
+    if (!val.trim()) return
+    try {
+      const json = JSON.parse(val) as Record<string, unknown>
+      if (!json.nombre) { setError('Falta el campo "nombre" en el JSON'); return }
+      setParsed(json)
+    } catch {
+      setError('JSON inválido — revisá que esté bien formateado')
+    }
+  }
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => handleTextChange((ev.target?.result as string) ?? '')
+    reader.readAsText(file)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-xl flex flex-col max-h-[90vh]">
+        <div className="px-6 py-4 border-b flex items-center gap-2">
+          <FileJson size={18} className="text-slate-500" />
+          <h2 className="text-base font-semibold text-slate-900">Importar proyecto desde JSON</h2>
+        </div>
+
+        <div className="px-6 py-4 flex-1 overflow-auto space-y-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="flex items-center gap-1.5 text-sm border border-slate-200 hover:border-slate-300 px-3 py-1.5 rounded-md text-slate-600 hover:text-slate-900 transition-colors"
+            >
+              <Upload size={13} />
+              Subir archivo .json
+            </button>
+            <input ref={fileRef} type="file" accept=".json,application/json" className="hidden" onChange={handleFile} />
+            <span className="text-xs text-slate-400">o pegá el JSON abajo</span>
+          </div>
+
+          <textarea
+            value={text}
+            onChange={e => handleTextChange(e.target.value)}
+            placeholder={'{\n  "nombre": "Mi proyecto",\n  "sections": [...]\n}'}
+            rows={12}
+            className="w-full border border-slate-200 rounded-md px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+          />
+
+          {error && (
+            <div className="flex items-start gap-2 text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+              <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+              <span className="text-xs">{error}</span>
+            </div>
+          )}
+
+          {parsed && !error && (
+            <div className="flex items-start gap-2 text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">
+              <CheckCircle2 size={14} className="mt-0.5 flex-shrink-0" />
+              <div className="text-xs">
+                <span className="font-medium">{parsed.nombre as string}</span>
+                {Array.isArray(parsed.sections) && (
+                  <span className="text-green-600 ml-1">
+                    · {(parsed.sections as unknown[]).length} secciones
+                    · {(parsed.sections as { tasks?: unknown[] }[]).reduce((acc, s) => acc + (s.tasks?.length ?? 0), 0)} tareas
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-slate-600 hover:text-slate-900 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            disabled={!parsed || !!error || isPending}
+            onClick={() => parsed && onImport(parsed)}
+            className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50 transition-colors"
+          >
+            {isPending ? 'Importando...' : 'Importar proyecto'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
