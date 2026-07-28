@@ -52,18 +52,19 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { data, error } = await admin
     .from('project_tasks')
     .insert({
-      project_id:     id,
-      section_id:     body.section_id     || null,
-      titulo:         (body.titulo as string).trim(),
-      descripcion:    body.descripcion     || null,
-      estado:         (body.estado as ProjectTaskEstado) || 'pendiente',
-      prioridad:      (body.prioridad as PmPriority)     || 'media',
-      assignee_id:    body.assignee_id    || null,
-      fecha_inicio:   body.fecha_inicio   || null,
-      fecha_limite:   body.fecha_limite   || null,
+      project_id:      id,
+      section_id:      body.section_id      || null,
+      parent_task_id:  body.parent_task_id  || null,
+      titulo:          (body.titulo as string).trim(),
+      descripcion:     body.descripcion     || null,
+      estado:          (body.estado as ProjectTaskEstado) || 'pendiente',
+      prioridad:       (body.prioridad as PmPriority)     || 'media',
+      assignee_id:     body.assignee_id     || null,
+      fecha_inicio:    body.fecha_inicio    || null,
+      fecha_limite:    body.fecha_limite    || null,
       horas_estimadas: body.horas_estimadas ? Number(body.horas_estimadas) : null,
-      position:       (maxRow?.position ?? 0) + 1,
-      created_by:     user.id,
+      position:        (maxRow?.position ?? 0) + 1,
+      created_by:      user.id,
     })
     .select('*')
     .single()
