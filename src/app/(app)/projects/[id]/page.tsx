@@ -114,6 +114,10 @@ async function apiPatchProject(id: string, updates: Record<string, unknown>) {
 async function apiCreateTask(projectId: string, opts: {
   sectionId: string | null
   titulo: string
+  descripcion?: string
+  assigneeId?: string
+  fechaLimite?: string
+  prioridad?: string
   parentTaskId?: string | null
 }) {
   const r = await fetch(`/api/projects/${projectId}/tasks`, {
@@ -123,6 +127,10 @@ async function apiCreateTask(projectId: string, opts: {
       titulo:         opts.titulo,
       section_id:     opts.sectionId,
       parent_task_id: opts.parentTaskId ?? null,
+      descripcion:    opts.descripcion   || null,
+      assignee_id:    opts.assigneeId    || null,
+      fecha_limite:   opts.fechaLimite   || null,
+      prioridad:      opts.prioridad     || 'media',
     }),
   })
   const j = await r.json()
@@ -151,6 +159,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [view,           setView]           = useState<ViewMode>('lista')
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [filters,        setFilters]        = useState<Filters>(EMPTY_FILTERS)
+  const [newTaskModal,   setNewTaskModal]   = useState<{ sectionId: string } | null>(null)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['project', id],
@@ -224,9 +233,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   })
 
   const addTask = useMutation({
-    mutationFn: (opts: { sectionId: string | null; titulo: string; parentTaskId?: string | null }) =>
+    mutationFn: (opts: { sectionId: string | null; titulo: string; descripcion?: string; assigneeId?: string; fechaLimite?: string; prioridad?: string; parentTaskId?: string | null }) =>
       apiCreateTask(id, opts),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['project', id] }),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['project', id] })
+      if (res.data?.id) setSelectedTaskId(res.data.id)
+    },
     onError: (e: Error) => toast.error(e.message),
   })
 
@@ -523,7 +535,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     onToggleTask={(taskId, isDone) =>
                       patchTask.mutate({ taskId, updates: { estado: isDone ? 'finalizada' : 'pendiente' } })
                     }
-                    onAddTask={(titulo) => addTask.mutate({ sectionId: section.id, titulo })}
+                    onAddTask={() => setNewTaskModal({ sectionId: section.id })}
                     onDeleteTask={(taskId) => deleteTask.mutate(taskId)}
                     isAddingTask={addTask.isPending}
                   />
@@ -541,7 +553,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               onToggleTask={(taskId, isDone) =>
                 patchTask.mutate({ taskId, updates: { estado: isDone ? 'finalizada' : 'pendiente' } })
               }
-              onAddTask={(sectionId, titulo) => addTask.mutate({ sectionId, titulo })}
+              onAddTask={(sectionId) => setNewTaskModal({ sectionId })}
             />
           )}
 
@@ -587,6 +599,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </div>
         )}
       </DragOverlay>
+
+      {newTaskModal && (
+        <NewTaskModal
+          users={users}
+          isPending={addTask.isPending}
+          onClose={() => setNewTaskModal(null)}
+          onCreate={(opts) => {
+            addTask.mutate({ sectionId: newTaskModal.sectionId, ...opts })
+            setNewTaskModal(null)
+          }}
+        />
+      )}
     </DndContext>
   )
 }
@@ -692,6 +716,117 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
   )
 }
 
+// ─── NewTaskModal ─────────────────────────────────────────
+function NewTaskModal({
+  users, isPending, onClose, onCreate,
+}: {
+  users: Pick<User, 'id' | 'full_name' | 'avatar_url'>[]
+  isPending: boolean
+  onClose: () => void
+  onCreate: (opts: { titulo: string; descripcion?: string; assigneeId?: string; fechaLimite?: string; prioridad?: string }) => void
+}) {
+  const [titulo,      setTitulo]      = useState('')
+  const [descripcion, setDescripcion] = useState('')
+  const [assigneeId,  setAssigneeId]  = useState('')
+  const [fechaLimite, setFechaLimite] = useState('')
+  const [prioridad,   setPrioridad]   = useState('media')
+
+  function submit() {
+    if (!titulo.trim()) return
+    onCreate({ titulo: titulo.trim(), descripcion: descripcion.trim() || undefined, assigneeId: assigneeId || undefined, fechaLimite: fechaLimite || undefined, prioridad })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-100">
+          <h2 className="text-sm font-semibold text-slate-800">Nueva tarea</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          {/* Título */}
+          <div>
+            <input
+              autoFocus
+              value={titulo}
+              onChange={e => setTitulo(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) submit() }}
+              placeholder="Nombre de la tarea *"
+              className="w-full text-sm font-medium text-slate-800 placeholder-slate-300 outline-none border-b border-slate-200 pb-2 focus:border-blue-400 transition-colors"
+            />
+          </div>
+
+          {/* Descripción */}
+          <div>
+            <textarea
+              value={descripcion}
+              onChange={e => setDescripcion(e.target.value)}
+              placeholder="Descripción (opcional)"
+              rows={3}
+              className="w-full text-sm text-slate-600 placeholder-slate-300 outline-none resize-none bg-slate-50 rounded-lg px-3 py-2.5 focus:bg-white focus:ring-1 focus:ring-blue-200 transition-all"
+            />
+          </div>
+
+          {/* Row: asignado + fecha + prioridad */}
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider block mb-1">Asignado a</label>
+              <select
+                value={assigneeId}
+                onChange={e => setAssigneeId(e.target.value)}
+                className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 text-slate-600"
+              >
+                <option value="">Sin asignar</option>
+                {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider block mb-1">Fecha límite</label>
+              <input
+                type="date"
+                value={fechaLimite}
+                onChange={e => setFechaLimite(e.target.value)}
+                className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 text-slate-600"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-medium text-slate-400 uppercase tracking-wider block mb-1">Prioridad</label>
+              <select
+                value={prioridad}
+                onChange={e => setPrioridad(e.target.value)}
+                className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 text-slate-600"
+              >
+                <option value="baja">Baja</option>
+                <option value="media">Media</option>
+                <option value="alta">Alta</option>
+                <option value="urgente">Urgente</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-2 px-5 pb-5">
+          <button onClick={onClose} className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors">
+            Cancelar
+          </button>
+          <button
+            onClick={submit}
+            disabled={!titulo.trim() || isPending}
+            className="px-4 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            {isPending ? 'Creando...' : 'Crear tarea'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── SectionBlock ─────────────────────────────────────────
 function SectionBlock({
   section, allTasks, selectedTaskId, users,
@@ -703,23 +838,12 @@ function SectionBlock({
   users: Pick<User, 'id' | 'full_name' | 'avatar_url'>[]
   onSelectTask: (id: string) => void
   onToggleTask: (id: string, isDone: boolean) => void
-  onAddTask: (titulo: string) => void
+  onAddTask: () => void
   onDeleteTask: (id: string) => void
   isAddingTask: boolean
 }) {
-  const [inputVisible, setInputVisible] = useState(false)
-  const [inputVal,     setInputVal]     = useState('')
-
   const tasks   = (section.tasks ?? []).filter(t => !t.deleted_at && !t.parent_task_id).sort((a, b) => a.position - b.position)
   const taskIds = tasks.map(t => t.id)
-
-  function submit() {
-    const t = inputVal.trim()
-    if (!t) return
-    onAddTask(t)
-    setInputVal('')
-    setInputVisible(false)
-  }
 
   return (
     <div>
@@ -748,33 +872,19 @@ function SectionBlock({
               />
             )
           })}
-          {tasks.length === 0 && !inputVisible && (
+          {tasks.length === 0 && (
             <div className="text-xs text-slate-300 px-1 py-1">Sin tareas</div>
           )}
         </div>
       </SortableContext>
 
-      {inputVisible ? (
-        <div className="flex items-center gap-2 bg-white border border-blue-300 rounded-lg px-3 py-2">
-          <input
-            autoFocus
-            value={inputVal}
-            onChange={e => setInputVal(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') submit()
-              if (e.key === 'Escape') { setInputVisible(false); setInputVal('') }
-            }}
-            placeholder="Nombre de la tarea"
-            className="flex-1 text-sm outline-none"
-          />
-          <button onClick={submit} disabled={!inputVal.trim() || isAddingTask} className="text-sm font-medium text-blue-600 disabled:opacity-50">Agregar</button>
-          <button onClick={() => { setInputVisible(false); setInputVal('') }} className="text-sm text-slate-400">✕</button>
-        </div>
-      ) : (
-        <button onClick={() => setInputVisible(true)} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors py-1 px-1">
-          <Plus size={12} /> Agregar tarea
-        </button>
-      )}
+      <button
+        onClick={onAddTask}
+        disabled={isAddingTask}
+        className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors py-1 px-1"
+      >
+        <Plus size={12} /> Agregar tarea
+      </button>
     </div>
   )
 }
