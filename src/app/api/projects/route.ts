@@ -18,7 +18,8 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const estado = searchParams.get('estado') as ProjectEstado | null
+  const estado   = searchParams.get('estado') as ProjectEstado | null
+  const archived = searchParams.get('archived') === 'true'
   const page   = Math.max(1, parseInt(searchParams.get('page')  || '1',  10))
   const limit  = Math.min(100, parseInt(searchParams.get('limit') || '50', 10))
   const offset = (page - 1) * limit
@@ -33,7 +34,12 @@ export async function GET(req: NextRequest) {
     .from('projects')
     .select('*', { count: 'exact' })
     .is('deleted_at', null)
-    .is('archived_at', null)
+
+  if (archived) {
+    query = query.not('archived_at', 'is', null)
+  } else {
+    query = query.is('archived_at', null)
+  }
 
   if (estado) query = query.eq('estado', estado)
 
