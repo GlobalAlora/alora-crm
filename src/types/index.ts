@@ -237,6 +237,7 @@ export interface ProjectTask {
   fecha_limite: string | null
   horas_estimadas: number | null
   position: number
+  attachments: TicketAttachment[]
   custom_fields: Record<string, unknown>
   deleted_at: string | null
   created_at: string

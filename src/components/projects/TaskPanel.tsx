@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, AlignLeft, CheckCircle2, Circle, Plus, ChevronRight } from 'lucide-react'
+import { X, AlignLeft, CheckCircle2, Circle, Plus, ChevronRight, Paperclip, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
-import type { ProjectTask, PmPriority, ProjectTaskEstado, TaskSection, User } from '@/types'
+import type { ProjectTask, PmPriority, ProjectTaskEstado, TaskSection, User, TicketAttachment } from '@/types'
 
 const PRIORITY_OPTS: { value: PmPriority; label: string }[] = [
   { value: 'baja',    label: 'Baja'    },
@@ -39,6 +39,50 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
   const [titulo,       setTitulo]      = useState(task.titulo)
   const [descripcion,  setDescripcion] = useState(task.descripcion ?? '')
   const [showSubModal, setShowSubModal] = useState(false)
+  const [isDragOver,   setIsDragOver]  = useState(false)
+  const [uploading,    setUploading]   = useState(false)
+  const [lightboxUrl,  setLightboxUrl] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const dragCounter  = useRef(0)
+
+  async function uploadFiles(files: File[]) {
+    if (!files.length) return
+    setUploading(true)
+    const results = await Promise.all(files.map(async (f) => {
+      const fd = new FormData()
+      fd.append('file', f)
+      const res = await fetch('/api/portal/upload', { method: 'POST', body: fd }).then(r => r.json())
+      return res.url ? { url: res.url as string, name: res.name ?? f.name, type: res.type ?? f.type } as TicketAttachment : null
+    }))
+    const valid = results.filter(Boolean) as TicketAttachment[]
+    if (valid.length) {
+      onUpdate({ attachments: [...(task.attachments ?? []), ...valid] } as Partial<ProjectTask>)
+    }
+    setUploading(false)
+  }
+
+  function removeAttachment(url: string) {
+    onUpdate({ attachments: (task.attachments ?? []).filter(a => a.url !== url) } as Partial<ProjectTask>)
+  }
+
+  function onDragEnter(e: React.DragEvent) {
+    e.preventDefault()
+    dragCounter.current += 1
+    if (e.dataTransfer.types.includes('Files')) setIsDragOver(true)
+  }
+  function onDragLeave(e: React.DragEvent) {
+    e.preventDefault()
+    dragCounter.current -= 1
+    if (dragCounter.current === 0) setIsDragOver(false)
+  }
+  function onDragOver(e: React.DragEvent) { e.preventDefault() }
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault()
+    dragCounter.current = 0
+    setIsDragOver(false)
+    const files = Array.from(e.dataTransfer.files)
+    uploadFiles(files)
+  }
 
   useEffect(() => {
     setTitulo(task.titulo)
@@ -59,7 +103,33 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
     if (d !== (task.descripcion ?? null)) onUpdate({ descripcion: d })
   }
   return (
-    <div className="flex flex-col h-full bg-white border-l border-slate-200 shadow-lg">
+    <div
+      className={cn('flex flex-col h-full bg-white border-l border-slate-200 shadow-lg relative', isDragOver && 'ring-2 ring-inset ring-blue-400')}
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
+      {/* Drag overlay */}
+      {isDragOver && (
+        <div className="absolute inset-0 z-20 bg-blue-50/90 flex flex-col items-center justify-center gap-2 pointer-events-none rounded-lg">
+          <Paperclip size={28} className="text-blue-500" />
+          <p className="text-sm font-medium text-blue-600">Soltar para adjuntar</p>
+        </div>
+      )}
+
+      <input ref={fileInputRef} type="file" multiple className="hidden" onChange={e => { uploadFiles(Array.from(e.target.files ?? [])); e.target.value = '' }} />
+
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setLightboxUrl(null)}>
+          <button onClick={() => setLightboxUrl(null)} className="absolute top-4 right-4 text-white/80 hover:text-white bg-black/40 rounded-full p-1.5">
+            <X size={20} />
+          </button>
+          <img src={lightboxUrl} alt="" className="max-w-full max-h-full rounded-xl shadow-2xl object-contain" onClick={e => e.stopPropagation()} />
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-3 border-b flex-shrink-0">
         <button
@@ -191,6 +261,56 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
             placeholder="Agregar descripción..."
             className="w-full text-sm text-slate-700 border border-slate-200 rounded-md px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
+        </div>
+
+        {/* Attachments */}
+        <div className="px-5 py-4 border-b">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <Paperclip size={12} className="text-slate-400" />
+              <span className="text-xs font-medium text-slate-500">
+                Archivos {(task.attachments ?? []).length > 0 && `(${task.attachments!.length})`}
+              </span>
+            </div>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 disabled:opacity-50"
+            >
+              {uploading ? 'Subiendo...' : '+ Adjuntar'}
+            </button>
+          </div>
+
+          {(task.attachments ?? []).length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {task.attachments!.map((a, i) => (
+                a.type?.startsWith('image/') ? (
+                  <div key={i} className="relative group">
+                    <button onClick={() => setLightboxUrl(a.url)} className="cursor-zoom-in">
+                      <img src={a.url} alt={a.name} className="h-16 w-16 object-cover rounded-lg border border-slate-200 hover:opacity-90 transition-opacity" />
+                    </button>
+                    <button
+                      onClick={() => removeAttachment(a.url)}
+                      className="absolute -top-1.5 -right-1.5 bg-white border border-slate-200 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                    >
+                      <X size={10} className="text-slate-500" />
+                    </button>
+                  </div>
+                ) : (
+                  <div key={i} className="relative group flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg max-w-full">
+                    <a href={a.url} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-600 hover:text-blue-600 truncate max-w-[120px]">
+                      {a.name}
+                    </a>
+                    <button onClick={() => removeAttachment(a.url)} className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                      <X size={10} className="text-slate-400 hover:text-red-500" />
+                    </button>
+                  </div>
+                )
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-300">Arrastrá archivos aquí o usá el botón</p>
+          )}
         </div>
 
         {/* Subtasks */}

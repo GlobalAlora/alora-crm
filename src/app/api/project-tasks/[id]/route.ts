@@ -17,6 +17,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   for (const key of ALLOWED) {
     if (key in body) updates[key] = body[key] ?? null
   }
+  // attachments is a JSONB array — accept it directly
+  if ('attachments' in body && Array.isArray(body.attachments)) {
+    updates.attachments = body.attachments
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'Sin campos para actualizar' }, { status: 400 })
