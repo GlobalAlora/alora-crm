@@ -235,9 +235,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const addTask = useMutation({
     mutationFn: (opts: { sectionId: string | null; titulo: string; descripcion?: string; assigneeId?: string; fechaLimite?: string; prioridad?: string; parentTaskId?: string | null }) =>
       apiCreateTask(id, opts),
-    onSuccess: (res) => {
+    onSuccess: (res, variables) => {
       qc.invalidateQueries({ queryKey: ['project', id] })
-      if (res.data?.id) setSelectedTaskId(res.data.id)
+      // For subtasks, stay on the parent task; only auto-open panel for root tasks
+      if (res.data?.id && !variables.parentTaskId) setSelectedTaskId(res.data.id)
     },
     onError: (e: Error) => toast.error(e.message),
   })
