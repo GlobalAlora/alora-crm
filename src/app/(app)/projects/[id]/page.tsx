@@ -149,6 +149,11 @@ async function apiCreateSection(projectId: string, nombre: string) {
   return j
 }
 
+function getDescendants(tasks: ProjectTask[], taskId: string): ProjectTask[] {
+  const direct = tasks.filter(t => t.parent_task_id === taskId && !t.deleted_at)
+  return direct.flatMap(child => [child, ...getDescendants(tasks, child.id)])
+}
+
 // ─── Page ─────────────────────────────────────────────────
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -314,6 +319,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   // ── data ─────────────────────────────────────────────
   const sections = data?.data.sections ?? []
   const allTasks = sections.flatMap(s => s.tasks ?? [])  // unfiltered — for TaskPanel subtasks
+
+  const handleToggleTask = useCallback((taskId: string, isDone: boolean) => {
+    const estado = isDone ? 'finalizada' : 'pendiente'
+    patchTask.mutate({ taskId, updates: { estado } })
+    if (isDone) {
+      getDescendants(allTasks, taskId).forEach(t => {
+        if (t.estado !== 'finalizada') {
+          patchTask.mutate({ taskId: t.id, updates: { estado: 'finalizada' } })
+        }
+      })
+    }
+  }, [allTasks, patchTask])
 
   const hasFilters = !!(filters.assigneeId || filters.priority || filters.taskStatus)
   const activeFilterCount = [filters.assigneeId, filters.priority, filters.taskStatus].filter(Boolean).length
@@ -533,9 +550,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     selectedTaskId={selectedTaskId}
                     users={users}
                     onSelectTask={setSelectedTaskId}
-                    onToggleTask={(taskId, isDone) =>
-                      patchTask.mutate({ taskId, updates: { estado: isDone ? 'finalizada' : 'pendiente' } })
-                    }
+                    onToggleTask={handleToggleTask}
                     onAddTask={() => setNewTaskModal({ sectionId: section.id })}
                     onDeleteTask={(taskId) => deleteTask.mutate(taskId)}
                     isAddingTask={addTask.isPending}
@@ -551,9 +566,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               selectedTaskId={selectedTaskId}
               users={users}
               onSelectTask={setSelectedTaskId}
-              onToggleTask={(taskId, isDone) =>
-                patchTask.mutate({ taskId, updates: { estado: isDone ? 'finalizada' : 'pendiente' } })
-              }
+              onToggleTask={handleToggleTask}
               onAddTask={(sectionId) => setNewTaskModal({ sectionId })}
             />
           )}
@@ -585,9 +598,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               onAddSubtask={(opts) =>
                 addTask.mutate({ sectionId: selectedTask.section_id, ...opts, parentTaskId: selectedTask.id })
               }
-              onToggleTask={(taskId, isDone) =>
-                patchTask.mutate({ taskId, updates: { estado: isDone ? 'finalizada' : 'pendiente' } })
-              }
+              onToggleTask={handleToggleTask}
             />
           </div>
         )}
