@@ -138,6 +138,17 @@ async function apiCreateTask(projectId: string, opts: {
   return j as { data: ProjectTask }
 }
 
+async function apiPatchSection(sectionId: string, updates: Record<string, unknown>) {
+  const r = await fetch(`/api/project-sections/${sectionId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  })
+  const j = await r.json()
+  if (!r.ok) throw new Error((j as { error?: string }).error ?? 'Error al actualizar sección')
+  return j
+}
+
 async function apiCreateSection(projectId: string, nombre: string) {
   const r = await fetch(`/api/projects/${projectId}/sections`, {
     method: 'POST',
@@ -161,6 +172,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [activeTask,     setActiveTask]     = useState<ProjectTask | null>(null)
+  const [activeSection,  setActiveSection]  = useState<(TaskSection & { tasks?: ProjectTask[] }) | null>(null)
   const [view,           setView]           = useState<ViewMode>('lista')
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [filters,        setFilters]        = useState<Filters>(EMPTY_FILTERS)
@@ -254,6 +266,30 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     onError: (e: Error) => toast.error(e.message),
   })
 
+  const patchSection = useMutation({
+    mutationFn: ({ sectionId, updates }: { sectionId: string; updates: Record<string, unknown> }) =>
+      apiPatchSection(sectionId, updates),
+    onMutate: async ({ sectionId, updates }) => {
+      await qc.cancelQueries({ queryKey: ['project', id] })
+      const prev = qc.getQueryData<{ data: ProjectDetail }>(['project', id])
+      if (prev?.data.sections) {
+        qc.setQueryData(['project', id], {
+          ...prev,
+          data: {
+            ...prev.data,
+            sections: prev.data.sections.map(s => s.id === sectionId ? { ...s, ...updates } : s),
+          },
+        })
+      }
+      return { prev }
+    },
+    onError: (_e: Error, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['project', id], ctx.prev)
+      toast.error('Error al mover sección')
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['project', id] }),
+  })
+
   const deleteTask = useMutation({
     mutationFn: (taskId: string) =>
       fetch(`/api/project-tasks/${taskId}`, { method: 'DELETE' }).then(r => r.json()),
@@ -286,14 +322,40 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const handleDragStart = useCallback(({ active }: DragStartEvent) => {
-    const task = (data?.data.sections ?? []).flatMap(s => s.tasks ?? []).find(t => t.id === active.id)
-    setActiveTask(task ?? null)
+    const allSections = data?.data.sections ?? []
+    const task = allSections.flatMap(s => s.tasks ?? []).find(t => t.id === active.id)
+    if (task) {
+      setActiveTask(task)
+      setActiveSection(null)
+    } else {
+      setActiveSection(allSections.find(s => s.id === active.id) ?? null)
+      setActiveTask(null)
+    }
   }, [data])
 
   const handleDragEnd = useCallback(({ active, over }: DragEndEvent) => {
     setActiveTask(null)
+    setActiveSection(null)
     if (!over || active.id === over.id) return
     const sections = data?.data.sections ?? []
+
+    // ── Section reorder ──
+    const draggedSection = sections.find(s => s.id === active.id)
+    if (draggedSection) {
+      const overSection = sections.find(s => s.id === over.id)
+      if (!overSection) return
+      const sorted = [...sections].sort((a, b) => a.position - b.position)
+      const oldIdx = sorted.findIndex(s => s.id === draggedSection.id)
+      const newIdx = sorted.findIndex(s => s.id === overSection.id)
+      if (oldIdx === -1 || newIdx === -1) return
+      const reordered = arrayMove(sorted, oldIdx, newIdx)
+      const prev = reordered[newIdx - 1]?.position ?? 0
+      const next = reordered[newIdx + 1]?.position ?? prev + 2
+      patchSection.mutate({ sectionId: draggedSection.id, updates: { position: (prev + next) / 2 } })
+      return
+    }
+
+    // ── Task reorder ──
     const allTasksFlat = sections.flatMap(s => s.tasks ?? [])
     const draggedTask = allTasksFlat.find(t => t.id === active.id)
     if (!draggedTask) return
@@ -317,7 +379,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       const next = reordered[newIdx + 1]?.position ?? prev + 2
       patchTask.mutate({ taskId: draggedTask.id, updates: { position: (prev + next) / 2 } })
     }
-  }, [data, patchTask])
+  }, [data, patchTask, patchSection])
 
   // ── data ─────────────────────────────────────────────
   const sections = data?.data.sections ?? []
@@ -543,22 +605,27 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
           {view === 'lista' && (
             <div className="flex-1 overflow-auto p-6 space-y-6">
-              {filteredSections
-                .sort((a, b) => a.position - b.position)
-                .map(section => (
-                  <SectionBlock
-                    key={section.id}
-                    section={section}
-                    allTasks={allTasks}
-                    selectedTaskId={selectedTaskId}
-                    users={users}
-                    onSelectTask={setSelectedTaskId}
-                    onToggleTask={handleToggleTask}
-                    onAddTask={() => setNewTaskModal({ sectionId: section.id })}
-                    onDeleteTask={(taskId) => deleteTask.mutate(taskId)}
-                    isAddingTask={addTask.isPending}
-                  />
-                ))}
+              <SortableContext
+                items={filteredSections.sort((a, b) => a.position - b.position).map(s => s.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {filteredSections
+                  .sort((a, b) => a.position - b.position)
+                  .map(section => (
+                    <SectionBlock
+                      key={section.id}
+                      section={section}
+                      allTasks={allTasks}
+                      selectedTaskId={selectedTaskId}
+                      users={users}
+                      onSelectTask={setSelectedTaskId}
+                      onToggleTask={handleToggleTask}
+                      onAddTask={() => setNewTaskModal({ sectionId: section.id })}
+                      onDeleteTask={(taskId) => deleteTask.mutate(taskId)}
+                      isAddingTask={addTask.isPending}
+                    />
+                  ))}
+              </SortableContext>
               <AddSectionRow onAdd={(n) => addSection.mutate(n)} isAdding={addSection.isPending} />
             </div>
           )}
@@ -611,6 +678,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         {activeTask && (
           <div className="bg-white border border-slate-200 rounded-lg px-3 py-2.5 shadow-lg text-sm text-slate-700">
             {activeTask.titulo}
+          </div>
+        )}
+        {activeSection && (
+          <div className="bg-white border border-slate-300 rounded-lg px-3 py-2 shadow-lg text-sm font-semibold text-slate-700 flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full" style={{ background: activeSection.color ?? '#94A3B8' }} />
+            {activeSection.nombre}
           </div>
         )}
       </DragOverlay>
@@ -863,9 +936,24 @@ function SectionBlock({
   const getChildren = (parentId: string) =>
     allTasks.filter(t => t.parent_task_id === parentId && !t.deleted_at).sort((a, b) => a.position - b.position)
 
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: section.id })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  }
+
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-2">
+    <div ref={setNodeRef} style={style}>
+      <div className="flex items-center gap-2 mb-2 group">
+        <button
+          {...attributes}
+          {...listeners}
+          className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
+          tabIndex={-1}
+        >
+          <GripVertical className="w-4 h-4" />
+        </button>
         <div className="w-2 h-2 rounded-full" style={{ background: section.color ?? '#94A3B8' }} />
         <span className="text-sm font-semibold text-slate-700">{section.nombre}</span>
         <span className="text-xs text-slate-400">({rootTasks.length})</span>
