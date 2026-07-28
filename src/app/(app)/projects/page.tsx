@@ -427,7 +427,9 @@ function ImportModal({
     if (!val.trim()) return
     try {
       const json = JSON.parse(val) as Record<string, unknown>
-      if (!json.nombre) { setError('Falta el campo "nombre" en el JSON'); return }
+      // Support both { nombre } and { proyecto: { nombre } } formats
+      const root = (json.proyecto as Record<string, unknown>) ?? json
+      if (!root.nombre) { setError('Falta el campo "nombre" en el JSON'); return }
       setParsed(json)
     } catch {
       setError('JSON inválido — revisá que esté bien formateado')
@@ -478,20 +480,31 @@ function ImportModal({
             </div>
           )}
 
-          {parsed && !error && (
-            <div className="flex items-start gap-2 text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">
-              <CheckCircle2 size={14} className="mt-0.5 flex-shrink-0" />
-              <div className="text-xs">
-                <span className="font-medium">{parsed.nombre as string}</span>
-                {Array.isArray(parsed.sections) && (
-                  <span className="text-green-600 ml-1">
-                    · {(parsed.sections as unknown[]).length} secciones
-                    · {(parsed.sections as { tasks?: unknown[] }[]).reduce((acc, s) => acc + (s.tasks?.length ?? 0), 0)} tareas
-                  </span>
-                )}
+          {parsed && !error && (() => {
+            const root = (parsed.proyecto as Record<string, unknown>) ?? parsed
+            const nombre = root.nombre as string
+            const sections = Array.isArray(root.sections) ? root.sections as { tasks?: unknown[] }[] : null
+            const tareas   = Array.isArray(root.tareas)   ? root.tareas   as { subtareas?: unknown[] }[] : null
+            const sectionCount = sections?.length ?? tareas?.length ?? 0
+            const taskCount = sections
+              ? sections.reduce((a, s) => a + (s.tasks?.length ?? 0), 0)
+              : tareas
+              ? tareas.reduce((a, t) => a + (t.subtareas?.length ?? 0), 0)
+              : 0
+            return (
+              <div className="flex items-start gap-2 text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">
+                <CheckCircle2 size={14} className="mt-0.5 flex-shrink-0" />
+                <div className="text-xs">
+                  <span className="font-medium">{nombre}</span>
+                  {sectionCount > 0 && (
+                    <span className="text-green-600 ml-1">
+                      · {sectionCount} secciones · {taskCount} tareas
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
         </div>
 
         <div className="px-6 py-4 border-t flex justify-end gap-2">
