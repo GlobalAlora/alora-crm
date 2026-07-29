@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizePhone } from '@/lib/whatsapp'
 import { sendOutboundWhatsAppMessage } from '@/lib/whatsapp-outbound'
+import { runBot } from '@/lib/whatsapp-bot'
 
 type Params = { params: Promise<{ phone: string }> }
 
@@ -83,8 +84,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // When Lidia is manually reactivated, send a re-engagement message immediately
-  // so the lead doesn't have to write again.
+  // When Lidia is manually reactivated:
+  // - If the lead left a message unanswered → respond to THAT message directly.
+  // - Otherwise → send a re-engagement greeting so they don't have to write again.
   if (reactivatingBot) {
     const { data: conv } = await admin
       .from('whatsapp_conversations')
@@ -93,20 +95,40 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       .maybeSingle()
 
     if (conv?.lead_id) {
-      const { data: lead } = await admin
-        .from('leads')
-        .select('nombre')
-        .eq('id', conv.lead_id)
+      // Check whether the last message was from the lead (inbound, unanswered)
+      const { data: lastMsg } = await admin
+        .from('wa_messages')
+        .select('direction, body')
+        .eq('conversation_id', conv.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle()
 
-      const nombre = lead?.nombre && !lead.nombre.startsWith('+') ? `, ${lead.nombre.split(' ')[0]}` : ''
+      if (lastMsg?.direction === 'inbound' && lastMsg.body) {
+        // Lead already wrote something — process it now instead of saying "Hola"
+        await runBot(admin, {
+          leadId:         conv.lead_id,
+          conversationId: conv.id,
+          phone:          normalized,
+          text:           lastMsg.body,
+        }).catch(err => console.error('[Bot-reactivate] runBot error:', err))
+      } else {
+        // No pending message — send re-engagement greeting
+        const { data: lead } = await admin
+          .from('leads')
+          .select('nombre')
+          .eq('id', conv.lead_id)
+          .maybeSingle()
 
-      await sendOutboundWhatsAppMessage(admin, {
-        conversationId: conv.id,
-        leadId:         conv.lead_id,
-        phone:          normalized,
-        body:           `¡Hola${nombre}! 👋 Soy Lidia, de Alora. ¿En qué te puedo ayudar hoy?`,
-      }).catch(err => console.error('[Bot-reactivate] send error:', err))
+        const nombre = lead?.nombre && !lead.nombre.startsWith('+') ? `, ${lead.nombre.split(' ')[0]}` : ''
+
+        await sendOutboundWhatsAppMessage(admin, {
+          conversationId: conv.id,
+          leadId:         conv.lead_id,
+          phone:          normalized,
+          body:           `¡Hola${nombre}! 👋 Soy Lidia, de Alora. ¿En qué te puedo ayudar hoy?`,
+        }).catch(err => console.error('[Bot-reactivate] send error:', err))
+      }
     }
   }
 
