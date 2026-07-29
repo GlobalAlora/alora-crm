@@ -7,6 +7,7 @@ import makeWASocket, {
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
   DisconnectReason,
+  downloadMediaMessage,
 } from '@whiskeysockets/baileys'
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' })
@@ -158,7 +159,8 @@ function extractText(message) {
   if (message.imageMessage) return { text: message.imageMessage.caption || null, mediaType: 'image' }
   if (message.videoMessage) return { text: message.videoMessage.caption || null, mediaType: 'video' }
   if (message.documentMessage) return { text: message.documentMessage.caption || null, mediaType: 'document' }
-  if (message.audioMessage) return { text: null, mediaType: 'audio' }
+  if (message.pttMessage)   return { text: null, mediaType: 'ptt',   audioMimetype: message.pttMessage.mimetype   || 'audio/ogg; codecs=opus' }
+  if (message.audioMessage) return { text: null, mediaType: 'audio', audioMimetype: message.audioMessage.mimetype || 'audio/ogg' }
   if (message.stickerMessage) return { text: null, mediaType: 'sticker' }
   return { text: null, mediaType: null }
 }
@@ -218,7 +220,7 @@ async function handleIncomingMessage(m) {
   if (isLid) lidToPhone.set(jidDigits, phone)
 
   const name = m.pushName || null
-  const { text, mediaType } = extractText(m.message)
+  const { text, mediaType, audioMimetype } = extractText(m.message)
 
   // Protocol-level noise (receipts, reactions, key-distribution messages,
   // poll updates, etc.) still arrives via messages.upsert with m.message set,
@@ -229,7 +231,19 @@ async function handleIncomingMessage(m) {
     return
   }
 
-  logger.info({ rawJid, isLid, jidDigits, phone, name, text }, 'Mensaje entrante procesado')
+  // Download audio for server-side transcription (ptt = voice note, audio = audio file)
+  let audioBase64 = null
+  if ((mediaType === 'ptt' || mediaType === 'audio') && sock) {
+    try {
+      const buffer = await downloadMediaMessage(m, 'buffer', {}, { logger, reuploadRequest: sock.updateMediaMessage })
+      audioBase64 = buffer.toString('base64')
+      logger.info({ phone, mediaType, bytes: buffer.length }, 'Audio descargado → enviando para transcripción')
+    } catch (err) {
+      logger.warn({ err: err.message }, 'No se pudo descargar el audio — se enviará sin transcripción')
+    }
+  }
+
+  logger.info({ rawJid, isLid, jidDigits, phone, name, text, mediaType }, 'Mensaje entrante procesado')
 
   if (!CRM_WEBHOOK_URL || !BAILEYS_WEBHOOK_SECRET) {
     logger.error('CRM_WEBHOOK_URL / BAILEYS_WEBHOOK_SECRET no configurados, no se pudo reenviar el mensaje')
@@ -242,7 +256,7 @@ async function handleIncomingMessage(m) {
       'Content-Type': 'application/json',
       'x-webhook-secret': BAILEYS_WEBHOOK_SECRET,
     },
-    body: JSON.stringify({ phone, name, text, waMessageId: m.key.id, mediaType }),
+    body: JSON.stringify({ phone, name, text, waMessageId: m.key.id, mediaType, audioBase64, audioMimetype }),
   })
 
   if (!res.ok) {
