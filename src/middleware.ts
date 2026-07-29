@@ -1,6 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 
-export function middleware(req: NextRequest) {
+// Paths que un usuario con rol Viewer puede visitar
+const VIEWER_ALLOWED: string[] = ['/projects']
+
+export async function middleware(req: NextRequest) {
   const path     = req.nextUrl.pathname
   const hostname = req.headers.get('host') ?? ''
 
@@ -57,7 +61,42 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/leads', req.url))
   }
 
-  return NextResponse.next()
+  // ── Viewer role guard ───────────────────────────────────────────────
+  // Viewers solo pueden acceder a /projects. Si intentan entrar a cualquier
+  // otra ruta del CRM (dashboard, leads, whatsapp, etc.) los redirige.
+  const response = NextResponse.next()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return req.cookies.getAll() },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options)
+          })
+        },
+      },
+    },
+  )
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (user) {
+    const { data: profile } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (profile?.role === 'viewer') {
+      const allowed = VIEWER_ALLOWED.some(prefix => path.startsWith(prefix))
+      if (!allowed) {
+        return NextResponse.redirect(new URL('/projects', req.url))
+      }
+    }
+  }
+
+  return response
 }
 
 export const config = {
