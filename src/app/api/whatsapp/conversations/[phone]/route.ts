@@ -62,7 +62,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // On reactivation: restart qualifying from scratch so the bot is in a known state.
     // On pause: clear the pending question.
     if (body.bot_active) {
-      updates.bot_phase = 'qualifying'
+      // Use 'faq' when reactivating an existing conversation: the qualifying
+      // "fresh start" branch would detect prior outbound messages and silently
+      // switch to faq anyway, skipping a response to the lead's pending message.
+      updates.bot_phase = 'faq'
       updates.bot_next_question = null
     } else {
       updates.bot_next_question = null
