@@ -878,13 +878,13 @@ async function handleBookingPhase(
         lang,
       )
     } else {
-      // No question detected — re-engage warmly and re-offer slots
-      await startBookingFlow(admin, { leadId, conversationId, phone }, 0,
-        lang === 'en'
-          ? "Good to hear from you! 🙂 We were about to schedule a call with Walo to chat about your project. Which of these times works for you?\n\n"
-          : '¡Qué bueno saber de vos! 🙂 Quedamos en agendar una llamada con Walo para charlar sobre tu proyecto. ¿Cuál de estos horarios te queda bien?\n\n',
-        lang,
-      )
+      // No question detected — just nudge without re-sending the full slot list
+      await sendOutboundWhatsAppMessage(admin, {
+        conversationId, leadId, phone,
+        body: lang === 'en'
+          ? 'Just reply with the number of the time that works best for you 😊 (or write *others* to see different options)'
+          : 'Respondé con el número del horario que más te quede bien 😊 (o escribí *otros* para ver opciones diferentes)',
+      })
     }
     return
   }
