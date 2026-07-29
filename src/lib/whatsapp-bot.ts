@@ -1190,5 +1190,31 @@ async function handleFaqPhase(
       .from('whatsapp_conversations')
       .update({ bot_active: false })
       .eq('id', conversationId)
+    return
+  }
+
+  // Nothing matched — if the lead hasn't booked a meeting yet, re-offer the slots
+  // so they never hit a dead-end of silence. Leads in FAQ mode are already qualified;
+  // booking is the only remaining step.
+  const { data: leadStageCheck } = await admin
+    .from('leads')
+    .select('estado_pipeline')
+    .eq('id', leadId)
+    .maybeSingle()
+
+  const alreadyBooked = leadStageCheck?.estado_pipeline === 'reunion_reservada'
+    || leadStageCheck?.estado_pipeline === 'reunion_realizada'
+    || leadStageCheck?.estado_pipeline === 'propuesta_en_armado'
+    || leadStageCheck?.estado_pipeline === 'propuesta_enviada'
+    || leadStageCheck?.estado_pipeline === 'follow_up'
+    || leadStageCheck?.estado_pipeline === 'cliente_ganado'
+
+  if (!alreadyBooked) {
+    await startBookingFlow(admin, { leadId, conversationId, phone }, 0,
+      lang === 'en'
+        ? "I see you have a question! Let me get someone from the team to help you, and in the meantime let's lock in that call so Walo can walk you through everything 😊\n\n"
+        : 'Veo que tenés una consulta. Para que el equipo te pueda ayudar mejor, lo ideal es que agendemos esa llamada con Walo — así charlás todo en detalle 😊\n\n',
+      lang,
+    )
   }
 }
