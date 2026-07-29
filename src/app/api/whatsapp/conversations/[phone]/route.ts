@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizePhone } from '@/lib/whatsapp'
-import { runBot } from '@/lib/whatsapp-bot'
+import { sendOutboundWhatsAppMessage } from '@/lib/whatsapp-outbound'
 
 type Params = { params: Promise<{ phone: string }> }
 
@@ -59,7 +59,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   if ('bot_active' in body) {
     updates.bot_active = body.bot_active
-    if (!body.bot_active) updates.bot_next_question = null
+    // On reactivation: restart qualifying from scratch so the bot is in a known state.
+    // On pause: clear the pending question.
+    if (body.bot_active) {
+      updates.bot_phase = 'qualifying'
+      updates.bot_next_question = null
+    } else {
+      updates.bot_next_question = null
+    }
   }
 
   if (Object.keys(updates).length === 0) {
@@ -73,40 +80,30 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // When Lidia is manually reactivated, trigger the bot immediately with the
-  // last inbound message so the lead gets a response without having to write again.
+  // When Lidia is manually reactivated, send a re-engagement message immediately
+  // so the lead doesn't have to write again.
   if (reactivatingBot) {
-    console.log('[Bot-reactivate] triggered for phone:', normalized)
     const { data: conv } = await admin
       .from('whatsapp_conversations')
       .select('id, lead_id')
       .eq('phone_number', normalized)
       .maybeSingle()
 
-    console.log('[Bot-reactivate] conv:', conv?.id, 'lead_id:', conv?.lead_id)
-
     if (conv?.lead_id) {
-      const { data: lastMsg } = await admin
-        .from('wa_messages')
-        .select('body')
-        .eq('conversation_id', conv.id)
-        .eq('direction', 'inbound')
-        .order('created_at', { ascending: false })
-        .limit(1)
+      const { data: lead } = await admin
+        .from('leads')
+        .select('nombre')
+        .eq('id', conv.lead_id)
         .maybeSingle()
 
-      console.log('[Bot-reactivate] lastMsg:', lastMsg?.body?.slice(0, 80))
+      const nombre = lead?.nombre && !lead.nombre.startsWith('+') ? `, ${lead.nombre.split(' ')[0]}` : ''
 
-      await runBot(admin, {
-        leadId:         conv.lead_id,
+      await sendOutboundWhatsAppMessage(admin, {
         conversationId: conv.id,
+        leadId:         conv.lead_id,
         phone:          normalized,
-        text:           lastMsg?.body ?? null,
-      }).catch(err => console.error('[Bot-reactivate] runBot error:', err))
-
-      console.log('[Bot-reactivate] runBot finished')
-    } else {
-      console.log('[Bot-reactivate] SKIP — no conv or lead_id found for phone:', normalized)
+        body:           `¡Hola${nombre}! 👋 Soy Lidia, de Alora. ¿En qué te puedo ayudar hoy?`,
+      }).catch(err => console.error('[Bot-reactivate] send error:', err))
     }
   }
 
