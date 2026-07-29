@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { recordInboundWhatsAppMessage, resolveLidPhone } from '@/lib/whatsapp-inbound'
 import { sendWhatsAppDisconnectedAlert } from '@/lib/whatsapp-alerts'
+import { transcribeAudio } from '@/lib/transcribe-audio'
 
 // ── POST /api/webhooks/whatsapp-baileys ────────────────────────────────────────
 // Called by the Baileys worker (a separate always-on Node process) for every
@@ -19,6 +20,8 @@ export async function POST(req: NextRequest) {
     text?: string | null
     waMessageId?: string | null
     mediaType?: string | null
+    audioBase64?: string | null   // base64-encoded audio buffer (ptt / audio messages)
+    audioMimetype?: string | null // e.g. "audio/ogg; codecs=opus"
     direction?: 'inbound' | 'outbound'   // outbound = sent from native WA app by the team
     lidResolved?: { oldPhone: string; newPhone: string }
     disconnected?: { reason: string }
@@ -102,11 +105,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: 'ok' })
   }
 
+  // If the message is a voice note / audio, transcribe it before processing
+  let inboundText = body.text ?? null
+  if (!inboundText && body.audioBase64 && body.audioMimetype) {
+    console.log('[WhatsApp] Audio message received — transcribing…')
+    inboundText = await transcribeAudio(body.audioBase64, body.audioMimetype)
+    if (inboundText) {
+      console.log('[WhatsApp] Transcription OK — treating as text message')
+    } else {
+      console.log('[WhatsApp] Transcription returned empty — saving as audio without text')
+    }
+  }
+
   try {
     await recordInboundWhatsAppMessage(admin, {
       phone:       body.phone,
       name:        body.name ?? null,
-      text:        body.text ?? null,
+      text:        inboundText,
       waMessageId: body.waMessageId ?? null,
       mediaType:   body.mediaType ?? null,
     })
