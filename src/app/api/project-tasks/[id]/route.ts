@@ -52,19 +52,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     newAssigneeId !== currentTask?.assignee_id &&
     newAssigneeId !== user.id
 
-  if (assigneeChanged && currentTask) {
-    // Fire and forget — don't block the response
+  console.log('[task-email] assigneeChanged:', assigneeChanged, '| currentTask:', !!currentTask, '| newAssigneeId:', newAssigneeId, '| user.id:', user.id)
+
+  if (newAssigneeId && newAssigneeId !== user.id) {
+    const projectId = currentTask?.project_id ?? (data.project_id as string)
     sendAssignmentEmail({
       admin,
-      assigneeId: newAssigneeId!,
+      assigneeId: newAssigneeId,
       task: {
         titulo:       data.titulo,
         descripcion:  data.descripcion,
         prioridad:    data.prioridad,
         fecha_limite: data.fecha_limite,
-        project_id:   currentTask.project_id,
+        project_id:   projectId,
       },
-    }).catch((e) => console.error('[task-email]', e))
+    }).catch((e) => console.error('[task-email] ERROR:', e))
   }
 
   return NextResponse.json({ data })
@@ -77,20 +79,37 @@ async function sendAssignmentEmail(opts: {
 }) {
   const { admin, assigneeId, task } = opts
 
-  const [{ data: assignee }, { data: project }] = await Promise.all([
+  const [{ data: assignee, error: assigneeErr }, { data: project, error: projectErr }] = await Promise.all([
     admin.from('users').select('email, full_name').eq('id', assigneeId).maybeSingle(),
     admin.from('projects').select('nombre').eq('id', task.project_id).maybeSingle(),
   ])
 
-  if (!assignee?.email || !project?.nombre) return
+  console.log('[task-email] assignee:', JSON.stringify(assignee), 'err:', assigneeErr?.message)
+  console.log('[task-email] project:', JSON.stringify(project), 'err:', projectErr?.message)
 
+  // Fallback: public.users might not have email — try auth.users
+  let resolvedEmail = assignee?.email
+  let resolvedName = assignee?.full_name
+  if (!resolvedEmail) {
+    const { data: authUser } = await admin.auth.admin.getUserById(assigneeId)
+    resolvedEmail = authUser?.user?.email
+    resolvedName = resolvedName ?? authUser?.user?.user_metadata?.full_name ?? authUser?.user?.email
+    console.log('[task-email] auth.users fallback email:', resolvedEmail)
+  }
+
+  if (!resolvedEmail || !project?.nombre) {
+    console.log('[task-email] SKIP — missing email or project name. assigneeId:', assigneeId, 'project_id:', task.project_id)
+    return
+  }
+
+  console.log('[task-email] SENDING to:', resolvedEmail)
   await sendGmail({
     from:    'info@globalalora.com',
-    to:      assignee.email,
-    toName:  assignee.full_name,
+    to:      resolvedEmail,
+    toName:  resolvedName,
     subject: `Nueva tarea asignada: ${task.titulo}`,
     html: buildTaskAssignedHtml({
-      assigneeName: assignee.full_name,
+      assigneeName: resolvedName ?? resolvedEmail,
       taskTitle:    task.titulo,
       projectName:  project.nombre,
       prioridad:    task.prioridad,
