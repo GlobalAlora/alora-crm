@@ -76,11 +76,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // When Lidia is manually reactivated, trigger the bot immediately with the
   // last inbound message so the lead gets a response without having to write again.
   if (reactivatingBot) {
+    console.log('[Bot-reactivate] triggered for phone:', normalized)
     const { data: conv } = await admin
       .from('whatsapp_conversations')
       .select('id, lead_id')
       .eq('phone_number', normalized)
       .maybeSingle()
+
+    console.log('[Bot-reactivate] conv:', conv?.id, 'lead_id:', conv?.lead_id)
 
     if (conv?.lead_id) {
       const { data: lastMsg } = await admin
@@ -92,12 +95,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         .limit(1)
         .maybeSingle()
 
+      console.log('[Bot-reactivate] lastMsg:', lastMsg?.body?.slice(0, 80))
+
       await runBot(admin, {
         leadId:         conv.lead_id,
         conversationId: conv.id,
         phone:          normalized,
         text:           lastMsg?.body ?? null,
-      }).catch(err => console.error('[Bot] Error on manual reactivation:', err))
+      }).catch(err => console.error('[Bot-reactivate] runBot error:', err))
+
+      console.log('[Bot-reactivate] runBot finished')
+    } else {
+      console.log('[Bot-reactivate] SKIP — no conv or lead_id found for phone:', normalized)
     }
   }
 
