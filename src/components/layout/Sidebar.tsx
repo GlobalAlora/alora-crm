@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import {
@@ -72,7 +73,7 @@ function NavContent({ pathname, nav, inSettings, isAdmin, totalUnread, me, onClo
   return (
     <>
       <div className="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
-        <span className="text-white font-semibold text-lg tracking-tight">Alora CRM</span>
+        <Image src="/logo-nav-white.png" alt="Alora" width={100} height={28} priority />
         <button onClick={onCloseMobile} className="md:hidden text-slate-400 hover:text-white transition-colors">
           <X size={20} />
         </button>
