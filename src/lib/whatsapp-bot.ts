@@ -1144,6 +1144,23 @@ async function handleFaqPhase(
     return
   }
 
+  // Lead is showing booking intent (affirmation, asking to proceed, etc.)
+  // In FAQ mode the lead is already qualified — if they say yes/let's go/when,
+  // the natural next step is the booking call, not a generic FAQ answer.
+  const wantsBook =
+    /\b(agendar|reservar|llamada|reunion|reunión|horario|fecha|cuando empezamos|cuándo empezamos|cuando podemos|cuándo podemos|quiero avanzar|quiero proceder|quiero la (llamada|reunion|reunión)|seguimos|sigamos|como sigo|cómo sigo|próximo paso|proximo paso)\b/i.test(t)
+    || /^(sí|si|dale|bueno|ok|okay|perfecto|listo|claro|genial|excelente|bárbaro|barbaro|de acuerdo|me interesa|me parece bien|vamos|adelante|arranquemos|empecemos)\.?\s*$/i.test(t)
+    || /^(yes|sure|sounds good|let'?s go|let'?s do it|great|perfect|proceed)\.?\s*$/i.test(t)
+  if (wantsBook) {
+    await startBookingFlow(admin, { leadId, conversationId, phone }, 0,
+      lang === 'en'
+        ? "Great! Let's schedule that 30-minute call with Walo 😊 Pick the time that works best for you:\n\n"
+        : '¡Perfecto! Te propongo agendar esa llamada de 30 minutos con Walo 😊 Elegí el horario que más te quede bien:\n\n',
+      lang,
+    )
+    return
+  }
+
   // If they ask about getting something free, set expectations gently
   const mentionsGratis = /\b(gratis|gratuito|gratuita|gratuitos|gratuitas|sin costo|sin cobrar|de onda|free)\b/i.test(t)
   if (mentionsGratis) {
