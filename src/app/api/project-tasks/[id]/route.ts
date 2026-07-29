@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendGmail } from '@/lib/google-gmail'
+import { buildTaskAssignedHtml } from '@/lib/task-emails'
 import type { PmPriority, ProjectTaskEstado } from '@/types'
 
 type Params = { params: Promise<{ id: string }> }
@@ -17,7 +19,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   for (const key of ALLOWED) {
     if (key in body) updates[key] = body[key] ?? null
   }
-  // attachments is a JSONB array — accept it directly
   if ('attachments' in body && Array.isArray(body.attachments)) {
     updates.attachments = body.attachments
   }
@@ -27,6 +28,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   const admin = createAdminClient()
+
+  // Fetch current task to detect assignee change
+  const { data: currentTask } = await admin
+    .from('project_tasks')
+    .select('assignee_id, titulo, descripcion, prioridad, fecha_limite, project_id')
+    .eq('id', id)
+    .maybeSingle()
+
   const { data, error } = await admin
     .from('project_tasks')
     .update(updates)
@@ -36,7 +45,60 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Send assignment email if assignee changed and is not the person making the change
+  const newAssigneeId = updates.assignee_id as string | null
+  const assigneeChanged = newAssigneeId &&
+    newAssigneeId !== currentTask?.assignee_id &&
+    newAssigneeId !== user.id
+
+  if (assigneeChanged && currentTask) {
+    // Fire and forget — don't block the response
+    sendAssignmentEmail({
+      admin,
+      assigneeId: newAssigneeId!,
+      task: {
+        titulo:       data.titulo,
+        descripcion:  data.descripcion,
+        prioridad:    data.prioridad,
+        fecha_limite: data.fecha_limite,
+        project_id:   currentTask.project_id,
+      },
+    }).catch((e) => console.error('[task-email]', e))
+  }
+
   return NextResponse.json({ data })
+}
+
+async function sendAssignmentEmail(opts: {
+  admin: ReturnType<typeof createAdminClient>
+  assigneeId: string
+  task: { titulo: string; descripcion: string | null; prioridad: string; fecha_limite: string | null; project_id: string }
+}) {
+  const { admin, assigneeId, task } = opts
+
+  const [{ data: assignee }, { data: project }] = await Promise.all([
+    admin.from('users').select('email, full_name').eq('id', assigneeId).maybeSingle(),
+    admin.from('projects').select('nombre').eq('id', task.project_id).maybeSingle(),
+  ])
+
+  if (!assignee?.email || !project?.nombre) return
+
+  await sendGmail({
+    from:    'info@globalalora.com',
+    to:      assignee.email,
+    toName:  assignee.full_name,
+    subject: `Nueva tarea asignada: ${task.titulo}`,
+    html: buildTaskAssignedHtml({
+      assigneeName: assignee.full_name,
+      taskTitle:    task.titulo,
+      projectName:  project.nombre,
+      prioridad:    task.prioridad,
+      descripcion:  task.descripcion,
+      fechaLimite:  task.fecha_limite,
+      projectUrl:   `https://alora-crm.vercel.app/projects/${task.project_id}`,
+    }),
+  })
 }
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
