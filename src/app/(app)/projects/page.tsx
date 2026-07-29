@@ -122,6 +122,13 @@ export default function ProjectsPage() {
   const qc = useQueryClient()
   const router = useRouter()
 
+  const { data: meData } = useQuery<{ data: { role: string } }>({
+    queryKey: ['auth-me'],
+    queryFn: () => fetch('/api/auth/me').then(r => r.json()),
+    staleTime: 300_000,
+  })
+  const isViewer = meData?.data?.role === 'viewer'
+
   const { data, isLoading, error: queryError } = useQuery({
     queryKey: ['projects', filtro],
     queryFn: () => fetchProjects(filtro),
@@ -192,22 +199,24 @@ export default function ProjectsPage() {
             <span className="text-sm text-slate-400">({projects.length})</span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowImport(true)}
-            className="flex items-center gap-1.5 border border-slate-200 hover:border-slate-300 text-slate-600 hover:text-slate-900 text-sm font-medium px-3 py-1.5 rounded-md transition-colors"
-          >
-            <Upload size={14} />
-            Importar JSON
-          </button>
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 py-1.5 rounded-md transition-colors"
-          >
-            <Plus size={15} />
-            Nuevo proyecto
-          </button>
-        </div>
+        {!isViewer && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowImport(true)}
+              className="flex items-center gap-1.5 border border-slate-200 hover:border-slate-300 text-slate-600 hover:text-slate-900 text-sm font-medium px-3 py-1.5 rounded-md transition-colors"
+            >
+              <Upload size={14} />
+              Importar JSON
+            </button>
+            <button
+              onClick={() => setShowModal(true)}
+              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 py-1.5 rounded-md transition-colors"
+            >
+              <Plus size={15} />
+              Nuevo proyecto
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Toolbar */}
