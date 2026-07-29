@@ -92,7 +92,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         .limit(1)
         .maybeSingle()
 
-      runBot(admin, {
+      await runBot(admin, {
         leadId:         conv.lead_id,
         conversationId: conv.id,
         phone:          normalized,
