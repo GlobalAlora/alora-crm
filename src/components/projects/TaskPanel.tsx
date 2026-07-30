@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, AlignLeft, CheckCircle2, Circle, Plus, ChevronRight, Paperclip, Trash2 } from 'lucide-react'
+import { X, AlignLeft, CheckCircle2, Circle, Plus, ChevronRight, Paperclip, Trash2, MessageSquare, Send } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
@@ -35,6 +35,15 @@ interface Props {
   onToggleTask: (taskId: string, isDone: boolean) => void
 }
 
+interface TaskComment {
+  id: string
+  task_id: string
+  user_id: string
+  body: string
+  created_at: string
+  user: { id: string; full_name: string; avatar_url: string | null } | null
+}
+
 export function TaskPanel({ task, sections, allTasks, users, projectId, onClose, onUpdate, onAddSubtask, onToggleTask }: Props) {
   const [titulo,       setTitulo]      = useState(task.titulo)
   const [descripcion,  setDescripcion] = useState(task.descripcion ?? '')
@@ -42,8 +51,39 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
   const [isDragOver,   setIsDragOver]  = useState(false)
   const [uploading,    setUploading]   = useState(false)
   const [lightboxUrl,  setLightboxUrl] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const dragCounter  = useRef(0)
+  const [comments,     setComments]    = useState<TaskComment[]>([])
+  const [newComment,   setNewComment]  = useState('')
+  const [sending,      setSending]     = useState(false)
+  const fileInputRef   = useRef<HTMLInputElement>(null)
+  const commentRef     = useRef<HTMLTextAreaElement>(null)
+  const dragCounter    = useRef(0)
+
+  useEffect(() => {
+    fetch(`/api/project-tasks/${task.id}/comments`)
+      .then(r => r.json())
+      .then(d => setComments(d.data ?? []))
+      .catch(() => {})
+  }, [task.id])
+
+  async function postComment() {
+    const text = newComment.trim()
+    if (!text || sending) return
+    setSending(true)
+    try {
+      const res = await fetch(`/api/project-tasks/${task.id}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: text }),
+      })
+      const json = await res.json()
+      if (json.data) {
+        setComments(prev => [...prev, json.data])
+        setNewComment('')
+      }
+    } finally {
+      setSending(false)
+    }
+  }
 
   async function uploadFiles(files: File[]) {
     if (!files.length) return
@@ -359,6 +399,56 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
               }}
             />
           )}
+        </div>
+
+        {/* Comments */}
+        <div className="px-5 py-4 border-b">
+          <div className="flex items-center gap-1.5 mb-3">
+            <MessageSquare size={12} className="text-slate-400" />
+            <span className="text-xs font-medium text-slate-500">
+              Comentarios {comments.length > 0 && `(${comments.length})`}
+            </span>
+          </div>
+
+          {comments.length > 0 && (
+            <div className="space-y-3 mb-3">
+              {comments.map(c => (
+                <div key={c.id} className="flex gap-2.5">
+                  <div className="flex-shrink-0 mt-0.5">
+                    <Avatar name={c.user?.full_name ?? '?'} url={c.user?.avatar_url ?? null} size={22} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-2 mb-0.5">
+                      <span className="text-xs font-medium text-slate-700">{c.user?.full_name ?? 'Usuario'}</span>
+                      <span className="text-[10px] text-slate-400">
+                        {format(new Date(c.created_at), "d MMM, HH:mm", { locale: es })}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 whitespace-pre-wrap break-words">{c.body}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <textarea
+              ref={commentRef}
+              value={newComment}
+              onChange={e => setNewComment(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) postComment() }}
+              placeholder="Escribí un comentario... (Ctrl+Enter para enviar)"
+              rows={2}
+              className="flex-1 text-xs border border-slate-200 rounded-md px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 placeholder-slate-300"
+            />
+            <button
+              onClick={postComment}
+              disabled={!newComment.trim() || sending}
+              className="self-end flex-shrink-0 p-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-40 transition-colors"
+            >
+              <Send size={13} />
+            </button>
+          </div>
         </div>
 
         {/* Footer meta */}
