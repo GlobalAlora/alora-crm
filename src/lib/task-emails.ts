@@ -1,6 +1,60 @@
+import { createAdminClient } from '@/lib/supabase/admin'
+import { sendGmail } from '@/lib/google-gmail'
+
 const FOOTER = `<p style="font-size:13px;color:#94a3b8;border-top:1px solid #f1f5f9;padding-top:16px;margin:24px 0 0">
   Alora Digital · <a href="https://globalalora.com" style="color:#3b82f6">globalalora.com</a>
 </p>`
+
+export async function sendTaskAssignmentEmail(opts: {
+  admin: ReturnType<typeof createAdminClient>
+  assigneeId: string
+  creatorId: string
+  task: { titulo: string; descripcion: string | null; prioridad: string; fecha_limite: string | null; project_id: string }
+}) {
+  const { admin, assigneeId, creatorId, task } = opts
+
+  // Never email someone who assigned the task to themselves
+  if (assigneeId === creatorId) return
+
+  const [{ data: assignee, error: assigneeErr }, { data: project, error: projectErr }] = await Promise.all([
+    admin.from('users').select('email, full_name').eq('id', assigneeId).maybeSingle(),
+    admin.from('projects').select('nombre').eq('id', task.project_id).maybeSingle(),
+  ])
+
+  console.log('[task-email] assignee:', JSON.stringify(assignee), 'err:', assigneeErr?.message)
+  console.log('[task-email] project:', JSON.stringify(project), 'err:', projectErr?.message)
+
+  let resolvedEmail = assignee?.email
+  let resolvedName = assignee?.full_name
+  if (!resolvedEmail) {
+    const { data: authUser } = await admin.auth.admin.getUserById(assigneeId)
+    resolvedEmail = authUser?.user?.email
+    resolvedName = resolvedName ?? authUser?.user?.user_metadata?.full_name ?? authUser?.user?.email
+    console.log('[task-email] auth.users fallback email:', resolvedEmail)
+  }
+
+  if (!resolvedEmail || !project?.nombre) {
+    console.log('[task-email] SKIP — missing email or project name. assigneeId:', assigneeId, 'project_id:', task.project_id)
+    return
+  }
+
+  console.log('[task-email] SENDING to:', resolvedEmail)
+  await sendGmail({
+    from:    'info@globalalora.com',
+    to:      resolvedEmail,
+    toName:  resolvedName,
+    subject: `Nueva tarea asignada: ${task.titulo}`,
+    html: buildTaskAssignedHtml({
+      assigneeName: resolvedName ?? resolvedEmail,
+      taskTitle:    task.titulo,
+      projectName:  project.nombre,
+      prioridad:    task.prioridad,
+      descripcion:  task.descripcion,
+      fechaLimite:  task.fecha_limite,
+      projectUrl:   `https://alora-crm.vercel.app/projects/${task.project_id}`,
+    }),
+  })
+}
 
 const PRIORITY_LABEL: Record<string, string> = {
   baja: 'Baja', media: 'Media', alta: 'Alta', urgente: 'Urgente',

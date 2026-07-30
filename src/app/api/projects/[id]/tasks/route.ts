@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendTaskAssignmentEmail } from '@/lib/task-emails'
 import type { PmPriority, ProjectTaskEstado } from '@/types'
 
 type Params = { params: Promise<{ id: string }> }
@@ -70,5 +71,22 @@ export async function POST(req: NextRequest, { params }: Params) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Notify assignee by email if task was created with one already set
+  if (data.assignee_id) {
+    sendTaskAssignmentEmail({
+      admin,
+      assigneeId: data.assignee_id,
+      creatorId:  user.id,
+      task: {
+        titulo:       data.titulo,
+        descripcion:  data.descripcion,
+        prioridad:    data.prioridad,
+        fecha_limite: data.fecha_limite,
+        project_id:   id,
+      },
+    }).catch((e) => console.error('[task-email] ERROR:', e))
+  }
+
   return NextResponse.json({ data }, { status: 201 })
 }

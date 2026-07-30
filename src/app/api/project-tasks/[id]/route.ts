@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendGmail } from '@/lib/google-gmail'
-import { buildTaskAssignedHtml } from '@/lib/task-emails'
+import { sendTaskAssignmentEmail } from '@/lib/task-emails'
 import type { PmPriority, ProjectTaskEstado } from '@/types'
 
 type Params = { params: Promise<{ id: string }> }
@@ -54,11 +53,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   console.log('[task-email] assigneeChanged:', assigneeChanged, '| currentTask:', !!currentTask, '| newAssigneeId:', newAssigneeId, '| user.id:', user.id)
 
-  if (newAssigneeId && newAssigneeId !== user.id) {
+  if (newAssigneeId) {
     const projectId = currentTask?.project_id ?? (data.project_id as string)
-    sendAssignmentEmail({
+    sendTaskAssignmentEmail({
       admin,
       assigneeId: newAssigneeId,
+      creatorId:  user.id,
       task: {
         titulo:       data.titulo,
         descripcion:  data.descripcion,
@@ -70,54 +70,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   return NextResponse.json({ data })
-}
-
-async function sendAssignmentEmail(opts: {
-  admin: ReturnType<typeof createAdminClient>
-  assigneeId: string
-  task: { titulo: string; descripcion: string | null; prioridad: string; fecha_limite: string | null; project_id: string }
-}) {
-  const { admin, assigneeId, task } = opts
-
-  const [{ data: assignee, error: assigneeErr }, { data: project, error: projectErr }] = await Promise.all([
-    admin.from('users').select('email, full_name').eq('id', assigneeId).maybeSingle(),
-    admin.from('projects').select('nombre').eq('id', task.project_id).maybeSingle(),
-  ])
-
-  console.log('[task-email] assignee:', JSON.stringify(assignee), 'err:', assigneeErr?.message)
-  console.log('[task-email] project:', JSON.stringify(project), 'err:', projectErr?.message)
-
-  // Fallback: public.users might not have email — try auth.users
-  let resolvedEmail = assignee?.email
-  let resolvedName = assignee?.full_name
-  if (!resolvedEmail) {
-    const { data: authUser } = await admin.auth.admin.getUserById(assigneeId)
-    resolvedEmail = authUser?.user?.email
-    resolvedName = resolvedName ?? authUser?.user?.user_metadata?.full_name ?? authUser?.user?.email
-    console.log('[task-email] auth.users fallback email:', resolvedEmail)
-  }
-
-  if (!resolvedEmail || !project?.nombre) {
-    console.log('[task-email] SKIP — missing email or project name. assigneeId:', assigneeId, 'project_id:', task.project_id)
-    return
-  }
-
-  console.log('[task-email] SENDING to:', resolvedEmail)
-  await sendGmail({
-    from:    'info@globalalora.com',
-    to:      resolvedEmail,
-    toName:  resolvedName,
-    subject: `Nueva tarea asignada: ${task.titulo}`,
-    html: buildTaskAssignedHtml({
-      assigneeName: resolvedName ?? resolvedEmail,
-      taskTitle:    task.titulo,
-      projectName:  project.nombre,
-      prioridad:    task.prioridad,
-      descripcion:  task.descripcion,
-      fechaLimite:  task.fecha_limite,
-      projectUrl:   `https://alora-crm.vercel.app/projects/${task.project_id}`,
-    }),
-  })
 }
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
