@@ -54,6 +54,7 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
   const [comments,     setComments]    = useState<TaskComment[]>([])
   const [newComment,   setNewComment]  = useState('')
   const [sending,      setSending]     = useState(false)
+  const [commentError, setCommentError] = useState<string | null>(null)
   const fileInputRef   = useRef<HTMLInputElement>(null)
   const commentRef     = useRef<HTMLTextAreaElement>(null)
   const dragCounter    = useRef(0)
@@ -69,6 +70,7 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
     const text = newComment.trim()
     if (!text || sending) return
     setSending(true)
+    setCommentError(null)
     try {
       const res = await fetch(`/api/project-tasks/${task.id}/comments`, {
         method: 'POST',
@@ -79,7 +81,11 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
       if (json.data) {
         setComments(prev => [...prev, json.data])
         setNewComment('')
+      } else {
+        setCommentError(json.error ?? 'Error al guardar el comentario')
       }
+    } catch {
+      setCommentError('Error de conexión')
     } finally {
       setSending(false)
     }
@@ -435,7 +441,7 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
             <textarea
               ref={commentRef}
               value={newComment}
-              onChange={e => setNewComment(e.target.value)}
+              onChange={e => { setNewComment(e.target.value); setCommentError(null) }}
               onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) postComment() }}
               placeholder="Escribí un comentario... (Ctrl+Enter para enviar)"
               rows={2}
@@ -449,6 +455,9 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
               <Send size={13} />
             </button>
           </div>
+          {commentError && (
+            <p className="text-xs text-red-500 mt-1">{commentError}</p>
+          )}
         </div>
 
         {/* Footer meta */}
