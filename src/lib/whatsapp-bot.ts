@@ -369,7 +369,7 @@ async function advanceQualifyingBot(
 
   // Pure greeting mid-conversation (hola, hi, hey, buenas…) — never accept as a field answer.
   // Re-ask the current question with a friendly greeting prefix.
-  const GREETING_RE = /^(hola|holi|holis|hi|hey|hello|buenas?|buenos\s+d[ií]as?|buen\s+d[ií]a|buenas\s+tardes?|buenas\s+noches?|qu[eé]\s+tal|c[oó]mo\s+and[aá]s?|buen[a]?s)[!.?\s]*$/i
+  const GREETING_RE = /^[¡¿]?\s*(hola|holi|holis|hi|hey|hello|buenas?|buenos\s+d[ií]as?|buen\s+d[ií]a|buenas\s+tardes?|buenas\s+noches?|qu[eé]\s+tal|c[oó]mo\s+and[aá]s?|buen[a]?s)[!.?\s]*$/i
   const isJustGreeting = !!trimmed && GREETING_RE.test(trimmed)
   if (isJustGreeting && askedField) {
     await sendOutboundWhatsAppMessage(admin, {
