@@ -1143,6 +1143,20 @@ async function handleFaqPhase(
     return
   }
 
+  // Pure greeting (¡Hola!, buenas, hi…) — never run through the FAQ AI, which can
+  // misclassify a bare salutation as a human-escalation request and pause the bot.
+  // Instead, acknowledge and move straight to the booking offer.
+  const FAQ_GREETING_RE = /^[¡¿]?\s*(hola|holi|holis|hi|hey|hello|buenas?|buenos\s+d[ií]as?|buen\s+d[ií]a|buenas\s+tardes?|buenas\s+noches?|qu[eé]\s+tal|c[oó]mo\s+and[aá]s?|buen[a]?s)[!.?\s]*$/i
+  if (t && FAQ_GREETING_RE.test(t)) {
+    await startBookingFlow(admin, { leadId, conversationId, phone }, 0,
+      lang === 'en'
+        ? "Hi there! 😊 To help you properly, the best next step is a 30-min call with Walo. Pick the time that works best for you:\n\n"
+        : '¡Hola! 😊 Para poder ayudarte mejor, lo ideal es agendar una llamada de 30 min con Walo. Elegí el horario que más te quede bien:\n\n',
+      lang,
+    )
+    return
+  }
+
   // Lead wants to change / pick a different slot → restart booking from scratch
   const wantsReschedule = /\b(otro|otra|otros|cambiar|reagendar|reprogramar|diferente|distinto|quiero otro|quiero otra|cambio|cambien|no me queda|no puedo ese|otro horario|otra fecha|otro dia|otro día|reschedule|change the time|different time|another time|another slot|another date)\b/i.test(t)
   if (wantsReschedule) {
