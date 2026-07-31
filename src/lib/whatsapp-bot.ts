@@ -976,13 +976,25 @@ async function handleBookingPhase(
         lang,
       )
     } else {
-      // No question detected — just nudge without re-sending the full slot list
-      await sendOutboundWhatsAppMessage(admin, {
-        conversationId, leadId, phone,
-        body: lang === 'en'
-          ? 'Just reply with the number of the time that works best for you 😊 (or write *others* to see different options)'
-          : 'Respondé con el número del horario que más te quede bien 😊 (o escribí *otros* para ver opciones diferentes)',
-      })
+      // Check if the message describes a project that matches a portfolio case
+      const bookingPortfolioMatch = findPortfolioMatch(trimmed)
+      const bookingPortfolioMsg   = buildPortfolioMsg(bookingPortfolioMatch, lang)
+      if (bookingPortfolioMsg) {
+        await startBookingFlow(admin, { leadId, conversationId, phone }, 0,
+          lang === 'en'
+            ? `${bookingPortfolioMsg}\n\nMeanwhile, let's lock in that call with Walo so you can see what we could build for you 😊 Pick the time that works best:\n\n`
+            : `${bookingPortfolioMsg}\n\nMientras tanto, agendemos esa llamada con Walo para que vean juntos qué podemos hacer para vos 😊 Elegí el horario que más te quede:\n\n`,
+          lang,
+        )
+      } else {
+        // No question, no portfolio match — just nudge without re-sending the full slot list
+        await sendOutboundWhatsAppMessage(admin, {
+          conversationId, leadId, phone,
+          body: lang === 'en'
+            ? 'Just reply with the number of the time that works best for you 😊 (or write *others* to see different options)'
+            : 'Respondé con el número del horario que más te quede bien 😊 (o escribí *otros* para ver opciones diferentes)',
+        })
+      }
     }
     return
   }
