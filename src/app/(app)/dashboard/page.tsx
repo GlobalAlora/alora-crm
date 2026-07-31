@@ -753,9 +753,7 @@ function PortfolioStatsWidget() {
   })
 
   const totals = data?.totals ?? []
-  if (isLoading || totals.length === 0) return null
-
-  const max = totals[0].count
+  const max    = totals[0]?.count ?? 1
 
   return (
     <div className="bg-white rounded-xl border p-6 space-y-4">
@@ -768,20 +766,26 @@ function PortfolioStatsWidget() {
           Ver detalle <ArrowRight size={11} />
         </a>
       </div>
-      <div className="space-y-2.5">
-        {totals.map(t => (
-          <div key={t.name} className="flex items-center gap-3">
-            <span className="w-36 text-xs text-slate-600 truncate shrink-0">{t.name}</span>
-            <div className="flex-1 bg-slate-100 rounded-full h-4 overflow-hidden">
-              <div
-                className={`h-full rounded-full ${CASE_COLORS[t.name] ?? 'bg-slate-400'} transition-all`}
-                style={{ width: `${Math.max((t.count / max) * 100, 4)}%` }}
-              />
+      {isLoading ? (
+        <p className="text-xs text-slate-400">Cargando...</p>
+      ) : totals.length === 0 ? (
+        <p className="text-xs text-slate-400">Todavía no hay datos — se registran a medida que Lidia comparte casos con los leads.</p>
+      ) : (
+        <div className="space-y-2.5">
+          {totals.map(t => (
+            <div key={t.name} className="flex items-center gap-3">
+              <span className="w-36 text-xs text-slate-600 truncate shrink-0">{t.name}</span>
+              <div className="flex-1 bg-slate-100 rounded-full h-4 overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${CASE_COLORS[t.name] ?? 'bg-slate-400'} transition-all`}
+                  style={{ width: `${Math.max((t.count / max) * 100, 4)}%` }}
+                />
+              </div>
+              <span className="text-xs font-semibold text-slate-600 w-6 text-right">{t.count}</span>
             </div>
-            <span className="text-xs font-semibold text-slate-600 w-6 text-right">{t.count}</span>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
