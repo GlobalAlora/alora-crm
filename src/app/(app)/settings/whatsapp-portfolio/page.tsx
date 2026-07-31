@@ -1,8 +1,9 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { TrendingUp, ExternalLink } from 'lucide-react'
+import { TrendingUp, ExternalLink, Send } from 'lucide-react'
 import Link from 'next/link'
+import { useState } from 'react'
 
 interface Total  { name: string; count: number }
 interface Recent { id: string; created_at: string; case_name: string; phase: string; text: string; lead_name: string | null; lead_id: string | null }
@@ -33,17 +34,47 @@ export default function PortfolioStatsPage() {
     queryFn:  () => fetch('/api/whatsapp/portfolio-stats').then(r => r.json()),
   })
 
+  const [sending, setSending] = useState(false)
+  const [sent, setSent]       = useState<'ok' | 'error' | null>(null)
+
+  async function handleSendReport() {
+    setSending(true)
+    setSent(null)
+    try {
+      const res = await fetch('/api/cron/lidia-weekly-report', { method: 'POST' })
+      setSent(res.ok ? 'ok' : 'error')
+    } catch {
+      setSent('error')
+    } finally {
+      setSending(false)
+    }
+  }
+
   const totals = data?.totals ?? []
   const recent = data?.recent ?? []
   const maxCount = totals[0]?.count ?? 1
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-8">
-      <div className="flex items-center gap-3">
-        <TrendingUp className="text-purple-500" size={22} />
-        <div>
-          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Portfolio — Casos mostrados</h1>
-          <p className="text-sm text-gray-500">Cuántas veces Lidia compartió cada caso de éxito con un lead</p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <TrendingUp className="text-purple-500" size={22} />
+          <div>
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Portfolio — Casos mostrados</h1>
+            <p className="text-sm text-gray-500">Cuántas veces Lidia compartió cada caso de éxito con un lead</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {sent === 'ok' && <span className="text-xs text-green-600 font-medium">✓ Email enviado</span>}
+          {sent === 'error' && <span className="text-xs text-red-500 font-medium">Error al enviar</span>}
+          <button
+            onClick={handleSendReport}
+            disabled={sending}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white transition-colors"
+          >
+            <Send size={12} />
+            {sending ? 'Enviando...' : 'Enviar resumen ahora'}
+          </button>
         </div>
       </div>
 
