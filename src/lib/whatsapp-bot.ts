@@ -8,6 +8,77 @@ import { notifyAll } from '@/lib/push-notify'
 
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_LEAD_EXTRACT_MODEL || 'claude-haiku-4-5-20251001'
 
+// ─── Portfolio cases ──────────────────────────────────────────────────────────
+// When a lead describes a project that matches one of these, Lidia shares the
+// relevant case study link so they can see real work before the call.
+const BASE_SITE = 'https://www.globalalora.com'
+const PORTFOLIO_CASES = [
+  {
+    name: 'Autodux',
+    url:  `${BASE_SITE}/es/casos-de-exito/autodux`,
+    teaser: 'un marketplace de compra y venta de autos con buscador, panel de agencias y contacto directo por WhatsApp',
+    re: /\b(marketplace|compra.?venta de auto|plataforma de (auto|veh[ií]culo)|concesion(aria)?|agencia de auto|venta de (autos?|veh[ií]culo)|clasificado|usado)\b/i,
+  },
+  {
+    name: 'Soy LIDIA',
+    url:  `${BASE_SITE}/es/casos-de-exito/soy-lidia`,
+    teaser: 'una recepcionista virtual por WhatsApp que agenda turnos 24/7, cobra señas y confirma citas automáticamente — activa hoy en clínicas de 4 países',
+    re: /\b(chatbot|bot de whatsapp|agente (de )?ia|asistente virtual|turno[s]?|agenda (online|autom[aá]tica|digital|de turno)|cl[ií]nica|consultorio|recepcionista( virtual)?|atenci[oó]n autom[aá]tica|sistema de turno|turno (online|autom[aá]tico|24)|whatsapp.?bot)\b/i,
+  },
+  {
+    name: 'ALORA CRM',
+    url:  `${BASE_SITE}/es/casos-de-exito/alora-crm`,
+    teaser: 'un CRM con pipeline de ventas automatizado, seguimiento de leads y dashboard en tiempo real',
+    re: /\b(crm|pipeline|seguimiento (de )?(clientes?|leads?|ventas?)|gesti[oó]n comercial|embudo de ventas?|sistema de ventas?|automatizar ventas?|base de (datos de )?clientes)\b/i,
+  },
+  {
+    name: 'Castro Yeso',
+    url:  `${BASE_SITE}/es/casos-de-exito/castro-yeso`,
+    teaser: 'un sitio web one page que convierte visitas en consultas por WhatsApp — perfecto para negocios de servicios y oficios',
+    re: /\b(landing.?page|landing|one.?page|p[aá]gina de aterrizaje|sitio web (sencill|simple|r[aá]pid)|web para (negocio|servicio|oficio|empresa|profesional)|construcci[oó]n|yeso|yesero|plomero|plomer[ií]a|electricista|electricidad|iluminaci[oó]n|pintor|pintura|carpinter|cerrajero|herrero|gasista|oficio|remodelac)\b/i,
+  },
+  {
+    name: 'ALKEMIA',
+    url:  `${BASE_SITE}/es/casos-de-exito/alkemia`,
+    teaser: 'un sitio institucional bilingüe para posicionarse en el mercado tech e IA a nivel internacional',
+    re: /\b(sitio institucional|web (institucional|corporativa)|p[aá]gina (empresa|corporativa)|presencia digital|empresa de (tecnolog[ií]a|software|ia|saas)|bilingüe|ingl[eé]s y espa[nñ]ol|startup|scale.?up)\b/i,
+  },
+  {
+    name: 'Distri-Sal',
+    url:  `${BASE_SITE}/es/casos-de-exito/distrisal`,
+    teaser: 'un ecommerce integrado con su sistema de gestión para sincronizar productos, stock y precios en tiempo real — también trabajan con electricidad e iluminación',
+    re: /\b(electricidad|el[eé]ctric[ao]|iluminaci[oó]n|luminaria|woocommerce|integraci[oó]n (con )?(erp|sistema|software)|sincronizar (stock|productos?|inventario|precios?)|distribuidor|mayorist[ao]|ecommerce.*(sistema|integraci)|sistema.*(ecommerce|tienda))\b/i,
+  },
+  {
+    name: 'Voutier Repuestos',
+    url:  `${BASE_SITE}/es/casos-de-exito/voutier`,
+    teaser: 'una tienda online de repuestos automotrices con filtros por marca, modelo y año',
+    re: /\b(repuesto[s]?|autopart|auto.?part|tienda de (repuesto|auto)|refacci[oó]n|accesorio (de|para) (auto|veh[ií]culo)|filtro (de|para) auto|pieza[s]? (de|para) auto|spare.?part|automotri[zc])\b/i,
+  },
+  {
+    name: 'Mimi Kids',
+    url:  `${BASE_SITE}/es/casos-de-exito/mimikids`,
+    teaser: 'una tienda online para emprendimiento artesanal con catálogo interactivo, personalización y pagos con MercadoPago — de idea a primera venta en tiempo récord',
+    re: /\b(portachupete|chupete|beb[eé]|infantil|ni[nñ]o[s]?|emprendimiento|artesana[lo]|producto personalizado|tienda (online|propia|virtual|web)|vender (online|por internet|en l[ií]nea)|ecommerce (pequeñ|artesanal)|mercadopago|pago (online|digital)|estrategia (de ventas?|comercial))\b/i,
+  },
+] as const
+
+function findPortfolioMatch(text: string) {
+  if (!text || text.trim().length < 5) return null
+  for (const c of PORTFOLIO_CASES) {
+    if (c.re.test(text)) return c
+  }
+  return null
+}
+
+function buildPortfolioMsg(match: ReturnType<typeof findPortfolioMatch>, lang: Lang): string | null {
+  if (!match) return null
+  if (lang === 'en') {
+    return `By the way — we've done something similar! 👀 We built ${match.teaser} for *${match.name}*.\nCheck it out here: ${match.url}`
+  }
+  return `¡Por cierto! Hicimos algo parecido 👀 Para *${match.name}* construimos ${match.teaser}.\nPodés verlo acá: ${match.url}`
+}
+
 async function extractNameWithAI(raw: string): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return ''
@@ -647,6 +718,16 @@ async function advanceQualifyingBot(
     .from('whatsapp_conversations')
     .update({ bot_next_question: nextField })
     .eq('id', conversationId)
+
+  // After saving consulta_detallada, proactively share a relevant portfolio case
+  // if the lead's description matches one of our past projects.
+  if (askedField === 'consulta_detallada' && trimmed) {
+    const match = findPortfolioMatch(trimmed)
+    const portfolioMsg = buildPortfolioMsg(match, lang)
+    if (portfolioMsg) {
+      await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: portfolioMsg })
+    }
+  }
 }
 
 const SLOT_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣']
@@ -1197,6 +1278,13 @@ async function handleFaqPhase(
         : 'Te cuento que en Alora somos un equipo 100% profesional y todos nuestros servicios son pagos 🙂 En la reunión con Walo van a charlar sobre lo que necesitás y los valores — ¡te aseguro que vale la pena! Si tenés alguna duda más, decime 😊',
     })
     return
+  }
+
+  // If the message matches a past project, share the case study then continue to answer any question
+  const portfolioMatch = findPortfolioMatch(t)
+  const portfolioMsg   = buildPortfolioMsg(portfolioMatch, lang)
+  if (portfolioMsg) {
+    await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: portfolioMsg })
   }
 
   const result = await matchFaqOrEscalate(admin, t)
