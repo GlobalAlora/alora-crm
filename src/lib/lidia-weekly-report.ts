@@ -74,19 +74,20 @@ export async function sendLidiaWeeklyReport(admin: AdminClient): Promise<void> {
   const desdeLabel = desde.toLocaleDateString('es-AR', { day: '2-digit', month: 'long' })
   const hastaLabel = hasta.toLocaleDateString('es-AR', { day: '2-digit', month: 'long' })
 
-  // Leads atendidos: conversaciones con al menos un mensaje inbound esta semana
-  const { count: leadsNuevos } = await admin
+  // Leads atendidos: conversaciones únicas con al menos un mensaje inbound esta semana
+  const { data: inboundRows } = await admin
     .from('wa_messages')
-    .select('conversation_id', { count: 'exact', head: true })
+    .select('conversation_id')
     .eq('direction', 'inbound')
     .gte('created_at', desdeISO)
+  const leadsNuevos = new Set((inboundRows ?? []).map(r => r.conversation_id)).size
 
-  // Reuniones agendadas por el bot esta semana
+  // Reuniones agendadas: leads que pasaron a reunion_reservada esta semana
   const { count: reunionesAgendadas } = await admin
-    .from('activities')
+    .from('stage_history')
     .select('id', { count: 'exact', head: true })
-    .eq('tipo', 'reunion')
-    .gte('created_at', desdeISO)
+    .eq('etapa', 'reunion_reservada')
+    .gte('fecha_ingreso', desdeISO)
 
   // Casos de éxito compartidos
   const { data: portfolioRows, count: casosCompartidos } = await admin
