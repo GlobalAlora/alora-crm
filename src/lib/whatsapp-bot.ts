@@ -59,7 +59,7 @@ const PORTFOLIO_CASES = [
     name: 'Mimi Kids',
     url:  `${BASE_SITE}/es/casos-de-exito/mimikids`,
     teaser: 'una tienda online para emprendimiento artesanal con catálogo interactivo, personalización y pagos con MercadoPago — de idea a primera venta en tiempo récord',
-    re: /\b(portachupete|chupete|beb[eé]|infantil|ni[nñ]o[s]?|emprendimiento|artesana[lo]|producto personalizado|tienda (online|propia|virtual|web)|vender (online|por internet|en l[ií]nea)|ecommerce (pequeñ|artesanal)|mercadopago|pago (online|digital)|estrategia (de ventas?|comercial))\b/i,
+    re: /\b(portachupete|chupete|beb[eé]s?|infantil|ni[nñ]o[s]?|emprendimiento|artesana[lo]|producto personalizado|tienda (online|propia|virtual|web|de beb[eé]s?|infantil)|vender (online|por internet|en l[ií]nea)|ecommerce (pequeñ|artesanal)|mercadopago|pago (online|digital)|estrategia (de ventas?|comercial))\b/i,
   },
 ] as const
 
@@ -943,6 +943,19 @@ async function handleBookingPhase(
   }
 
   if (isNaN(num) || idx < 0 || idx >= slots.length) {
+    // Portfolio match takes priority — show the case study and re-offer slots
+    const bookingPortfolioMatch = findPortfolioMatch(trimmed)
+    const bookingPortfolioMsg   = buildPortfolioMsg(bookingPortfolioMatch, lang)
+    if (bookingPortfolioMsg) {
+      await startBookingFlow(admin, { leadId, conversationId, phone }, 0,
+        lang === 'en'
+          ? `${bookingPortfolioMsg}\n\nMeanwhile, let's lock in that call with Walo so you can see what we could build for you 😊 Pick the time that works best:\n\n`
+          : `${bookingPortfolioMsg}\n\nMientras tanto, agendemos esa llamada con Walo para que vean juntos qué podemos hacer para vos 😊 Elegí el horario que más te quede:\n\n`,
+        lang,
+      )
+      return
+    }
+
     // Detect if the lead asked a question instead of picking a slot
     const mentionsGratisB = /\b(gratis|gratuito|gratuita|sin costo|sin cobrar|free)\b/i.test(trimmed)
     const asksPricingB    = /\b(costo|costos|precio|precios|cuánto sale|cuanto sale|cuánto cuesta|cuanto cuesta|cuánto cobran|cuanto cobran|a cuanto|a cuánto|tiene costo|tienen costo|es pago|cobran|presupuesto|tarifas?|how much|what does it cost|pricing|price|quote|rates?)\b/i.test(trimmed)
@@ -976,24 +989,13 @@ async function handleBookingPhase(
         lang,
       )
     } else {
-      // Check if the message describes a project that matches a portfolio case
-      const bookingPortfolioMatch = findPortfolioMatch(trimmed)
-      const bookingPortfolioMsg   = buildPortfolioMsg(bookingPortfolioMatch, lang)
-      if (bookingPortfolioMsg) {
-        await startBookingFlow(admin, { leadId, conversationId, phone }, 0,
-          lang === 'en'
-            ? `${bookingPortfolioMsg}\n\nMeanwhile, let's lock in that call with Walo so you can see what we could build for you 😊 Pick the time that works best:\n\n`
-            : `${bookingPortfolioMsg}\n\nMientras tanto, agendemos esa llamada con Walo para que vean juntos qué podemos hacer para vos 😊 Elegí el horario que más te quede:\n\n`,
-          lang,
-        )
-      } else {
-        // No question, no portfolio match — just nudge without re-sending the full slot list
-        await sendOutboundWhatsAppMessage(admin, {
-          conversationId, leadId, phone,
-          body: lang === 'en'
-            ? 'Just reply with the number of the time that works best for you 😊 (or write *others* to see different options)'
-            : 'Respondé con el número del horario que más te quede bien 😊 (o escribí *otros* para ver opciones diferentes)',
-        })
+      // No portfolio match, no question — just nudge without re-sending the full slot list
+      await sendOutboundWhatsAppMessage(admin, {
+        conversationId, leadId, phone,
+        body: lang === 'en'
+          ? 'Just reply with the number of the time that works best for you 😊 (or write *others* to see different options)'
+          : 'Respondé con el número del horario que más te quede bien 😊 (o escribí *otros* para ver opciones diferentes)',
+      })
       }
     }
     return
