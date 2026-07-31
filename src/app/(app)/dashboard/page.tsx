@@ -391,6 +391,9 @@ export default function DashboardPage() {
         )}
       </section>
 
+      {/* Portfolio Lidia */}
+      <PortfolioStatsWidget />
+
       {/* ── S3: Tiempos ───────────────────────────────────────────────────────── */}
       <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
         <SectionHeader icon={Clock} title="Tiempos entre etapas" subtitle="Días promedio para avanzar de una etapa a la siguiente" />
@@ -722,9 +725,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-
-      {/* Portfolio Lidia */}
-      <PortfolioStatsWidget />
 
       {/* Evolución mensual */}
       <MonthlyEvolutionChart responsableId={responsableId} months={6} />
