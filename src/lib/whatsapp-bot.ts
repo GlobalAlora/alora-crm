@@ -53,7 +53,7 @@ const PORTFOLIO_CASES = [
     name: 'Voutier Repuestos',
     url:  `${BASE_SITE}/es/casos-de-exito/voutier`,
     teaser: 'una tienda online de repuestos automotrices con filtros por marca, modelo y año',
-    re: /\b(repuesto[s]?|autopart|auto.?part|tienda de (repuesto|auto)|refacci[oó]n|accesorio (de|para) (auto|veh[ií]culo)|filtro (de|para) auto|pieza[s]? (de|para) auto|spare.?part|automotri[zc])\b/i,
+    re: /\b(re[s]?puesto[s]?|autopart|auto.?part|tienda de (re[s]?puesto|auto)|refacci[oó]n|accesorio (de|para) (auto|veh[ií]culo)|filtro (de|para) auto|pieza[s]? (de|para) auto|spare.?part|automotri[zc])\b/i,
   },
   {
     name: 'Mimi Kids',
