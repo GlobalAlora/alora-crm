@@ -361,7 +361,7 @@ export async function runBot(
 
   const { data: convo } = await admin
     .from('whatsapp_conversations')
-    .select('bot_active, bot_phase, bot_next_question, bot_language')
+    .select('bot_active, bot_phase, bot_next_question, bot_language, last_message_at')
     .eq('id', conversationId)
     .single()
 
@@ -392,7 +392,7 @@ export async function runBot(
   }
 
   if (convo.bot_phase === 'booking') {
-    await handleBookingPhase(admin, { leadId, conversationId, phone, text, botNextQuestion: convo.bot_next_question, lang })
+    await handleBookingPhase(admin, { leadId, conversationId, phone, text, botNextQuestion: convo.bot_next_question, lastMessageAt: convo.last_message_at, lang })
     return
   }
 
@@ -837,13 +837,30 @@ function findSlotByDayTime(trimmed: string, slots: Date[]): number {
  * State format in bot_next_question: booking_slots:::NEXT_SKIP:::ISO1|ISO2|...|ISON
  * Legacy format (no NEXT_SKIP segment) is also handled gracefully.
  */
+const BOOKING_GREETING_RE = /^[¡¿]?\s*(hola|holi|holis|hi|hey|hello|buenas?|buenos\s+d[ií]as?|buen\s+d[ií]a|buenas\s+tardes?|buenas\s+noches?|qu[eé]\s+tal|c[oó]mo\s+and[aá]s?|buen[a]?s)[!.?\s]*$/i
+
 async function handleBookingPhase(
   admin: AdminClient,
-  { leadId, conversationId, phone, text, botNextQuestion, lang }: {
-    leadId: string; conversationId: string; phone: string; text: string | null; botNextQuestion: string | null; lang: Lang
+  { leadId, conversationId, phone, text, botNextQuestion, lastMessageAt, lang }: {
+    leadId: string; conversationId: string; phone: string; text: string | null; botNextQuestion: string | null; lastMessageAt: string | null; lang: Lang
   },
 ): Promise<void> {
   const trimmedEarly = text?.trim() ?? ''
+
+  // If the lead comes back after 6+ hours with just a greeting, re-engage warmly
+  // instead of dumping the slot list cold on them
+  if (trimmedEarly && BOOKING_GREETING_RE.test(trimmedEarly) && lastMessageAt) {
+    const hoursSinceLast = (Date.now() - new Date(lastMessageAt).getTime()) / 3_600_000
+    if (hoursSinceLast >= 6) {
+      await sendOutboundWhatsAppMessage(admin, {
+        conversationId, leadId, phone,
+        body: lang === 'en'
+          ? "Hey, great to hear from you again! 😊 Did you get a chance to look at the available times? Let me know if you'd like me to send them again or if something came up."
+          : '¡Hola de nuevo! 😊 ¿Pudiste ver los horarios disponibles? Avisame si querés que te los mande otra vez o si te surgió alguna duda.',
+      })
+      return
+    }
+  }
 
   // Detect disengagement before anything else — same as in qualifying
   if (trimmedEarly && (DISENGAGEMENT_RE.test(trimmedEarly) || DISENGAGEMENT_RE_EN.test(trimmedEarly))) {
