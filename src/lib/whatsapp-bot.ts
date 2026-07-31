@@ -13,54 +13,14 @@ const ANTHROPIC_MODEL = process.env.ANTHROPIC_LEAD_EXTRACT_MODEL || 'claude-haik
 // relevant case study link so they can see real work before the call.
 const BASE_SITE = 'https://www.globalalora.com'
 const PORTFOLIO_CASES = [
-  {
-    name: 'Autodux',
-    url:  `${BASE_SITE}/es/casos-de-exito/autodux`,
-    teaser: 'un marketplace de compra y venta de autos con buscador, panel de agencias y contacto directo por WhatsApp',
-    re: /\b(marketplace|compra.?venta de auto|plataforma de (auto|veh[ií]culo)|concesion(aria)?|agencia de auto|venta de (autos?|veh[ií]culo)|clasificado|usado)\b/i,
-  },
-  {
-    name: 'Soy LIDIA',
-    url:  `${BASE_SITE}/es/casos-de-exito/soy-lidia`,
-    teaser: 'una recepcionista virtual por WhatsApp que agenda turnos 24/7, cobra señas y confirma citas automáticamente — activa hoy en clínicas de 4 países',
-    re: /\b(chatbot|bot de whatsapp|agente (de )?ia|asistente virtual|turno[s]?|agenda (online|autom[aá]tica|digital|de turno)|cl[ií]nica|consultorio|recepcionista( virtual)?|atenci[oó]n autom[aá]tica|sistema de turno|turno (online|autom[aá]tico|24)|whatsapp.?bot)\b/i,
-  },
-  {
-    name: 'ALORA CRM',
-    url:  `${BASE_SITE}/es/casos-de-exito/alora-crm`,
-    teaser: 'un CRM con pipeline de ventas automatizado, seguimiento de leads y dashboard en tiempo real',
-    re: /\b(crm|pipeline|seguimiento (de )?(clientes?|leads?|ventas?)|gesti[oó]n comercial|embudo de ventas?|sistema de ventas?|automatizar ventas?|base de (datos de )?clientes)\b/i,
-  },
-  {
-    name: 'Castro Yeso',
-    url:  `${BASE_SITE}/es/casos-de-exito/castro-yeso`,
-    teaser: 'un sitio web one page que convierte visitas en consultas por WhatsApp — perfecto para negocios de servicios y oficios',
-    re: /\b(landing.?page|landing|one.?page|p[aá]gina de aterrizaje|sitio web (sencill|simple|r[aá]pid)|web para (negocio|servicio|oficio|empresa|profesional)|construcci[oó]n|yeso|yesero|plomero|plomer[ií]a|electricista|electricidad|iluminaci[oó]n|pintor|pintura|carpinter|cerrajero|herrero|gasista|oficio|remodelac)\b/i,
-  },
-  {
-    name: 'ALKEMIA',
-    url:  `${BASE_SITE}/es/casos-de-exito/alkemia`,
-    teaser: 'un sitio institucional bilingüe para posicionarse en el mercado tech e IA a nivel internacional',
-    re: /\b(sitio institucional|web (institucional|corporativa)|p[aá]gina (empresa|corporativa)|presencia digital|empresa de (tecnolog[ií]a|software|ia|saas)|bilingüe|ingl[eé]s y espa[nñ]ol|startup|scale.?up)\b/i,
-  },
-  {
-    name: 'Distri-Sal',
-    url:  `${BASE_SITE}/es/casos-de-exito/distrisal`,
-    teaser: 'un ecommerce integrado con su sistema de gestión para sincronizar productos, stock y precios en tiempo real — también trabajan con electricidad e iluminación',
-    re: /\b(electricidad|el[eé]ctric[ao]|iluminaci[oó]n|luminaria|woocommerce|integraci[oó]n (con )?(erp|sistema|software)|sincronizar (stock|productos?|inventario|precios?)|distribuidor|mayorist[ao]|ecommerce.*(sistema|integraci)|sistema.*(ecommerce|tienda))\b/i,
-  },
-  {
-    name: 'Voutier Repuestos',
-    url:  `${BASE_SITE}/es/casos-de-exito/voutier`,
-    teaser: 'una tienda online de repuestos automotrices con filtros por marca, modelo y año',
-    re: /\b(re[s]?puesto[s]?|autopart|auto.?part|tienda de (re[s]?puesto|auto)|refacci[oó]n|accesorio (de|para) (auto|veh[ií]culo)|filtro (de|para) auto|pieza[s]? (de|para) auto|spare.?part|automotri[zc])\b/i,
-  },
-  {
-    name: 'Mimi Kids',
-    url:  `${BASE_SITE}/es/casos-de-exito/mimikids`,
-    teaser: 'una tienda online para emprendimiento artesanal con catálogo interactivo, personalización y pagos con MercadoPago — de idea a primera venta en tiempo récord',
-    re: /\b(portachupete|chupete|beb[eé]s?|infantil|ni[nñ]o[s]?|emprendimiento|artesana[lo]|producto personalizado|tienda (online|propia|virtual|web|de beb[eé]s?|infantil)|vender (online|por internet|en l[ií]nea)|ecommerce (pequeñ|artesanal)|mercadopago|pago (online|digital)|estrategia (de ventas?|comercial))\b/i,
-  },
+  { name: 'Autodux',           url: `${BASE_SITE}/es/casos-de-exito/autodux`,   teaser: 'un marketplace de compra y venta de autos con buscador, panel de agencias y contacto directo por WhatsApp' },
+  { name: 'Soy LIDIA',        url: `${BASE_SITE}/es/casos-de-exito/soy-lidia`,  teaser: 'una recepcionista virtual por WhatsApp que agenda turnos 24/7, cobra señas y confirma citas automáticamente — activa hoy en clínicas de 4 países' },
+  { name: 'ALORA CRM',        url: `${BASE_SITE}/es/casos-de-exito/alora-crm`,  teaser: 'un CRM con pipeline de ventas automatizado, seguimiento de leads y dashboard en tiempo real' },
+  { name: 'Castro Yeso',      url: `${BASE_SITE}/es/casos-de-exito/castro-yeso`, teaser: 'un sitio web one page que convierte visitas en consultas por WhatsApp — perfecto para negocios de servicios y oficios' },
+  { name: 'ALKEMIA',          url: `${BASE_SITE}/es/casos-de-exito/alkemia`,    teaser: 'un sitio institucional bilingüe para posicionarse en el mercado tech e IA a nivel internacional' },
+  { name: 'Distri-Sal',       url: `${BASE_SITE}/es/casos-de-exito/distrisal`,  teaser: 'un ecommerce integrado con su sistema de gestión para sincronizar productos, stock y precios en tiempo real' },
+  { name: 'Voutier Repuestos', url: `${BASE_SITE}/es/casos-de-exito/voutier`,   teaser: 'una tienda online de repuestos automotrices con filtros por marca, modelo y año' },
+  { name: 'Mimi Kids',        url: `${BASE_SITE}/es/casos-de-exito/mimikids`,   teaser: 'una tienda online para emprendimiento artesanal con catálogo interactivo, personalización y pagos con MercadoPago' },
 ] as const
 
 async function findPortfolioMatch(text: string): Promise<typeof PORTFOLIO_CASES[number] | null> {
