@@ -1345,10 +1345,14 @@ async function handleFaqPhase(
   if (result.humanRequested) {
     const sentHandoff = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: getHandoff(lang) })
     if (!sentHandoff) return
-    await admin
-      .from('whatsapp_conversations')
-      .update({ bot_active: false })
-      .eq('id', conversationId)
+    await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
+    const { data: leadInfo } = await admin.from('leads').select('nombre, apellido').eq('id', leadId).maybeSingle()
+    const leadLabel = [leadInfo?.nombre, leadInfo?.apellido].filter(Boolean).join(' ') || `+${phone}`
+    notifyAll({
+      title: `🙋 ${leadLabel} pidió hablar con alguien`,
+      body:  'Lidia pausó la conversación — el lead quiere atención humana.',
+      url:   `/leads/${leadId}`,
+    }).catch(() => {})
     return
   }
 
