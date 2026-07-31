@@ -723,9 +723,65 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Portfolio Lidia */}
+      <PortfolioStatsWidget />
+
       {/* Evolución mensual */}
       <MonthlyEvolutionChart responsableId={responsableId} months={6} />
 
+    </div>
+  )
+}
+
+// ── Portfolio stats widget ─────────────────────────────────────────────────────
+
+const CASE_COLORS: Record<string, string> = {
+  'Autodux':           'bg-blue-500',
+  'Soy LIDIA':         'bg-purple-500',
+  'ALORA CRM':         'bg-indigo-500',
+  'Castro Yeso':       'bg-orange-500',
+  'ALKEMIA':           'bg-teal-500',
+  'Distri-Sal':        'bg-yellow-500',
+  'Voutier Repuestos': 'bg-red-500',
+  'Mimi Kids':         'bg-pink-500',
+}
+
+function PortfolioStatsWidget() {
+  const { data, isLoading } = useQuery<{ totals: { name: string; count: number }[] }>({
+    queryKey: ['portfolio-stats'],
+    queryFn:  () => fetch('/api/whatsapp/portfolio-stats').then(r => r.json()),
+  })
+
+  const totals = data?.totals ?? []
+  if (isLoading || totals.length === 0) return null
+
+  const max = totals[0].count
+
+  return (
+    <div className="bg-white rounded-xl border p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <BarChart3 size={15} className="text-purple-400" />
+          Casos de éxito mostrados por Lidia
+        </h2>
+        <a href="/settings/whatsapp-portfolio" className="text-xs text-purple-600 hover:underline flex items-center gap-1">
+          Ver detalle <ArrowRight size={11} />
+        </a>
+      </div>
+      <div className="space-y-2.5">
+        {totals.map(t => (
+          <div key={t.name} className="flex items-center gap-3">
+            <span className="w-36 text-xs text-slate-600 truncate shrink-0">{t.name}</span>
+            <div className="flex-1 bg-slate-100 rounded-full h-4 overflow-hidden">
+              <div
+                className={`h-full rounded-full ${CASE_COLORS[t.name] ?? 'bg-slate-400'} transition-all`}
+                style={{ width: `${Math.max((t.count / max) * 100, 4)}%` }}
+              />
+            </div>
+            <span className="text-xs font-semibold text-slate-600 w-6 text-right">{t.count}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
