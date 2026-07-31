@@ -63,15 +63,30 @@ const PORTFOLIO_CASES = [
   },
 ] as const
 
-function findPortfolioMatch(text: string) {
+async function findPortfolioMatch(text: string): Promise<typeof PORTFOLIO_CASES[number] | null> {
   if (!text || text.trim().length < 5) return null
-  for (const c of PORTFOLIO_CASES) {
-    if (c.re.test(text)) return c
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return null
+  const casesList = PORTFOLIO_CASES.map((c, i) => `${i + 1}. ${c.name}: ${c.teaser}`).join('\n')
+  try {
+    const client = new Anthropic({ apiKey })
+    const result = await client.messages.create({
+      model: ANTHROPIC_MODEL,
+      max_tokens: 5,
+      messages: [{
+        role: 'user',
+        content: `A potential client wrote: "${text}"\n\nWhich of these past projects (if any) is most relevant to what they're describing?\n${casesList}\n\nReply with ONLY the number (1-${PORTFOLIO_CASES.length}) of the best match, or 0 if nothing clearly applies. One digit only.`,
+      }],
+    })
+    const raw = (result.content[0] as { type: string; text: string }).text?.trim() ?? '0'
+    const idx = parseInt(raw, 10) - 1
+    return idx >= 0 && idx < PORTFOLIO_CASES.length ? PORTFOLIO_CASES[idx] : null
+  } catch {
+    return null
   }
-  return null
 }
 
-function buildPortfolioMsg(match: ReturnType<typeof findPortfolioMatch>, lang: Lang): string | null {
+function buildPortfolioMsg(match: typeof PORTFOLIO_CASES[number] | null, lang: Lang): string | null {
   if (!match) return null
   if (lang === 'en') {
     return `By the way — we've done something similar! 👀 We built ${match.teaser} for *${match.name}*.\nCheck it out here: ${match.url}`
@@ -722,7 +737,7 @@ async function advanceQualifyingBot(
   // After saving consulta_detallada, proactively share a relevant portfolio case
   // if the lead's description matches one of our past projects.
   if (askedField === 'consulta_detallada' && trimmed) {
-    const match = findPortfolioMatch(trimmed)
+    const match = await findPortfolioMatch(trimmed)
     const portfolioMsg = buildPortfolioMsg(match, lang)
     if (portfolioMsg) {
       await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: portfolioMsg })
@@ -944,7 +959,7 @@ async function handleBookingPhase(
 
   if (isNaN(num) || idx < 0 || idx >= slots.length) {
     // Portfolio match takes priority — show the case study and re-offer slots
-    const bookingPortfolioMatch = findPortfolioMatch(trimmed)
+    const bookingPortfolioMatch = await findPortfolioMatch(trimmed)
     const bookingPortfolioMsg   = buildPortfolioMsg(bookingPortfolioMatch, lang)
     if (bookingPortfolioMsg) {
       await startBookingFlow(admin, { leadId, conversationId, phone }, 0,
@@ -996,7 +1011,6 @@ async function handleBookingPhase(
           ? 'Just reply with the number of the time that works best for you 😊 (or write *others* to see different options)'
           : 'Respondé con el número del horario que más te quede bien 😊 (o escribí *otros* para ver opciones diferentes)',
       })
-      }
     }
     return
   }
@@ -1312,7 +1326,7 @@ async function handleFaqPhase(
   }
 
   // If the message matches a past project, share the case study then continue to answer any question
-  const portfolioMatch = findPortfolioMatch(t)
+  const portfolioMatch = await findPortfolioMatch(t)
   const portfolioMsg   = buildPortfolioMsg(portfolioMatch, lang)
   if (portfolioMsg) {
     await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: portfolioMsg })
