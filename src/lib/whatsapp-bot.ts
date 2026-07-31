@@ -739,8 +739,12 @@ async function advanceQualifyingBot(
   if (askedField === 'consulta_detallada' && trimmed) {
     const match = await findPortfolioMatch(trimmed)
     const portfolioMsg = buildPortfolioMsg(match, lang)
-    if (portfolioMsg) {
+    if (portfolioMsg && match) {
       await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: portfolioMsg })
+      void admin.from('activities').insert({ lead_id: leadId, user_id: null, tipo: 'nota',
+        descripcion: `[portfolio-match] Lidia mostró caso "${match.name}" en fase qualifying.`,
+        metadata: { portfolio_case: match.name, phase: 'qualifying', text: trimmed.slice(0, 200) },
+      }).then(undefined, () => {})
     }
   }
 }
@@ -961,7 +965,11 @@ async function handleBookingPhase(
     // Portfolio match takes priority — show the case study and re-offer slots
     const bookingPortfolioMatch = await findPortfolioMatch(trimmed)
     const bookingPortfolioMsg   = buildPortfolioMsg(bookingPortfolioMatch, lang)
-    if (bookingPortfolioMsg) {
+    if (bookingPortfolioMsg && bookingPortfolioMatch) {
+      void admin.from('activities').insert({ lead_id: leadId, user_id: null, tipo: 'nota',
+        descripcion: `[portfolio-match] Lidia mostró caso "${bookingPortfolioMatch.name}" en fase booking.`,
+        metadata: { portfolio_case: bookingPortfolioMatch.name, phase: 'booking', text: trimmed.slice(0, 200) },
+      }).then(undefined, () => {})
       await startBookingFlow(admin, { leadId, conversationId, phone }, 0,
         lang === 'en'
           ? `${bookingPortfolioMsg}\n\nMeanwhile, let's lock in that call with Walo so you can see what we could build for you 😊 Pick the time that works best:\n\n`
@@ -1328,8 +1336,12 @@ async function handleFaqPhase(
   // If the message matches a past project, share the case study then continue to answer any question
   const portfolioMatch = await findPortfolioMatch(t)
   const portfolioMsg   = buildPortfolioMsg(portfolioMatch, lang)
-  if (portfolioMsg) {
+  if (portfolioMsg && portfolioMatch) {
     await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: portfolioMsg })
+    void admin.from('activities').insert({ lead_id: leadId, user_id: null, tipo: 'nota',
+      descripcion: `[portfolio-match] Lidia mostró caso "${portfolioMatch.name}" en fase faq.`,
+      metadata: { portfolio_case: portfolioMatch.name, phase: 'faq', text: t.slice(0, 200) },
+    }).then(undefined, () => {})
   }
 
   const result = await matchFaqOrEscalate(admin, t)
