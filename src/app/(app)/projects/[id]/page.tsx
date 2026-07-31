@@ -360,6 +360,21 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     const draggedTask = allTasksFlat.find(t => t.id === active.id)
     if (!draggedTask) return
 
+    // Subtask reorder — stays within same parent
+    if (draggedTask.parent_task_id) {
+      const siblings = allTasksFlat
+        .filter(t => t.parent_task_id === draggedTask.parent_task_id && !t.deleted_at)
+        .sort((a, b) => a.position - b.position)
+      const oldIdx = siblings.findIndex(t => t.id === draggedTask.id)
+      const newIdx = siblings.findIndex(t => t.id === over.id)
+      if (oldIdx === -1 || newIdx === -1) return
+      const reordered = arrayMove(siblings, oldIdx, newIdx)
+      const prev = reordered[newIdx - 1]?.position ?? 0
+      const next = reordered[newIdx + 1]?.position ?? prev + 2
+      patchTask.mutate({ taskId: draggedTask.id, updates: { position: (prev + next) / 2 } })
+      return
+    }
+
     const overTask    = allTasksFlat.find(t => t.id === over.id)
     const overSection = sections.find(s => s.id === over.id)
     const targetSectionId = overSection?.id ?? overTask?.section_id ?? draggedTask.section_id
@@ -370,7 +385,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         patchTask.mutate({ taskId: t.id, updates: { section_id: targetSectionId, position: 9999 } })
       })
     } else {
-      const sectionTasks = (sections.find(s => s.id === draggedTask.section_id)?.tasks ?? []).filter(t => !t.deleted_at)
+      const sectionTasks = (sections.find(s => s.id === draggedTask.section_id)?.tasks ?? [])
+        .filter(t => !t.deleted_at && !t.parent_task_id)
       const oldIdx = sectionTasks.findIndex(t => t.id === draggedTask.id)
       const newIdx = sectionTasks.findIndex(t => t.id === over.id)
       if (oldIdx === -1 || newIdx === -1) return
@@ -977,32 +993,39 @@ function SectionBlock({
                   onDelete={() => onDeleteTask(task.id)}
                 />
                 {/* Level-1 subtasks */}
-                {children.map(sub => {
-                  const grandchildren = getChildren(sub.id)
-                  return (
-                    <div key={sub.id} className="ml-7 mt-1 space-y-1">
-                      <SubtaskRow
-                        task={sub}
-                        isSelected={selectedTaskId === sub.id}
-                        users={users}
-                        onToggle={(isDone) => onToggleTask(sub.id, isDone)}
-                        onClick={() => onSelectTask(sub.id)}
-                      />
-                      {/* Level-2 subtasks */}
-                      {grandchildren.map(sub2 => (
-                        <div key={sub2.id} className="ml-7 mt-1">
-                          <SubtaskRow
-                            task={sub2}
-                            isSelected={selectedTaskId === sub2.id}
+                <SortableContext items={children.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                  <div className="ml-7 mt-1 space-y-1">
+                    {children.map(sub => {
+                      const grandchildren = getChildren(sub.id)
+                      return (
+                        <div key={sub.id}>
+                          <SortableSubtaskRow
+                            task={sub}
+                            isSelected={selectedTaskId === sub.id}
                             users={users}
-                            onToggle={(isDone) => onToggleTask(sub2.id, isDone)}
-                            onClick={() => onSelectTask(sub2.id)}
+                            onToggle={(isDone) => onToggleTask(sub.id, isDone)}
+                            onClick={() => onSelectTask(sub.id)}
                           />
+                          {/* Level-2 subtasks */}
+                          <SortableContext items={grandchildren.map(gc => gc.id)} strategy={verticalListSortingStrategy}>
+                            <div className="ml-7 mt-1 space-y-1">
+                              {grandchildren.map(sub2 => (
+                                <SortableSubtaskRow
+                                  key={sub2.id}
+                                  task={sub2}
+                                  isSelected={selectedTaskId === sub2.id}
+                                  users={users}
+                                  onToggle={(isDone) => onToggleTask(sub2.id, isDone)}
+                                  onClick={() => onSelectTask(sub2.id)}
+                                />
+                              ))}
+                            </div>
+                          </SortableContext>
                         </div>
-                      ))}
-                    </div>
-                  )
-                })}
+                      )
+                    })}
+                  </div>
+                </SortableContext>
               </div>
             )
           })}
@@ -1023,8 +1046,8 @@ function SectionBlock({
   )
 }
 
-// ─── SubtaskRow ───────────────────────────────────────────
-function SubtaskRow({
+// ─── SortableSubtaskRow ───────────────────────────────────
+function SortableSubtaskRow({
   task, isSelected, users, onToggle, onClick,
 }: {
   task: ProjectTask
@@ -1033,19 +1056,31 @@ function SubtaskRow({
   onToggle: (isDone: boolean) => void
   onClick: () => void
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.3 : 1 }
+
   const isDone    = task.estado === 'finalizada'
   const isOverdue = task.fecha_limite && !isDone && new Date(task.fecha_limite) < new Date()
   const assignee  = task.assignee_id ? users.find(u => u.id === task.assignee_id) : null
 
   return (
     <div
+      ref={setNodeRef}
+      style={style}
       onClick={onClick}
       className={cn(
         'flex items-center gap-2 rounded-lg px-2.5 py-2 cursor-pointer transition-colors group border',
         isSelected ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 hover:border-slate-200'
       )}
     >
-      <ChevronRight size={10} className="text-slate-300 flex-shrink-0" />
+      <span
+        {...attributes}
+        {...listeners}
+        className="flex-shrink-0 text-slate-200 hover:text-slate-400 cursor-grab active:cursor-grabbing"
+        onClick={e => e.stopPropagation()}
+      >
+        <GripVertical size={11} />
+      </span>
       <button
         onClick={e => { e.stopPropagation(); onToggle(!isDone) }}
         className={cn('flex-shrink-0 transition-colors', isDone ? 'text-green-500' : 'text-slate-300 hover:text-green-500')}
