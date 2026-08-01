@@ -1168,7 +1168,12 @@ async function handleBookingConfirmation(
   const nextSkip    = secondSep !== -1 ? parseInt(rest.slice(0, secondSep), 10) || 0 : 0
   const slotsStr    = secondSep !== -1 ? rest.slice(secondSep + 3) : rest
 
-  const trimmed = text?.trim() ?? ''
+  // .normalize('NFC'): some phone keyboards send accented letters as a
+  // combining-mark pair (NFD) instead of one precomposed character — this
+  // keeps every regex below working the same regardless of which form the
+  // lead's phone sent. (The actual "Sí"-never-confirms bug was `confirmed`
+  // below relying on \b, see its comment.)
+  const trimmed = (text?.trim() ?? '').normalize('NFC')
 
   if (trimmed && (DISENGAGEMENT_RE.test(trimmed) || DISENGAGEMENT_RE_EN.test(trimmed))) {
     await sendOutboundWhatsAppMessage(admin, {
@@ -1191,7 +1196,14 @@ async function handleBookingConfirmation(
     return
   }
 
-  const confirmed = /^(s[ií]i*|dale|confirmo|confirmado|ok|listo|perfecto|va|b[aá]rbaro|de una|buen[ií]simo|claro|genial|excelente|re bien|yes|yep|yeah|confirmed|confirm|sounds good|sure|great|perfect|absolutely|definitely)\b/i.test(trimmed)
+  // (?!\p{L}) instead of \b: JS's \b treats \w as ASCII-only, so it never
+  // counted "í" as a word character — plain "Sí" (the normal way anyone
+  // writes it) matched nothing here and always fell to the "not confirmed"
+  // branch below, re-asking the same question forever no matter how many
+  // times the lead answered. The Unicode-aware lookahead fixes that for
+  // "sí" specifically; every other word in the list already ended in an
+  // ASCII letter and was unaffected.
+  const confirmed = /^(s[ií]i*|dale|confirmo|confirmado|ok|listo|perfecto|va|b[aá]rbaro|de una|buen[ií]simo|claro|genial|excelente|re bien|yes|yep|yeah|confirmed|confirm|sounds good|sure|great|perfect|absolutely|definitely)(?!\p{L})/iu.test(trimmed)
 
   if (!confirmed) {
     // Re-ask — the lead said something unexpected
