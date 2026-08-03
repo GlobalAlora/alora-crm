@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendTaskAssignmentEmail } from '@/lib/task-emails'
+import { notifyUser } from '@/lib/push-notify'
 import type { PmPriority, ProjectTaskEstado } from '@/types'
 
 type Params = { params: Promise<{ id: string }> }
@@ -67,6 +68,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         project_id:   projectId,
       },
     }).catch((e) => console.error('[task-email] ERROR:', e))
+
+    if (newAssigneeId !== user.id) {
+      notifyUser(newAssigneeId, {
+        title: '📋 Nueva tarea asignada',
+        body:  data.titulo,
+        url:   `/projects/${projectId}`,
+      }).catch((e) => console.error('[push] task assign ERROR:', e))
+    }
   }
 
   return NextResponse.json({ data })
