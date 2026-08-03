@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bell } from 'lucide-react'
+import { Bell, ClipboardList } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { timeAgoWithFullDate } from '@/lib/utils'
 
-interface NotifActivity {
+interface EmailNotif {
+  _type: 'email'
   id: string
   lead_id: string
   descripcion: string
@@ -16,6 +17,18 @@ interface NotifActivity {
   created_at: string
   leads: { id: string; nombre: string; apellido: string | null; empresa: string | null } | null
 }
+
+interface TaskNotif {
+  _type: 'task'
+  id: string
+  task_id: string
+  project_id: string
+  task_titulo: string
+  project_nombre: string | null
+  created_at: string
+}
+
+type AnyNotif = EmailNotif | TaskNotif
 
 function playNotifSound() {
   try {
@@ -39,7 +52,7 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
 }
 
-function getLeadName(n: NotifActivity): string {
+function getLeadName(n: EmailNotif): string {
   if (!n.leads) return 'Lead desconocido'
   return [n.leads.nombre, n.leads.apellido].filter(Boolean).join(' ')
 }
@@ -51,13 +64,11 @@ export function NotificationBell() {
   const [soundEnabled, setSoundEnabled] = useState(true)
   const ref = useRef<HTMLDivElement>(null)
   const prevCountRef = useRef<number | null>(null)
-  // Stable ref for soundEnabled so realtime effect never re-runs on toggle
   const soundRef = useRef(soundEnabled)
   soundRef.current = soundEnabled
-  // Suppress unused warning — useMemo used for its side-effect-free memoization
   useMemo(() => { soundRef.current = soundEnabled }, [soundEnabled])
 
-  const { data } = useQuery<{ data: NotifActivity[] }>({
+  const { data } = useQuery<{ data: AnyNotif[] }>({
     queryKey: ['notifications'],
     queryFn: () => fetch('/api/notifications').then(r => r.json()),
     staleTime: 30_000,
@@ -67,11 +78,10 @@ export function NotificationBell() {
   const notifications = data?.data ?? []
   const unread = notifications.length
 
-  // Stable ref for qc so realtime effect never re-runs on identity changes
   const qcRef = useRef(qc)
   qcRef.current = qc
 
-  // Realtime subscription — subscribe once, use refs for mutable values
+  // Realtime: inbound emails
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
@@ -89,22 +99,34 @@ export function NotificationBell() {
       )
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, []) // subscribe once for app lifetime
+  }, [])
 
-  // Show browser notification badge when count increases
+  // Realtime: task notifications
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel('task-notifications')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'task_notifications' },
+        () => {
+          qcRef.current.invalidateQueries({ queryKey: ['notifications'] })
+          if (soundRef.current) playNotifSound()
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
+
   useEffect(() => {
     if (prevCountRef.current !== null && unread > prevCountRef.current) {
-      // New email arrived and dropdown isn't open
-      if (!open) {
-        document.title = `(${unread}) CRM · Alora`
-      }
+      if (!open) document.title = `(${unread}) CRM · Alora`
     } else if (unread === 0) {
       document.title = 'CRM · Alora'
     }
     prevCountRef.current = unread
   }, [unread, open])
 
-  // Close on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
@@ -115,20 +137,27 @@ export function NotificationBell() {
 
   const markAllRead = useCallback(async () => {
     await fetch('/api/activities/read-inbound', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+    // Mark all task notifications as read
+    const taskNotifs = (data?.data ?? []).filter((n): n is TaskNotif => n._type === 'task')
+    await Promise.allSettled(
+      taskNotifs.map(n => fetch(`/api/task-notifications/${n.id}/read`, { method: 'PATCH' }))
+    )
     qc.invalidateQueries({ queryKey: ['notifications'] })
     document.title = 'CRM · Alora'
-  }, [qc])
+  }, [qc, data])
 
-  const markOneRead = useCallback(async (id: string) => {
-    await fetch(`/api/activities/${id}/read`, { method: 'PATCH' })
-    qc.invalidateQueries({ queryKey: ['notifications'] })
-  }, [qc])
-
-  const handleClickNotif = async (n: NotifActivity) => {
-    await markOneRead(n.id)
+  const handleClickNotif = useCallback(async (n: AnyNotif) => {
     setOpen(false)
-    router.push(`/leads?id=${n.lead_id}`)
-  }
+    if (n._type === 'email') {
+      await fetch(`/api/activities/${n.id}/read`, { method: 'PATCH' })
+      qc.invalidateQueries({ queryKey: ['notifications'] })
+      router.push(`/leads?id=${n.lead_id}`)
+    } else {
+      await fetch(`/api/task-notifications/${n.id}/read`, { method: 'PATCH' })
+      qc.invalidateQueries({ queryKey: ['notifications'] })
+      router.push(`/projects/${n.project_id}`)
+    }
+  }, [qc, router])
 
   return (
     <div ref={ref} className="relative">
@@ -150,10 +179,9 @@ export function NotificationBell() {
 
       {open && (
         <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl border shadow-xl z-50 overflow-hidden">
-          {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <span className="text-sm font-semibold text-slate-800">
-              Emails no leídos {unread > 0 && <span className="text-red-500">({unread})</span>}
+              Notificaciones {unread > 0 && <span className="text-red-500">({unread})</span>}
             </span>
             <div className="flex items-center gap-2">
               <button
@@ -171,7 +199,6 @@ export function NotificationBell() {
             </div>
           </div>
 
-          {/* List */}
           <div className="max-h-96 overflow-y-auto divide-y divide-slate-50">
             {notifications.length === 0 ? (
               <div className="py-8 text-center text-slate-400">
@@ -180,15 +207,43 @@ export function NotificationBell() {
               </div>
             ) : (
               notifications.map((n) => {
-                const subject = (n.metadata?.subject as string | undefined) ?? '(sin asunto)'
+                if (n._type === 'task') {
+                  return (
+                    <button
+                      key={`task-${n.id}`}
+                      onClick={() => handleClickNotif(n)}
+                      className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                          <div className="mt-0.5 flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
+                            <ClipboardList size={12} className="text-blue-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-slate-800 truncate">Tarea asignada</p>
+                            <p className="text-xs text-slate-600 truncate mt-0.5">{n.task_titulo}</p>
+                            {n.project_nombre && (
+                              <p className="text-[10px] text-slate-400 truncate mt-0.5">Proyecto: {n.project_nombre}</p>
+                            )}
+                            <p className="text-[10px] text-slate-300 mt-1">{timeAgoWithFullDate(n.created_at)}</p>
+                          </div>
+                        </div>
+                        <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-1" />
+                      </div>
+                    </button>
+                  )
+                }
+
+                // Email notification
+                const subject  = (n.metadata?.subject as string | undefined) ?? '(sin asunto)'
                 const fromName = (n.metadata?.from_name as string | undefined) ?? getLeadName(n)
-                const preview = stripHtml(n.descripcion).replace(/✉ Respuesta de .+?Asunto: .+?/g, '').trim()
+                const preview  = stripHtml(n.descripcion).replace(/✉ Respuesta de .+?Asunto: .+?/g, '').trim()
 
                 return (
                   <button
-                    key={n.id}
+                    key={`email-${n.id}`}
                     onClick={() => handleClickNotif(n)}
-                    className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors group"
+                    className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
