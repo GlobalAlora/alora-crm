@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendTaskAssignmentEmail } from '@/lib/task-emails'
 import { notifyUser } from '@/lib/push-notify'
+import { createTaskNotification } from '@/lib/task-notify'
 import type { PmPriority, ProjectTaskEstado } from '@/types'
 
 type Params = { params: Promise<{ id: string }> }
@@ -93,6 +94,13 @@ export async function POST(req: NextRequest, { params }: Params) {
       body:  data.titulo,
       url:   `/projects/${id}`,
     }).catch((e) => console.error('[push] task create ERROR:', e))
+
+    createTaskNotification(admin, {
+      userId:     data.assignee_id,
+      taskId:     data.id,
+      projectId:  id,
+      taskTitulo: data.titulo,
+    }).catch((e) => console.error('[task-notif] ERROR:', e))
   }
 
   return NextResponse.json({ data }, { status: 201 })
