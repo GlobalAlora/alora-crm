@@ -402,16 +402,34 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const allTasks = sections.flatMap(s => s.tasks ?? [])  // unfiltered — for TaskPanel subtasks
 
   const handleToggleTask = useCallback((taskId: string, isDone: boolean) => {
-    const estado = isDone ? 'finalizada' : 'pendiente'
-    patchTask.mutate({ taskId, updates: { estado } })
+    const estado  = isDone ? 'finalizada' : 'pendiente'
+    const doneSection    = sections.find(s => s.is_done)
+    const task           = allTasks.find(t => t.id === taskId)
+    const updates: Record<string, unknown> = { estado }
+
+    // Move to/from the "done" section automatically (only root tasks)
+    if (task && !task.parent_task_id) {
+      if (isDone && doneSection && task.section_id !== doneSection.id) {
+        updates.section_id = doneSection.id
+        updates.position   = 9999
+      } else if (!isDone && task.section_id === doneSection?.id) {
+        // Move back to first non-done section if still sitting in the done column
+        const fallback = sections.find(s => !s.is_done)
+        if (fallback) { updates.section_id = fallback.id; updates.position = 9999 }
+      }
+    }
+
+    patchTask.mutate({ taskId, updates })
     if (isDone) {
       getDescendants(allTasks, taskId).forEach(t => {
         if (t.estado !== 'finalizada') {
-          patchTask.mutate({ taskId: t.id, updates: { estado: 'finalizada' } })
+          const childUpdates: Record<string, unknown> = { estado: 'finalizada' }
+          if (updates.section_id) childUpdates.section_id = updates.section_id
+          patchTask.mutate({ taskId: t.id, updates: childUpdates })
         }
       })
     }
-  }, [allTasks, patchTask])
+  }, [allTasks, sections, patchTask])
 
   const hasFilters = !!(filters.assigneeId || filters.priority || filters.taskStatus)
   const activeFilterCount = [filters.assigneeId, filters.priority, filters.taskStatus].filter(Boolean).length
