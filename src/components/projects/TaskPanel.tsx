@@ -40,6 +40,7 @@ interface TaskComment {
   task_id: string
   user_id: string
   body: string
+  attachments: TicketAttachment[]
   created_at: string
   user: { id: string; full_name: string; avatar_url: string | null } | null
 }
@@ -51,12 +52,15 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
   const [isDragOver,   setIsDragOver]  = useState(false)
   const [uploading,    setUploading]   = useState(false)
   const [lightboxUrl,  setLightboxUrl] = useState<string | null>(null)
-  const [comments,     setComments]    = useState<TaskComment[]>([])
-  const [newComment,   setNewComment]  = useState('')
-  const [sending,      setSending]     = useState(false)
-  const [commentError, setCommentError] = useState<string | null>(null)
-  const fileInputRef   = useRef<HTMLInputElement>(null)
-  const commentRef     = useRef<HTMLTextAreaElement>(null)
+  const [comments,      setComments]     = useState<TaskComment[]>([])
+  const [newComment,    setNewComment]   = useState('')
+  const [sending,       setSending]      = useState(false)
+  const [commentError,  setCommentError] = useState<string | null>(null)
+  const [commentFiles,  setCommentFiles] = useState<TicketAttachment[]>([])
+  const [uploadingComment, setUploadingComment] = useState(false)
+  const fileInputRef        = useRef<HTMLInputElement>(null)
+  const commentFileInputRef = useRef<HTMLInputElement>(null)
+  const commentRef          = useRef<HTMLTextAreaElement>(null)
   const dragCounter    = useRef(0)
 
   useEffect(() => {
@@ -66,21 +70,36 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
       .catch(() => {})
   }, [task.id])
 
+  async function uploadCommentFiles(files: File[]) {
+    if (!files.length) return
+    setUploadingComment(true)
+    const results = await Promise.all(files.map(async (f) => {
+      const fd = new FormData()
+      fd.append('file', f)
+      const res = await fetch('/api/portal/upload', { method: 'POST', body: fd }).then(r => r.json())
+      return res.url ? { url: res.url as string, name: res.name ?? f.name, type: res.type ?? f.type } as TicketAttachment : null
+    }))
+    const valid = results.filter(Boolean) as TicketAttachment[]
+    if (valid.length) setCommentFiles(prev => [...prev, ...valid])
+    setUploadingComment(false)
+  }
+
   async function postComment() {
     const text = newComment.trim()
-    if (!text || sending) return
+    if ((!text && !commentFiles.length) || sending) return
     setSending(true)
     setCommentError(null)
     try {
       const res = await fetch(`/api/project-tasks/${task.id}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: text }),
+        body: JSON.stringify({ body: text, attachments: commentFiles }),
       })
       const json = await res.json()
       if (json.data) {
         setComments(prev => [...prev, json.data])
         setNewComment('')
+        setCommentFiles([])
       } else {
         setCommentError(json.error ?? 'Error al guardar el comentario')
       }
@@ -165,6 +184,7 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
       )}
 
       <input ref={fileInputRef} type="file" multiple className="hidden" onChange={e => { uploadFiles(Array.from(e.target.files ?? [])); e.target.value = '' }} />
+      <input ref={commentFileInputRef} type="file" multiple className="hidden" onChange={e => { uploadCommentFiles(Array.from(e.target.files ?? [])); e.target.value = '' }} />
 
       {/* Lightbox */}
       {lightboxUrl && (
@@ -430,26 +450,85 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
                         {format(new Date(c.created_at), "d MMM, HH:mm", { locale: es })}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-600 whitespace-pre-wrap break-words">{c.body}</p>
+                    {c.body && <p className="text-xs text-slate-600 whitespace-pre-wrap break-words">{c.body}</p>}
+                    {(c.attachments ?? []).length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-1.5">
+                        {c.attachments.map((a, i) => (
+                          a.type?.startsWith('image/') ? (
+                            <button key={i} onClick={() => setLightboxUrl(a.url)} className="cursor-zoom-in">
+                              <img src={a.url} alt={a.name} className="h-14 w-14 object-cover rounded-lg border border-slate-200 hover:opacity-90 transition-opacity" />
+                            </button>
+                          ) : (
+                            <a key={i} href={a.url} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-md text-[11px] text-slate-600 hover:text-blue-600 max-w-[160px] truncate transition-colors">
+                              <Paperclip size={10} className="flex-shrink-0" />
+                              <span className="truncate">{a.name}</span>
+                            </a>
+                          )
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
           )}
 
+          {/* Pending comment files */}
+          {commentFiles.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {commentFiles.map((a, i) => (
+                a.type?.startsWith('image/') ? (
+                  <div key={i} className="relative group">
+                    <img src={a.url} alt={a.name} className="h-12 w-12 object-cover rounded-lg border border-slate-200" />
+                    <button onClick={() => setCommentFiles(prev => prev.filter((_, j) => j !== i))}
+                      className="absolute -top-1 -right-1 bg-white border border-slate-200 rounded-full p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                      <X size={9} className="text-slate-500" />
+                    </button>
+                  </div>
+                ) : (
+                  <div key={i} className="relative group flex items-center gap-1 px-2 py-1 bg-slate-100 border border-slate-200 rounded-md">
+                    <Paperclip size={10} className="text-slate-400 flex-shrink-0" />
+                    <span className="text-[11px] text-slate-600 truncate max-w-[120px]">{a.name}</span>
+                    <button onClick={() => setCommentFiles(prev => prev.filter((_, j) => j !== i))}
+                      className="ml-0.5 text-slate-400 hover:text-red-500 flex-shrink-0">
+                      <X size={9} />
+                    </button>
+                  </div>
+                )
+              ))}
+            </div>
+          )}
+
           <div className="flex gap-2">
-            <textarea
-              ref={commentRef}
-              value={newComment}
-              onChange={e => { setNewComment(e.target.value); setCommentError(null) }}
-              onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) postComment() }}
-              placeholder="Escribí un comentario... (Ctrl+Enter para enviar)"
-              rows={2}
-              className="flex-1 text-xs border border-slate-200 rounded-md px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 placeholder-slate-300"
-            />
+            <div className="flex-1 border border-slate-200 rounded-md focus-within:ring-1 focus-within:ring-blue-500 overflow-hidden">
+              <textarea
+                ref={commentRef}
+                value={newComment}
+                onChange={e => { setNewComment(e.target.value); setCommentError(null) }}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) postComment() }}
+                placeholder="Escribí un comentario... (Ctrl+Enter para enviar)"
+                rows={2}
+                className="w-full text-xs px-3 py-2 resize-none focus:outline-none text-slate-700 placeholder-slate-300"
+              />
+              <div className="flex items-center px-2 pb-1.5">
+                <button
+                  onClick={() => commentFileInputRef.current?.click()}
+                  disabled={uploadingComment}
+                  title="Adjuntar archivo"
+                  className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-40 transition-colors"
+                >
+                  {uploadingComment ? (
+                    <span className="text-[10px] text-slate-400">Subiendo...</span>
+                  ) : (
+                    <Paperclip size={13} />
+                  )}
+                </button>
+              </div>
+            </div>
             <button
               onClick={postComment}
-              disabled={!newComment.trim() || sending}
+              disabled={(!newComment.trim() && !commentFiles.length) || sending}
               className="self-end flex-shrink-0 p-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-40 transition-colors"
             >
               <Send size={13} />
