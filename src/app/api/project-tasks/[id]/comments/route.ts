@@ -37,13 +37,13 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { body: text } = await req.json() as { body: string }
-  if (!text?.trim()) return NextResponse.json({ error: 'El comentario no puede estar vacío' }, { status: 400 })
+  const { body: text, attachments } = await req.json() as { body: string; attachments?: unknown[] }
+  if (!text?.trim() && !(attachments?.length)) return NextResponse.json({ error: 'El comentario no puede estar vacío' }, { status: 400 })
 
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('project_task_comments')
-    .insert({ task_id: id, user_id: user.id, body: text.trim() })
+    .insert({ task_id: id, user_id: user.id, body: text?.trim() ?? '', attachments: attachments ?? [] })
     .select()
     .single()
 
