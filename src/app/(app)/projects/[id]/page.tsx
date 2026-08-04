@@ -547,7 +547,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </span>
               )}
               {project.fecha_fin && (
-                <span>Entrega: {format(new Date(project.fecha_fin), 'd MMM yyyy', { locale: es })}</span>
+                <span>Entrega: {format(new Date(project.fecha_fin + 'T00:00:00'), 'd MMM yyyy', { locale: es })}</span>
               )}
               {totalTasks > 0 && (
                 <span className="flex items-center gap-2">
@@ -1078,7 +1078,7 @@ function SortableSubtaskRow({
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.3 : 1 }
 
   const isDone    = task.estado === 'finalizada'
-  const isOverdue = task.fecha_limite && !isDone && new Date(task.fecha_limite) < new Date()
+  const isOverdue = task.fecha_limite && !isDone && new Date(task.fecha_limite + 'T00:00:00') < new Date()
   const assignee  = task.assignee_id ? users.find(u => u.id === task.assignee_id) : null
 
   return (
@@ -1110,7 +1110,7 @@ function SortableSubtaskRow({
       </span>
       {task.fecha_limite && (
         <span className={cn('text-[10px] whitespace-nowrap hidden sm:block', isOverdue ? 'text-red-500 font-medium' : 'text-slate-400')}>
-          {format(new Date(task.fecha_limite), 'd MMM', { locale: es })}
+          {format(new Date(task.fecha_limite + 'T00:00:00'), 'd MMM', { locale: es })}
         </span>
       )}
       {assignee && <Avatar name={assignee.full_name} url={assignee.avatar_url} size={16} />}
@@ -1135,7 +1135,7 @@ function SortableTaskRow({
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.3 : 1 }
 
   const isDone    = task.estado === 'finalizada'
-  const isOverdue = task.fecha_limite && !isDone && new Date(task.fecha_limite) < new Date()
+  const isOverdue = task.fecha_limite && !isDone && new Date(task.fecha_limite + 'T00:00:00') < new Date()
   const assignee  = task.assignee_id ? users.find(u => u.id === task.assignee_id) : null
 
   return (
@@ -1165,7 +1165,7 @@ function SortableTaskRow({
       )}
       {task.fecha_limite && (
         <span className={cn('text-xs whitespace-nowrap hidden sm:block', isOverdue ? 'text-red-500 font-medium' : 'text-slate-400')}>
-          {format(new Date(task.fecha_limite), 'd MMM', { locale: es })}
+          {format(new Date(task.fecha_limite + 'T00:00:00'), 'd MMM', { locale: es })}
         </span>
       )}
       {assignee && <Avatar name={assignee.full_name} url={assignee.avatar_url} size={20} />}
