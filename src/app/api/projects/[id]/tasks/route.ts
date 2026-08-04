@@ -75,20 +75,24 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // Notify assignee if task was created with one already set
-  if (data.assignee_id && data.assignee_id !== user.id) {
-    sendTaskAssignmentEmail({
-      admin,
-      assigneeId: data.assignee_id,
-      creatorId:  user.id,
-      task: {
-        titulo:       data.titulo,
-        descripcion:  data.descripcion,
-        prioridad:    data.prioridad,
-        fecha_limite: data.fecha_limite,
-        project_id:   id,
-      },
-    }).catch((e) => console.error('[task-email] ERROR:', e))
+  if (data.assignee_id) {
+    // Email only when someone else creates the assignment
+    if (data.assignee_id !== user.id) {
+      sendTaskAssignmentEmail({
+        admin,
+        assigneeId: data.assignee_id,
+        creatorId:  user.id,
+        task: {
+          titulo:       data.titulo,
+          descripcion:  data.descripcion,
+          prioridad:    data.prioridad,
+          fecha_limite: data.fecha_limite,
+          project_id:   id,
+        },
+      }).catch((e) => console.error('[task-email] ERROR:', e))
+    }
 
+    // Bell + push always (including self-assign)
     notifyUser(data.assignee_id, {
       title: '📋 Nueva tarea asignada',
       body:  data.titulo,

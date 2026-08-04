@@ -47,43 +47,42 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Send assignment email if assignee changed and is not the person making the change
-  const newAssigneeId = updates.assignee_id as string | null
-  const assigneeChanged = newAssigneeId &&
-    newAssigneeId !== currentTask?.assignee_id &&
-    newAssigneeId !== user.id
+  // Notify when assignee actually changes
+  const newAssigneeId   = updates.assignee_id as string | null
+  const assigneeChanged = newAssigneeId && newAssigneeId !== currentTask?.assignee_id
 
-  console.log('[task-email] assigneeChanged:', assigneeChanged, '| currentTask:', !!currentTask, '| newAssigneeId:', newAssigneeId, '| user.id:', user.id)
-
-  if (newAssigneeId) {
+  if (assigneeChanged) {
     const projectId = currentTask?.project_id ?? (data.project_id as string)
-    sendTaskAssignmentEmail({
-      admin,
-      assigneeId: newAssigneeId,
-      creatorId:  user.id,
-      task: {
-        titulo:       data.titulo,
-        descripcion:  data.descripcion,
-        prioridad:    data.prioridad,
-        fecha_limite: data.fecha_limite,
-        project_id:   projectId,
-      },
-    }).catch((e) => console.error('[task-email] ERROR:', e))
 
+    // Email only when someone else assigns (not self-assign)
     if (newAssigneeId !== user.id) {
-      notifyUser(newAssigneeId, {
-        title: '📋 Nueva tarea asignada',
-        body:  data.titulo,
-        url:   `/projects/${projectId}`,
-      }).catch((e) => console.error('[push] task assign ERROR:', e))
-
-      createTaskNotification(admin, {
-        userId:     newAssigneeId,
-        taskId:     id,
-        projectId,
-        taskTitulo: data.titulo,
-      }).catch((e) => console.error('[task-notif] ERROR:', e))
+      sendTaskAssignmentEmail({
+        admin,
+        assigneeId: newAssigneeId,
+        creatorId:  user.id,
+        task: {
+          titulo:       data.titulo,
+          descripcion:  data.descripcion,
+          prioridad:    data.prioridad,
+          fecha_limite: data.fecha_limite,
+          project_id:   projectId,
+        },
+      }).catch((e) => console.error('[task-email] ERROR:', e))
     }
+
+    // Bell + push always when assignee changes (including self-assign)
+    notifyUser(newAssigneeId, {
+      title: '📋 Nueva tarea asignada',
+      body:  data.titulo,
+      url:   `/projects/${projectId}`,
+    }).catch((e) => console.error('[push] task assign ERROR:', e))
+
+    createTaskNotification(admin, {
+      userId:     newAssigneeId,
+      taskId:     id,
+      projectId,
+      taskTitulo: data.titulo,
+    }).catch((e) => console.error('[task-notif] ERROR:', e))
   }
 
   return NextResponse.json({ data })
