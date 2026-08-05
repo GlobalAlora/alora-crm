@@ -374,7 +374,274 @@ export async function runBot(
     return
   }
 
+  if (convo.bot_phase === 'qualifying_ai') {
+    await advanceQualifyingBotWithAI(admin, { leadId, conversationId, phone, text, lang })
+    return
+  }
+
   await advanceQualifyingBot(admin, { leadId, conversationId, phone, text, botNextQuestion: convo.bot_next_question, lang })
+}
+
+// ── AI-powered qualifying prompts ─────────────────────────────────────────────
+
+const QUALIFYING_AI_SYSTEM_ES = `Sos Lidia, la recepcionista virtual de Alora por WhatsApp. Alora es una agencia de tecnología digital: desarrolla sitios web, apps, redes sociales, branding y marketing digital para empresas y emprendedores.
+
+Tu objetivo: entender bien el proyecto del lead y agendar una llamada de 30 minutos con Walo (el fundador de Alora).
+
+INFO QUE NECESITÁS RECOPILAR (orden de prioridad):
+1. Descripción del proyecto (ESENCIAL)
+2. País (ESENCIAL)
+3. Email (útil para seguimiento — pedí UNA sola vez, aceptá si dice que no)
+4. Empresa/negocio
+5. Sitio web actual (opcional)
+6. Servicios de interés
+
+REGLAS DE CONVERSACIÓN:
+- Mensajes cortos y cálidos — como WhatsApp entre amigos, nunca un formulario
+- Una pregunta a la vez, siempre
+- SIEMPRE reconocé lo que dijeron antes de hacer la siguiente pregunta
+- Si mencionan varios proyectos/negocios, reconocelos todos: "¡Qué interesante, dos proyectos! ¿Por cuál empezamos?"
+- "uno", "otro", "tengo uno", "el mío" NUNCA son respuestas negativas — son proyectos o negocios
+- Si prefieren solo WhatsApp: explicá amablemente que necesitamos una llamada corta de 30 min con Walo para armar bien la propuesta
+- Si preguntan precios: "Los costos dependen del proyecto — en la llamada con Walo lo ven juntos 🙂"
+- Si mandan solo un link sin descripción: pediles que cuenten brevemente qué necesitan
+- Si la descripción es muy vaga (2-3 palabras): pedí más detalle UNA sola vez, luego aceptá lo que manden
+- Nunca rompas el personaje
+
+PORTAFOLIO (mencioná orgánicamente si aplica — UNA sola vez, solo si hay match claro):
+- Autodux: marketplace de autos para concesionarias (catálogo, búsqueda, WhatsApp) → https://www.globalalora.com/es/casos-de-exito/autodux
+- Soy LIDIA: bot de WhatsApp para clínicas (agenda 24/7, cobro de señas) → https://www.globalalora.com/es/casos-de-exito/soy-lidia
+- ALORA CRM: sistema de gestión de leads y ventas (SOLO si el cliente necesita gestión interna) → https://www.globalalora.com/es/casos-de-exito/alora-crm
+- Castro Yeso: landing page ONE-PAGE para servicios — SIN catálogo → https://www.globalalora.com/es/casos-de-exito/castro-yeso
+- ALKEMIA: sitio institucional bilingüe → https://www.globalalora.com/es/casos-de-exito/alkemia
+- Distri-Sal: ecommerce con sincronización de stock en tiempo real → https://www.globalalora.com/es/casos-de-exito/distrisal
+- Voutier: tienda de repuestos automotrices con catálogo filtrable → https://www.globalalora.com/es/casos-de-exito/voutier
+- Mimi Kids: tienda artesanal con catálogo + MercadoPago → https://www.globalalora.com/es/casos-de-exito/mimikids
+
+CUÁNDO IR A BOOKING: cuando tenés descripción del proyecto + país. El email es opcional.
+
+FORMATO DE RESPUESTA (exactamente esto, sin nada extra antes ni después):
+SEND: [tu mensaje de WhatsApp — texto plano, podés usar *negrita*]
+UPDATE: {"campo": "valor"} o {} si no hay info nueva en el ÚLTIMO mensaje del lead
+(campos válidos: consulta_detallada, servicios_interesados, email, empresa, sitio_web, pais — NO incluyas nombre, ya fue guardado)
+NEXT: CONTINUE o BOOKING o STOP`
+
+const QUALIFYING_AI_SYSTEM_EN = `You are Lidia, Alora's virtual receptionist on WhatsApp. Alora is a digital technology agency: websites, apps, social media, branding, and digital marketing for businesses and entrepreneurs.
+
+Your goal: understand the lead's project and schedule a 30-minute call with Walo (Alora's founder).
+
+INFO TO COLLECT (priority order):
+1. Project description (ESSENTIAL)
+2. Country (ESSENTIAL)
+3. Email (useful for follow-up — ask ONCE, accept if they decline)
+4. Company/business name
+5. Existing website (optional)
+6. Services of interest
+
+CONVERSATION RULES:
+- Short, warm messages — like texting a friend, never a form
+- One question at a time, always
+- ALWAYS acknowledge what they said before asking the next question
+- If they mention multiple projects/businesses, acknowledge all: "How interesting — two projects! Which should we start with?"
+- "one", "another", "I have one" are NEVER negative — they're projects or businesses
+- If they prefer WhatsApp only: kindly explain that a short 30-min call with Walo is needed to prepare a proper quote
+- If they ask about pricing: "Costs depend on the project — you and Walo will figure that out together in the call 🙂"
+- If they send only a URL: ask them to briefly describe what they need
+- If the description is very vague: ask for more detail ONCE, then accept whatever they give
+- Never break character
+
+PORTFOLIO (mention organically when relevant — ONCE, only on a clear match):
+- Autodux: car marketplace for dealers → https://www.globalalora.com/es/casos-de-exito/autodux
+- Soy LIDIA: WhatsApp bot for clinics (24/7 booking) → https://www.globalalora.com/es/casos-de-exito/soy-lidia
+- ALORA CRM: lead/sales management system (ONLY if client needs internal business management) → https://www.globalalora.com/es/casos-de-exito/alora-crm
+- Castro Yeso: one-page landing (NO catalog) → https://www.globalalora.com/es/casos-de-exito/castro-yeso
+- ALKEMIA: bilingual institutional website → https://www.globalalora.com/es/casos-de-exito/alkemia
+- Distri-Sal: e-commerce with real-time stock sync → https://www.globalalora.com/es/casos-de-exito/distrisal
+- Voutier: auto parts store with filterable catalog → https://www.globalalora.com/es/casos-de-exito/voutier
+- Mimi Kids: artisan e-commerce with MercadoPago → https://www.globalalora.com/es/casos-de-exito/mimikids
+
+WHEN TO BOOK: when you have project description + country. Email is optional.
+
+RESPONSE FORMAT (exactly this, nothing before or after):
+SEND: [your WhatsApp message — plain text, *bold* allowed]
+UPDATE: {"field": "value"} or {} if nothing new in the lead's LATEST message
+(valid fields: consulta_detallada, servicios_interesados, email, empresa, sitio_web, pais — do NOT include nombre, already saved)
+NEXT: CONTINUE or BOOKING or STOP`
+
+/**
+ * AI-powered qualifying conversation. Replaces the rigid field-by-field state
+ * machine after the lead's name is known. Haiku reads the full conversation
+ * history, generates Lidia's next message, extracts any new lead data, and
+ * decides when to proceed to booking.
+ */
+async function advanceQualifyingBotWithAI(
+  admin: AdminClient,
+  {
+    leadId,
+    conversationId,
+    phone,
+    text,
+    lang,
+  }: {
+    leadId: string
+    conversationId: string
+    phone: string
+    text: string | null
+    lang: Lang
+  },
+): Promise<void> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) {
+    console.error('[Bot AI] No ANTHROPIC_API_KEY')
+    return
+  }
+
+  const trimmed = text?.trim() ?? ''
+
+  if (!trimmed) {
+    await sendOutboundWhatsAppMessage(admin, {
+      conversationId, leadId, phone,
+      body: lang === 'en'
+        ? "I can't listen to audios or read files 😊 Could you write your answer in text?"
+        : 'No puedo escuchar audios ni leer archivos 😊 ¿Me podés escribir tu respuesta por texto?',
+    })
+    return
+  }
+
+  if (DISENGAGEMENT_RE.test(trimmed) || DISENGAGEMENT_RE_EN.test(trimmed)) {
+    await sendOutboundWhatsAppMessage(admin, {
+      conversationId, leadId, phone,
+      body: lang === 'en'
+        ? "Understood, no problem! Whenever you're ready to pick things back up, just write to us 💛"
+        : '¡Entendido, sin problema! Cuando estés listo/a para retomar, escribinos tranquilo — acá vamos a estar 💛 ¡Mucho ánimo!',
+    })
+    await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
+    return
+  }
+
+  if (JOB_INQUIRY_RE.test(trimmed)) {
+    await sendOutboundWhatsAppMessage(admin, {
+      conversationId, leadId, phone,
+      body: lang === 'en'
+        ? "Thanks so much for your interest in joining Alora! 🙂 We're not currently looking to hire. Best of luck!"
+        : '¡Muchas gracias por tu interés en ser parte del equipo de Alora! 🙂 Por el momento no estamos incorporando personal. ¡Te deseamos mucho éxito!',
+    })
+    await admin.from('leads').update({ estado_pipeline: 'no_cualificado' }).eq('id', leadId)
+    await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
+    return
+  }
+
+  const [{ data: lead }, { data: messages }] = await Promise.all([
+    admin.from('leads')
+      .select('nombre, email, empresa, sitio_web, pais, servicios_interesados, consulta_detallada')
+      .eq('id', leadId)
+      .single(),
+    admin.from('wa_messages')
+      .select('direction, body')
+      .eq('conversation_id', conversationId)
+      .not('body', 'is', null)
+      .order('created_at', { ascending: true })
+      .limit(30),
+  ])
+
+  if (!lead || !messages?.length) return
+
+  // Build alternating user/assistant history, merging consecutive same-role messages
+  const history: Array<{ role: 'user' | 'assistant'; content: string }> = []
+  for (const msg of messages) {
+    if (!msg.body) continue
+    const role: 'user' | 'assistant' = msg.direction === 'inbound' ? 'user' : 'assistant'
+    const last = history[history.length - 1]
+    if (last && last.role === role) {
+      last.content += '\n' + msg.body
+    } else {
+      history.push({ role, content: msg.body })
+    }
+  }
+
+  if (!history.length || history[history.length - 1].role !== 'user') return
+
+  const ctx: string[] = [`Nombre: ${lead.nombre ?? 'no recopilado'}`]
+  if (lead.consulta_detallada) ctx.push(`Proyecto: ${lead.consulta_detallada}`)
+  if (lead.servicios_interesados?.length) ctx.push(`Servicios: ${lead.servicios_interesados.join(', ')}`)
+  if (lead.email) ctx.push(`Email: ${lead.email}`)
+  if (lead.empresa) ctx.push(`Empresa: ${lead.empresa}`)
+  if (lead.sitio_web) ctx.push(`Sitio web: ${lead.sitio_web}`)
+  if (lead.pais) ctx.push(`País: ${lead.pais}`)
+
+  const systemBase = lang === 'en' ? QUALIFYING_AI_SYSTEM_EN : QUALIFYING_AI_SYSTEM_ES
+  const system = `${systemBase}\n\nINFO ACTUAL DEL LEAD:\n${ctx.join('\n')}`
+
+  try {
+    const client = new Anthropic({ apiKey })
+    const result = await client.messages.create({
+      model: ANTHROPIC_MODEL,
+      max_tokens: 500,
+      system,
+      messages: history,
+    })
+
+    const raw = (result.content[0] as { type: string; text: string }).text?.trim() ?? ''
+    console.log(`[Bot AI] lead ${leadId}:`, raw.slice(0, 300))
+
+    let messageBody = ''
+    let updateJson = '{}'
+    let next: 'CONTINUE' | 'BOOKING' | 'STOP' = 'CONTINUE'
+
+    const lines = raw.split('\n')
+    let i = 0
+    while (i < lines.length) {
+      const line = lines[i]
+      if (line.startsWith('SEND:')) {
+        const parts = [line.slice(5).trim()]
+        while (i + 1 < lines.length && !lines[i + 1].match(/^(UPDATE|NEXT):/)) {
+          i++
+          parts.push(lines[i])
+        }
+        messageBody = parts.join('\n').trim()
+      } else if (line.startsWith('UPDATE:')) {
+        updateJson = line.slice(7).trim()
+      } else if (line.startsWith('NEXT:')) {
+        const val = line.slice(5).trim().toUpperCase()
+        if (val === 'BOOKING' || val === 'STOP') next = val as 'BOOKING' | 'STOP'
+      }
+      i++
+    }
+
+    if (updateJson && updateJson !== '{}') {
+      try {
+        const updates = JSON.parse(updateJson) as Record<string, unknown>
+        const ALLOWED = ['consulta_detallada', 'servicios_interesados', 'email', 'empresa', 'sitio_web', 'pais'] as const
+        const toSave: Record<string, unknown> = {}
+        for (const key of ALLOWED) {
+          if (key in updates && updates[key] !== null && updates[key] !== '') toSave[key] = updates[key]
+        }
+        if (Object.keys(toSave).length) await admin.from('leads').update(toSave).eq('id', leadId)
+      } catch { /* ignore parse errors */ }
+    }
+
+    if (next === 'STOP') {
+      if (messageBody) await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: messageBody })
+      await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
+      return
+    }
+
+    if (next === 'BOOKING') {
+      if (messageBody) await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: messageBody })
+      await startBookingFlow(admin, { leadId, conversationId, phone }, 0, undefined, lang)
+      return
+    }
+
+    if (messageBody) await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: messageBody })
+  } catch (err) {
+    console.error('[Bot AI] qualifying failed:', err instanceof Error ? err.message : String(err))
+    await sendOutboundWhatsAppMessage(admin, {
+      conversationId, leadId, phone,
+      body: lang === 'en'
+        ? "Sorry, something went wrong on our end 😊 Could you repeat what you just said?"
+        : '¡Disculpá! Algo falló de nuestro lado 😊 ¿Me repetís lo que decías?',
+    })
+  }
 }
 
 /**
@@ -615,6 +882,17 @@ async function advanceQualifyingBot(
 
   if (!lead) return
 
+  // After collecting the name, hand off to the AI-powered qualifying flow.
+  // The AI reads the full conversation history and handles all remaining fields
+  // naturally, without rigid field-by-field state machine logic.
+  if (askedField === 'nombre') {
+    await admin.from('whatsapp_conversations')
+      .update({ bot_phase: 'qualifying_ai', bot_next_question: null })
+      .eq('id', conversationId)
+    await advanceQualifyingBotWithAI(admin, { leadId, conversationId, phone, text, lang })
+    return
+  }
+
   // Whatever we last asked counts as "answered" (even with a "no") — resume
   // looking for missing fields right after it, not from the start.
   const lastAskedIdx = askedField ? QUESTION_ORDER.indexOf(askedField) : -1
@@ -703,7 +981,7 @@ async function advanceQualifyingBot(
   // Acknowledge the previous answer before asking the next question,
   // unless we already have a questionPrefix that starts the message naturally.
   const ack = askedField && trimmed && !questionPrefix
-    ? getAcknowledgment(askedField, askedField === 'nombre' ? (extractedNombre || extractName(trimmed)) : trimmed, lead.nombre, lang)
+    ? getAcknowledgment(askedField, trimmed, lead.nombre, lang)
     : ''
 
   const body = [ack, questionPrefix, getQuestionText(nextField, lang)].filter(Boolean).join('\n\n')
