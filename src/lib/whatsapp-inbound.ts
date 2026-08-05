@@ -88,9 +88,19 @@ export async function recordInboundWhatsAppMessage(admin: AdminClient, msg: Inbo
     url:   `/leads/${leadId}`,
   }).catch(() => {})
 
-  await enrichLeadFromConversation(admin, leadId, convId).catch((err) => {
-    console.error('[WhatsApp] AI enrichment failed:', err instanceof Error ? err.message : err)
-  })
+  // Skip AI enrichment when the bot is in qualifying_ai — Sonnet 5 already extracts
+  // all fields there via tool_use. Running both is redundant and wastes a Haiku call.
+  const { data: convoState } = await admin
+    .from('whatsapp_conversations')
+    .select('bot_phase')
+    .eq('id', convId)
+    .maybeSingle()
+
+  if (convoState?.bot_phase !== 'qualifying_ai') {
+    await enrichLeadFromConversation(admin, leadId, convId).catch((err) => {
+      console.error('[WhatsApp] AI enrichment failed:', err instanceof Error ? err.message : err)
+    })
+  }
 
   await runBot(admin, { leadId, conversationId: convId, phone, text }).catch((err) => {
     console.error('[WhatsApp] Bot failed:', err instanceof Error ? err.message : err)
