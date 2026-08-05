@@ -219,18 +219,18 @@ function getAcknowledgment(field: QuestionField, answer: string, leadNombre?: st
     }
     case 'empresa': {
       if (lang === 'en') {
-        if (/no |don't have|none|no company/i.test(answer)) return "No worries! 🙂"
+        if (/\bno\b|don't have|\bnone\b|no company/i.test(answer)) return "No worries! 🙂"
         return [  'Awesome! 💪', 'Great! 🙌', 'Nice! 😊'][Math.floor(Math.random() * 3)]
       }
-      if (/no |sin |ninguna|no tengo/i.test(answer)) return '¡Tranquilo, no hay problema! 🙂'
+      if (/\bno\b|\bsin\b|\bninguna\b|\bno tengo\b/i.test(answer)) return '¡Tranquilo, no hay problema! 🙂'
       return ['¡Buenísimo! 💪', '¡Genial! 🙌', '¡Qué bien! 😊'][Math.floor(Math.random() * 3)]
     }
     case 'sitio_web': {
       if (lang === 'en') {
-        if (/no |don't have|not yet|none/i.test(answer)) return "No problem at all! 🙂"
+        if (/\bno\b|don't have|not yet|\bnone\b/i.test(answer)) return "No problem at all! 🙂"
         return 'Great, noted! 🙌'
       }
-      if (/no |sin |todavía|aún|no tengo/i.test(answer)) return '¡Sin problema, no hace falta! 🙂'
+      if (/\bno\b|\bsin\b|\btodavía\b|\baún\b|\bno tengo\b/i.test(answer)) return '¡Sin problema, no hace falta! 🙂'
       return '¡Genial, lo anoto! 🙌'
     }
     case 'pais': {
