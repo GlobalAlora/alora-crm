@@ -1064,6 +1064,17 @@ function SectionBlock({
   )
 }
 
+function overdueLabel(fechaLimite: string): string {
+  const deadline = new Date(fechaLimite + 'T00:00:00')
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const days = Math.round((today.getTime() - deadline.getTime()) / 86_400_000)
+  if (days <= 0) return 'hoy'
+  if (days === 1) return 'ayer'
+  return `hace ${days} d`
+}
+
+function startOfToday(): Date { const d = new Date(); d.setHours(0, 0, 0, 0); return d }
+
 // ─── SortableSubtaskRow ───────────────────────────────────
 function SortableSubtaskRow({
   task, isSelected, users, onToggle, onClick,
@@ -1078,7 +1089,7 @@ function SortableSubtaskRow({
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.3 : 1 }
 
   const isDone    = task.estado === 'finalizada'
-  const isOverdue = task.fecha_limite && !isDone && new Date(task.fecha_limite + 'T00:00:00') < new Date()
+  const isOverdue = task.fecha_limite && !isDone && new Date(task.fecha_limite + 'T00:00:00') < startOfToday()
   const assignee  = task.assignee_id ? users.find(u => u.id === task.assignee_id) : null
 
   return (
@@ -1110,7 +1121,7 @@ function SortableSubtaskRow({
       </span>
       {task.fecha_limite && (
         <span className={cn('text-[10px] whitespace-nowrap hidden sm:block', isOverdue ? 'text-red-500 font-medium' : 'text-slate-400')}>
-          {format(new Date(task.fecha_limite + 'T00:00:00'), 'd MMM', { locale: es })}
+          {isOverdue ? overdueLabel(task.fecha_limite) : format(new Date(task.fecha_limite + 'T00:00:00'), 'd MMM', { locale: es })}
         </span>
       )}
       {assignee && <Avatar name={assignee.full_name} url={assignee.avatar_url} size={16} />}
@@ -1135,7 +1146,7 @@ function SortableTaskRow({
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.3 : 1 }
 
   const isDone    = task.estado === 'finalizada'
-  const isOverdue = task.fecha_limite && !isDone && new Date(task.fecha_limite + 'T00:00:00') < new Date()
+  const isOverdue = task.fecha_limite && !isDone && new Date(task.fecha_limite + 'T00:00:00') < startOfToday()
   const assignee  = task.assignee_id ? users.find(u => u.id === task.assignee_id) : null
 
   return (
@@ -1165,7 +1176,7 @@ function SortableTaskRow({
       )}
       {task.fecha_limite && (
         <span className={cn('text-xs whitespace-nowrap hidden sm:block', isOverdue ? 'text-red-500 font-medium' : 'text-slate-400')}>
-          {format(new Date(task.fecha_limite + 'T00:00:00'), 'd MMM', { locale: es })}
+          {isOverdue ? overdueLabel(task.fecha_limite) : format(new Date(task.fecha_limite + 'T00:00:00'), 'd MMM', { locale: es })}
         </span>
       )}
       {assignee && <Avatar name={assignee.full_name} url={assignee.avatar_url} size={20} />}
