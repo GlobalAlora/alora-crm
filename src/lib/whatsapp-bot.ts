@@ -6,7 +6,10 @@ import { getAvailableSlotsByDay, formatSlotAR, createCalendarEvent } from '@/lib
 import { sendGmail } from '@/lib/google-gmail'
 import { notifyAll } from '@/lib/push-notify'
 
+// Fast model for simple extraction tasks (name, portfolio match)
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_LEAD_EXTRACT_MODEL || 'claude-haiku-4-5-20251001'
+// Best model for the qualifying conversation — this is our most critical business moment
+const ANTHROPIC_MODEL_QUALIFYING = process.env.ANTHROPIC_QUALIFYING_MODEL || 'claude-sonnet-5'
 
 // ─── Portfolio cases ──────────────────────────────────────────────────────────
 // When a lead describes a project that matches one of these, Lidia shares the
@@ -589,14 +592,19 @@ async function advanceQualifyingBotWithAI(
   if (lead.pais) ctx.push(`País: ${lead.pais}`)
 
   const systemBase = lang === 'en' ? QUALIFYING_AI_SYSTEM_EN : QUALIFYING_AI_SYSTEM_ES
-  const system = `${systemBase}\n\nINFO ACTUAL DEL LEAD:\n${ctx.join('\n')}`
 
   try {
     const client = new Anthropic({ apiKey })
     const result = await client.messages.create({
-      model: ANTHROPIC_MODEL,
-      max_tokens: 500,
-      system,
+      model: ANTHROPIC_MODEL_QUALIFYING,
+      max_tokens: 800,
+      // Split system into cacheable static instructions + dynamic lead context.
+      // The large prompt is cached by Anthropic after the first call — only the
+      // small lead-specific block is re-processed on every message.
+      system: [
+        { type: 'text', text: systemBase, cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: `\n\nINFO ACTUAL DEL LEAD:\n${ctx.join('\n')}` },
+      ],
       messages: history,
     })
 
