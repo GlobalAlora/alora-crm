@@ -619,8 +619,8 @@ export const FUENTES: { value: LeadFuente; label: string }[] = [
 ]
 
 export const IDIOMAS: { value: 'es' | 'en'; label: string }[] = [
-  { value: 'es', label: 'Español' },
-  { value: 'en', label: 'English' },
+  { value: 'es', label: 'ES' },
+  { value: 'en', label: 'EN' },
 ]
 
 // Revenue probability per stage
