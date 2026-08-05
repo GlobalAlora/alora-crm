@@ -13,14 +13,14 @@ const ANTHROPIC_MODEL = process.env.ANTHROPIC_LEAD_EXTRACT_MODEL || 'claude-haik
 // relevant case study link so they can see real work before the call.
 const BASE_SITE = 'https://www.globalalora.com'
 const PORTFOLIO_CASES = [
-  { name: 'Autodux',           url: `${BASE_SITE}/es/casos-de-exito/autodux`,   teaser: 'un marketplace de compra y venta de autos con buscador, panel de agencias y contacto directo por WhatsApp' },
+  { name: 'Autodux',           url: `${BASE_SITE}/es/casos-de-exito/autodux`,   teaser: 'un marketplace de compra y venta de autos con catálogo de vehículos, buscador por filtros, panel de agencias y contacto directo por WhatsApp — ideal para concesionarias, dealers o negocios de venta de vehículos' },
   { name: 'Soy LIDIA',        url: `${BASE_SITE}/es/casos-de-exito/soy-lidia`,  teaser: 'una recepcionista virtual por WhatsApp que agenda turnos 24/7, cobra señas y confirma citas automáticamente — activa hoy en clínicas de 4 países' },
-  { name: 'ALORA CRM',        url: `${BASE_SITE}/es/casos-de-exito/alora-crm`,  teaser: 'un CRM con pipeline de ventas automatizado, seguimiento de leads y dashboard en tiempo real' },
-  { name: 'Castro Yeso',      url: `${BASE_SITE}/es/casos-de-exito/castro-yeso`, teaser: 'un sitio web one page que convierte visitas en consultas por WhatsApp — perfecto para negocios de servicios y oficios' },
+  { name: 'ALORA CRM',        url: `${BASE_SITE}/es/casos-de-exito/alora-crm`,  teaser: 'un CRM (sistema de gestión de clientes) con pipeline de ventas automatizado, seguimiento de leads y dashboard en tiempo real — solo relevante si el cliente necesita gestión interna de su negocio' },
+  { name: 'Castro Yeso',      url: `${BASE_SITE}/es/casos-de-exito/castro-yeso`, teaser: 'una landing page (sitio de una sola página, sin catálogo ni e-commerce) para un negocio de servicios y oficios — solo relevante si el cliente NO necesita catálogo de productos ni tienda online' },
   { name: 'ALKEMIA',          url: `${BASE_SITE}/es/casos-de-exito/alkemia`,    teaser: 'un sitio institucional bilingüe para posicionarse en el mercado tech e IA a nivel internacional' },
-  { name: 'Distri-Sal',       url: `${BASE_SITE}/es/casos-de-exito/distrisal`,  teaser: 'un ecommerce integrado con su sistema de gestión para sincronizar productos, stock y precios en tiempo real' },
-  { name: 'Voutier Repuestos', url: `${BASE_SITE}/es/casos-de-exito/voutier`,   teaser: 'una tienda online de repuestos automotrices con filtros por marca, modelo y año' },
-  { name: 'Mimi Kids',        url: `${BASE_SITE}/es/casos-de-exito/mimikids`,   teaser: 'una tienda online para emprendimiento artesanal con catálogo interactivo, personalización y pagos con MercadoPago' },
+  { name: 'Distri-Sal',       url: `${BASE_SITE}/es/casos-de-exito/distrisal`,  teaser: 'un ecommerce con catálogo de productos integrado con su sistema de gestión para sincronizar stock y precios en tiempo real — ideal para distribuidoras o mayoristas' },
+  { name: 'Voutier Repuestos', url: `${BASE_SITE}/es/casos-de-exito/voutier`,   teaser: 'una tienda online de repuestos automotrices con catálogo filtrable por marca, modelo y año — ideal para negocios de autopartes o repuestos' },
+  { name: 'Mimi Kids',        url: `${BASE_SITE}/es/casos-de-exito/mimikids`,   teaser: 'una tienda online para emprendimiento artesanal con catálogo interactivo, personalización de productos y pagos con MercadoPago' },
 ] as const
 
 async function findPortfolioMatch(text: string): Promise<typeof PORTFOLIO_CASES[number] | null> {
