@@ -1130,26 +1130,11 @@ const BOOKING_GREETING_RE = /^[¡¿]?\s*(hola|holi|holis|hi|hey|hello|buenas?|bu
 
 async function handleBookingPhase(
   admin: AdminClient,
-  { leadId, conversationId, phone, text, botNextQuestion, lastMessageAt, lang }: {
+  { leadId, conversationId, phone, text, botNextQuestion, lang }: {
     leadId: string; conversationId: string; phone: string; text: string | null; botNextQuestion: string | null; lastMessageAt: string | null; lang: Lang
   },
 ): Promise<void> {
   const trimmedEarly = text?.trim() ?? ''
-
-  // If the lead comes back after 6+ hours with just a greeting, re-engage warmly
-  // instead of dumping the slot list cold on them
-  if (trimmedEarly && BOOKING_GREETING_RE.test(trimmedEarly) && lastMessageAt) {
-    const hoursSinceLast = (Date.now() - new Date(lastMessageAt).getTime()) / 3_600_000
-    if (hoursSinceLast >= 6) {
-      await sendOutboundWhatsAppMessage(admin, {
-        conversationId, leadId, phone,
-        body: lang === 'en'
-          ? "Hey, great to hear from you again! 😊 Did you get a chance to look at the available times? Let me know if you'd like me to send them again or if something came up."
-          : '¡Hola de nuevo! 😊 ¿Pudiste ver los horarios disponibles? Avisame si querés que te los mande otra vez o si te surgió alguna duda.',
-      })
-      return
-    }
-  }
 
   // Detect disengagement before anything else — same as in qualifying
   if (trimmedEarly && (DISENGAGEMENT_RE.test(trimmedEarly) || DISENGAGEMENT_RE_EN.test(trimmedEarly))) {
@@ -1186,6 +1171,40 @@ async function handleBookingPhase(
 
   const slots = slotsStr.split('|').filter(Boolean).map(s => new Date(s))
   const trimmed = text?.trim() ?? ''
+
+  // Re-engage warmly when stored slots are expired OR lead returns after 6+ hours with a greeting.
+  // We query the last OUTBOUND message time directly — convo.last_message_at is updated to "now"
+  // by the inbound webhook before runBot reads it, so it cannot reliably measure absence.
+  const now = new Date()
+  const allSlotsExpired = slots.length > 0 && slots.every(s => s <= now)
+  const isGreeting = trimmedEarly ? BOOKING_GREETING_RE.test(trimmedEarly) : false
+
+  if (allSlotsExpired || isGreeting) {
+    let shouldReEngage = allSlotsExpired
+    if (!shouldReEngage) {
+      const { data: lastOut } = await admin
+        .from('wa_messages')
+        .select('created_at')
+        .eq('conversation_id', conversationId)
+        .eq('direction', 'outbound')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (lastOut?.created_at) {
+        const hoursSince = (Date.now() - new Date(lastOut.created_at).getTime()) / 3_600_000
+        shouldReEngage = hoursSince >= 6
+      }
+    }
+    if (shouldReEngage) {
+      const { data: lead } = await admin.from('leads').select('nombre').eq('id', leadId).single()
+      const firstName = (lead?.nombre ?? '').trim().split(/\s+/)[0] ?? ''
+      const intro = lang === 'en'
+        ? `Hey${firstName ? ` ${firstName}` : ''}! 😊 Good to have you back. Here are the available times for the call with Walo:\n\n`
+        : `¡Hola${firstName ? ` ${firstName}` : ''}! 😊 ¡Qué bueno que volviste! Te muestro los horarios disponibles para la llamada con Walo:\n\n`
+      await startBookingFlow(admin, { leadId, conversationId, phone }, 0, intro, lang)
+      return
+    }
+  }
 
   // Lead wants to see different dates
   const wantsOthers = /^(otro|otros|ninguno|ninguna|no puedo|no me|no sirve|más|mas|ver más|ver mas|otras fechas)/i.test(trimmed)
