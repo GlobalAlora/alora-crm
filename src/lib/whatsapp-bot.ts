@@ -158,6 +158,9 @@ const VALIDATORS: Partial<Record<QuestionField, { isValid: (text: string) => boo
 const DISENGAGEMENT_RE = /\b(postergar|posponer|pausar el proyecto|cancelar|lo dejamos|lo pausamos|no vamos a poder|no podemos continuar|no voy a poder|decidimos no|por el momento no|por ahora no|hasta pronto|hasta luego|gracias por todo|gracias por sus servicios|gracias por la atención|gracias por su atención|gracias a todos|agradecemos tu gestión|agradecemos la gestión|inconveniente económico|inconveniente economico|dificultades económicas|no seguir|no continuar|no tengo nada|no tengo proyecto|era mentira|te mentí|te menti|me equivoqué|me equivoque|era un chiste|era broma|estaba probando|lo dejo|dejalo|no me interesa|no estoy interesado|no estoy interesada|no voy a contratar|no vamos a contratar|chau|adios|adiós|bye|hasta ahí|hasta ahi|ya no preciso|no preciso el|no necesito el servicio|ya no necesito|no requiero|ya no requiero|no voy a necesitar|decidí no|decidi no|no voy a seguir|no vamos a seguir|no hace falta|no lo necesito|no nos interesa)\b/i
 const DISENGAGEMENT_RE_EN = /\b(postpone|putting on hold|pause the project|cancel|hold off|not moving forward|not going to proceed|decided not to|not for now|not at this time|goodbye|bye for now|thanks for everything|financial difficulties|budget issues|can't continue|won't be able to|no longer interested|leaving it|dropping it|not interested|not going to hire|going with someone else)\b/i
 
+// Detect job seekers so Lidia doesn't treat them as potential clients.
+const JOB_INQUIRY_RE = /\b(postulac[ií]|postularme|postularse|recibir\s+postulaciones?|abiertos?\s+(a\s+)?incorporar|incorporar(se|nos|me)|unirme\s+al\s+(equipo|team)|sumarme\s+al\s+(equipo|team)|formar\s+parte\s+(del\s+equipo|de\s+alora|de\s+su\s+equipo)|curr[ií]culum\s+vitae|\bcurr[ií]culum\b|vacante|oferta\s+laboral|busco\s+(trabajo|empleo)|en\s+búsqueda\s+(activa\s+)?(de\s+)?(trabajo|empleo)|looking\s+for\s+(a\s+)?job|join\s+(your\s+)?(team|company)|aplicar\s+(al?\s+)?(puesto|posici[oó]n|cargo))\b/i
+
 const QUESTION_TEXT: Record<QuestionField, string> = {
   nombre:                '¿Cómo te llamás?',
   consulta_detallada:    'Contame un poco más sobre lo que necesitás — así el equipo puede entender mejor tu proyecto 🙂',
@@ -453,6 +456,24 @@ async function advanceQualifyingBot(
       body: lang === 'en'
         ? "Understood, no problem! Sorry we couldn't help right now. Whenever you're ready to pick things back up, just write to us — we'll be here 💛 Best of luck!"
         : '¡Entendido, sin problema! Lamentamos no poder ayudarte por ahora. Cuando estés listo/a para retomar, escribinos tranquilo — acá vamos a estar 💛 ¡Mucho ánimo!',
+    })
+    await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
+    return
+  }
+
+  // If the lead is looking for a job at Alora, redirect politely — they're not a client lead.
+  if (trimmed && JOB_INQUIRY_RE.test(trimmed)) {
+    await sendOutboundWhatsAppMessage(admin, {
+      conversationId, leadId, phone,
+      body: lang === 'en'
+        ? "Thanks so much for your interest in joining Alora! 🙂 We're not currently looking to hire, but we appreciate you reaching out. Best of luck in your search!"
+        : '¡Muchas gracias por tu interés en ser parte del equipo de Alora! 🙂 Por el momento no estamos incorporando personal, pero valoramos mucho tu iniciativa. ¡Te deseamos mucho éxito en tu búsqueda!',
+    })
+    await admin.from('leads').update({ estado_pipeline: 'no_cualificado' }).eq('id', leadId)
+    await admin.from('activities').insert({
+      lead_id: leadId, user_id: null, tipo: 'nota',
+      descripcion: 'Búsqueda de empleo detectada — marcado como no cualificado.',
+      metadata: { job_inquiry: true, text: trimmed.slice(0, 200) },
     })
     await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
     return
