@@ -35,7 +35,7 @@ async function findPortfolioMatch(text: string): Promise<typeof PORTFOLIO_CASES[
       max_tokens: 5,
       messages: [{
         role: 'user',
-        content: `A potential client wrote: "${text}"\n\nWhich of these past projects (if any) is most relevant to what they're describing?\n${casesList}\n\nReply with ONLY the number (1-${PORTFOLIO_CASES.length}) of the best match, or 0 if nothing clearly applies. One digit only.`,
+        content: `A potential client described their project: "${text}"\n\nWhich of these past projects (if any) was built for a CLEARLY SIMILAR type of use case?\n${casesList}\n\nIMPORTANT: Only pick a number if the core product type is the same (e.g. both are e-commerce stores, both are booking bots, both are service-business websites with WhatsApp contact). A superficial similarity (both mention WhatsApp, both involve a list of items) is NOT enough. Return 0 if there is no clearly matching project or if you are unsure. Reply with ONLY the number (1-${PORTFOLIO_CASES.length}) or 0. One digit only.`,
       }],
     })
     const raw = (result.content[0] as { type: string; text: string }).text?.trim() ?? '0'
@@ -484,7 +484,9 @@ async function advanceQualifyingBot(
   // answers that question with a question of their own ("¿cuánto cuesta?") we should
   // answer it and re-ask the field instead of saving a question as the consultation.
   const mentionsGratis = !!(trimmed && /\b(gratis|gratuito|gratuita|gratuitos|gratuitas|sin costo|sin cobrar|de onda|free)\b/i.test(trimmed))
-  const asksPricing    = !!(trimmed && /\b(costo|costos|precio|precios|cuánto sale|cuanto sale|cuánto cuesta|cuanto cuesta|cuánto cobran|cuanto cobran|tiene costo|tienen costo|es pago|cobran|presupuesto|tarifas?)\b/i.test(trimmed))
+  // "presupuesto" is intentionally excluded: "necesitamos un presupuesto para X" is a
+  // project description, not a price question. Pricing keywords must actually ask the price.
+  const asksPricing    = !!(trimmed && /\b(costo|costos|precio|precios|cuánto sale|cuanto sale|cuánto cuesta|cuanto cuesta|cuánto cobran|cuanto cobran|tiene costo|tienen costo|es pago|cobran|tarifas?)\b/i.test(trimmed))
   const looksLikeQuestion = !!(trimmed && (
     trimmed.includes('?') ||
     /^(qué|que|cómo|como|cuánto|cuanto|cuándo|cuando|tienen|hacen|ofrecen|trabajan|pueden|hay |es posible|me gustaría saber|quisiera saber|quiero saber|me podés|podés decirme|podrian|sos |son |es |está|están|hacen|venden|trabajan|ofrecen|tienen)\b/i.test(trimmed) ||
@@ -962,7 +964,7 @@ async function handleBookingPhase(
 
     // Detect if the lead asked a question instead of picking a slot
     const mentionsGratisB = /\b(gratis|gratuito|gratuita|sin costo|sin cobrar|free)\b/i.test(trimmed)
-    const asksPricingB    = /\b(costo|costos|precio|precios|cuánto sale|cuanto sale|cuánto cuesta|cuanto cuesta|cuánto cobran|cuanto cobran|a cuanto|a cuánto|tiene costo|tienen costo|es pago|cobran|presupuesto|tarifas?|how much|what does it cost|pricing|price|quote|rates?)\b/i.test(trimmed)
+    const asksPricingB    = /\b(costo|costos|precio|precios|cuánto sale|cuanto sale|cuánto cuesta|cuanto cuesta|cuánto cobran|cuanto cobran|a cuanto|a cuánto|tiene costo|tienen costo|es pago|cobran|tarifas?|how much|what does it cost|pricing|price|quote|rates?)\b/i.test(trimmed)
     const looksLikeQuestionB =
       trimmed.includes('?') ||
       /^(qué|que|cómo|como|cuánto|cuanto|cuándo|cuando|tienen|hacen|ofrecen|trabajan|pueden|hay |es posible|me gustaría saber|quisiera saber|quiero saber|what|how|when|do you|can you)\b/i.test(trimmed) ||
