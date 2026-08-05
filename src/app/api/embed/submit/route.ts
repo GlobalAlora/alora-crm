@@ -113,6 +113,9 @@ export async function POST(req: NextRequest) {
 
   const consulta = body.consulta_detallada || body.mensaje || body.consulta || body.notas || null
 
+  // Only store a recognized language code — never guess when the caller sends something else.
+  const idioma = body.idioma === 'en' ? 'en' : body.idioma === 'es' ? 'es' : null
+
   const { data: lead, error } = await supabase
     .from('leads')
     .insert({
@@ -125,6 +128,7 @@ export async function POST(req: NextRequest) {
       consulta_detallada: consulta,
       notas: consulta,
       fuente: body.fuente ?? 'formulario',
+      idioma,
       form_id: body.formId || null,
       form_data: Object.keys(form_data).length > 0 ? form_data : null,
       responsable_id: responsableId,

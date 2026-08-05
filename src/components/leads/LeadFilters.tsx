@@ -3,7 +3,7 @@
 import { Search, X, Download } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { usersApi } from '@/lib/api'
-import { PIPELINE_STAGES, FUENTES, PAISES, SERVICIOS } from '@/types'
+import { PIPELINE_STAGES, FUENTES, PAISES, SERVICIOS, IDIOMAS } from '@/types'
 import type { LeadFilterState } from '@/hooks/useLeadFilters'
 import type { PipelineStage } from '@/types'
 
@@ -72,6 +72,18 @@ export function LeadFilters({ filters, onFilter, onReset, onExport, hasActiveFil
         <option value="">Todas las fuentes</option>
         {FUENTES.map((f) => (
           <option key={f.value} value={f.value}>{f.label}</option>
+        ))}
+      </select>
+
+      {/* Idioma filter */}
+      <select
+        value={filters.idioma}
+        onChange={(e) => onFilter('idioma', e.target.value)}
+        className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700"
+      >
+        <option value="">Todos los idiomas</option>
+        {IDIOMAS.map((i) => (
+          <option key={i.value} value={i.value}>{i.label}</option>
         ))}
       </select>
 

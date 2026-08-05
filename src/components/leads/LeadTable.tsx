@@ -63,6 +63,7 @@ export function LeadTable({ onLeadClick }: LeadTableProps) {
     setResponsableId,
     setFuente,
     setPais,
+    setIdioma,
     toggleServicio,
     setServicios,
     clearAll,
@@ -78,6 +79,7 @@ export function LeadTable({ onLeadClick }: LeadTableProps) {
     else if (key === 'responsableId') setResponsableId(value as string)
     else if (key === 'fuente') setFuente(value as string)
     else if (key === 'pais') setPais(value as string)
+    else if (key === 'idioma') setIdioma(value as string)
     else if (key === 'servicio') toggleServicio(value as string)
     else if (key === 'servicios') setServicios(value as string[])
   }

@@ -283,9 +283,14 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
         {lead.fuente && (
           <p className="text-xs text-slate-400 truncate capitalize">{lead.fuente}</p>
         )}
-        
+
         {/* Fechas importantes */}
         <div className="flex flex-wrap gap-1.5 mt-2">
+          {lead.idioma && (
+            <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium" title="Idioma">
+              {lead.idioma.toUpperCase()}
+            </span>
+          )}
           {formatImportantDate(lead.fecha_ingreso) && (
             <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded" title="Fecha de ingreso">
               Ingreso: {formatImportantDate(lead.fecha_ingreso)}
