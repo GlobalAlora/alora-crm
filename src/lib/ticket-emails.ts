@@ -133,6 +133,53 @@ export function buildTicketClosedInactivityHtml(ticket: {
   return wrap(HEADER('Alora — Ticket cerrado', ticket.numero), body)
 }
 
+// ─── Status change notification ────────────────────────────
+
+const ESTADO_LABELS: Record<string, string> = {
+  en_progreso: 'En progreso',
+  en_espera:   'En espera',
+  resuelto:    'Resuelto',
+  cerrado:     'Cerrado',
+}
+const ESTADO_COLOR: Record<string, string> = {
+  en_progreso: '#f59e0b',
+  en_espera:   '#f97316',
+  resuelto:    '#22c55e',
+  cerrado:     '#94a3b8',
+}
+const ESTADO_MSG: Record<string, string> = {
+  en_progreso: 'Nuestro equipo ya está trabajando en tu solicitud.',
+  en_espera:   'Quedamos esperando información adicional de tu parte. Por favor revisá los comentarios del ticket.',
+  resuelto:    'Tu solicitud fue resuelta. Si tenés alguna duda o el problema persiste, podés reabrir el ticket respondiendo en la conversación.',
+  cerrado:     'Tu ticket fue cerrado.',
+}
+
+export function buildStatusChangeHtml(ticket: {
+  numero: string; titulo: string; client_nombre: string | null
+  nuevo_estado: string; trackingUrl: string
+}) {
+  const label   = ESTADO_LABELS[ticket.nuevo_estado] ?? ticket.nuevo_estado
+  const color   = ESTADO_COLOR[ticket.nuevo_estado]  ?? '#3b82f6'
+  const mensaje = ESTADO_MSG[ticket.nuevo_estado]    ?? ''
+
+  const body = `
+    <p style="font-size:15px;color:#1e293b">Hola${ticket.client_nombre ? ` <strong>${ticket.client_nombre}</strong>` : ''},</p>
+    <p style="font-size:14px;color:#475569;line-height:1.6">
+      El estado de tu ticket <strong>${ticket.numero}</strong> fue actualizado.
+    </p>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin:20px 0">
+      <p style="margin:0 0 8px;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:.05em">Ticket</p>
+      <p style="margin:0 0 12px;font-size:15px;font-weight:600;color:#1e293b">${ticket.titulo}</p>
+      <span style="display:inline-block;padding:4px 14px;border-radius:99px;background:${color}20;color:${color};font-size:13px;font-weight:700">${label}</span>
+    </div>
+    ${mensaje ? `<p style="font-size:14px;color:#475569;line-height:1.6">${mensaje}</p>` : ''}
+    <a href="${ticket.trackingUrl}" style="display:inline-block;padding:10px 20px;background:#1e293b;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">
+      Ver ticket →
+    </a>`
+
+  return wrap(HEADER(`Alora — Ticket ${label.toLowerCase()}`, ticket.numero), body)
+}
+
 // ─── Client reply notification (team responded) ────────────
 
 export function buildTeamReplyHtml(ticket: {

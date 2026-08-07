@@ -68,6 +68,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   ])
 
   const ticket = ticketRes.data
+  // Mark ticket as unread for client when team posts a public comment
+  if (!is_internal) {
+    admin.from('tickets').update({ client_unread: true }).eq('id', id).then(() => {}).catch(() => {})
+  }
+
   if (!is_internal && ticket?.client_email && ticket?.ticket_token) {
     sendGmail({
       from:    'info@globalalora.com',

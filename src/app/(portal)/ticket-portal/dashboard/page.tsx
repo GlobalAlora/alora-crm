@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Plus, LogOut, Clock, CheckCircle2, AlertCircle,
-  ChevronRight, Loader2, Timer, MessageCircle,
+  ChevronRight, Loader2, Timer, MessageCircle, KeyRound, X, Eye, EyeOff,
 } from 'lucide-react'
 import type { TicketEstado, TicketPrioridad, TicketCategoria } from '@/types'
 
@@ -36,6 +36,7 @@ interface PortalTicket {
   ticket_token: string
   horas_estimadas: number | null
   horas_reales: number | null
+  client_unread: boolean
 }
 
 interface HoursData {
@@ -147,6 +148,92 @@ function HoursGauge({ data, accentColor, nombrePlan }: { data: HoursData; accent
 
 // ─── Ticket Card ─────────────────────────────────────────────
 
+// ─── Change Password Modal ───────────────────────────────────
+
+function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const [current,  setCurrent]  = useState('')
+  const [next,     setNext]     = useState('')
+  const [showCur,  setShowCur]  = useState(false)
+  const [showNext, setShowNext] = useState(false)
+  const [loading,  setLoading]  = useState(false)
+  const [error,    setError]    = useState('')
+  const [ok,       setOk]       = useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      const res = await fetch('/api/portal/auth/change-password', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ current_password: current, new_password: next }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Error'); return }
+      setOk(true)
+    } catch { setError('Error de conexión') }
+    finally { setLoading(false) }
+  }
+
+  const inputS: React.CSSProperties = {
+    width: '100%', padding: '10px 44px 10px 14px', borderRadius: 10,
+    border: '1px solid #e2e8f0', background: '#f8fafc', fontSize: 14,
+    color: '#0f172a', outline: 'none',
+  }
+  const eyeS: React.CSSProperties = {
+    position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+    background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 2,
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)', padding: 16 }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 400, padding: 28, boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0 }}>Cambiar contraseña</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={18} /></button>
+        </div>
+
+        {ok ? (
+          <div style={{ textAlign: 'center', padding: '16px 0' }}>
+            <p style={{ fontSize: 15, color: '#16a34a', fontWeight: 600, margin: '0 0 8px' }}>¡Contraseña actualizada!</p>
+            <button onClick={onClose} style={{ marginTop: 12, padding: '10px 24px', borderRadius: 10, border: 'none', background: '#0f172a', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Cerrar</button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {error && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#dc2626' }}>{error}</div>}
+
+            {[
+              { label: 'Contraseña actual', value: current, set: setCurrent, show: showCur, toggle: () => setShowCur(v => !v) },
+              { label: 'Nueva contraseña',  value: next,    set: setNext,    show: showNext, toggle: () => setShowNext(v => !v) },
+            ].map(({ label, value, set, show, toggle }) => (
+              <div key={label}>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{label}</label>
+                <div style={{ position: 'relative' }}>
+                  <input required type={show ? 'text' : 'password'} value={value} onChange={e => set(e.target.value)} style={inputS} />
+                  <button type="button" onClick={toggle} style={eyeS}>{show ? <EyeOff size={15} /> : <Eye size={15} />}</button>
+                </div>
+                {label.startsWith('Nueva') && value.length > 0 && value.length < 8 && (
+                  <p style={{ fontSize: 11, color: '#f97316', marginTop: 4 }}>Mínimo 8 caracteres</p>
+                )}
+              </div>
+            ))}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <button type="button" onClick={onClose} style={{ flex: 1, padding: '11px 16px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: 14, cursor: 'pointer' }}>Cancelar</button>
+              <button type="submit" disabled={loading || next.length < 8} style={{ flex: 1, padding: '11px 16px', borderRadius: 10, border: 'none', background: (loading || next.length < 8) ? '#94a3b8' : '#0f172a', color: '#fff', fontSize: 14, fontWeight: 600, cursor: loading || next.length < 8 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                {loading ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Guardando...</> : 'Guardar'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Ticket Card ─────────────────────────────────────────────
+
 function TicketCard({ ticket, onClick, accentColor }: { ticket: PortalTicket; onClick: () => void; accentColor: string }) {
   const ec = ESTADO_CONFIG[ticket.estado]
   const Icon = ec.icon
@@ -174,8 +261,13 @@ function TicketCard({ ticket, onClick, accentColor }: { ticket: PortalTicket; on
         el.style.boxShadow = '0 1px 4px rgba(0,0,0,0.03)'
       }}
     >
-      <div style={{ width: 36, height: 36, borderRadius: 10, background: ec.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Icon size={16} color={ec.color} />
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: ec.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon size={16} color={ec.color} />
+        </div>
+        {ticket.client_unread && (
+          <span style={{ position: 'absolute', top: -4, right: -4, width: 10, height: 10, borderRadius: '50%', background: '#ef4444', border: '2px solid #f8fafc' }} />
+        )}
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -215,6 +307,7 @@ export default function DashboardPage() {
   const [hours, setHours]     = useState<HoursData | null>(null)
   const [loading, setLoading] = useState(true)
   const [loggingOut, setLoggingOut] = useState(false)
+  const [showChangePwd, setShowChangePwd] = useState(false)
 
   useEffect(() => {
     async function loadData() {
@@ -289,14 +382,23 @@ export default function DashboardPage() {
               <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', margin: 0 }}>{client.empresa}</p>
             )}
           </div>
-          <button
-            onClick={handleLogout}
-            disabled={loggingOut}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', fontSize: 13, cursor: 'pointer' }}
-          >
-            {loggingOut ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <LogOut size={13} />}
-            Salir
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => setShowChangePwd(true)}
+              title="Cambiar contraseña"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}
+            >
+              <KeyRound size={14} />
+            </button>
+            <button
+              onClick={handleLogout}
+              disabled={loggingOut}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', fontSize: 13, cursor: 'pointer' }}
+            >
+              {loggingOut ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <LogOut size={13} />}
+              Salir
+            </button>
+          </div>
         </div>
       </header>
 
@@ -403,6 +505,8 @@ export default function DashboardPage() {
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         * { box-sizing: border-box }
       `}</style>
+
+      {showChangePwd && <ChangePasswordModal onClose={() => setShowChangePwd(false)} />}
     </div>
   )
 }

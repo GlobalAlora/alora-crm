@@ -16,6 +16,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   if (error || !ticket) return NextResponse.json({ error: 'Ticket no encontrado' }, { status: 404 })
 
+  // Mark as read by client (fire-and-forget)
+  admin.from('tickets').update({ client_unread: false }).eq('id', ticket.id).then(() => {}).catch(() => {})
+
   const { data: comments } = await admin
     .from('ticket_comments')
     .select('id,body,is_client,client_nombre,created_at,user_id,attachments')

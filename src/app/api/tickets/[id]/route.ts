@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createLinkedTask } from '@/lib/ticket-task'
+import { sendGmail } from '@/lib/google-gmail'
+import { PORTAL_URL, buildStatusChangeHtml } from '@/lib/ticket-emails'
 
 const ALLOWED_ROLES = ['admin', 'sales']
 type Params = { params: Promise<{ id: string }> }
@@ -105,10 +107,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Sin campos para actualizar' }, { status: 400 })
   }
 
-  // Load current ticket before updating (to detect project_id being newly set)
+  // Load current ticket before updating
   const { data: current } = await admin
     .from('tickets')
-    .select('numero,titulo,prioridad,project_id,linked_task_id,attachments')
+    .select('numero,titulo,prioridad,project_id,linked_task_id,attachments,estado,client_email,client_nombre,ticket_token')
     .eq('id', id)
     .is('deleted_at', null)
     .maybeSingle()
@@ -122,6 +124,24 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Email client on status change (only for portal clients with email)
+  const NOTIFY_STATES = ['en_progreso', 'en_espera', 'resuelto', 'cerrado']
+  const nuevoEstado = updates.estado as string | undefined
+  if (nuevoEstado && nuevoEstado !== current?.estado && NOTIFY_STATES.includes(nuevoEstado) && current?.client_email && current?.ticket_token) {
+    sendGmail({
+      from:    'info@globalalora.com',
+      to:      current.client_email,
+      subject: `[${current.numero}] Tu ticket fue actualizado`,
+      html:    buildStatusChangeHtml({
+        numero:       current.numero,
+        titulo:       current.titulo,
+        client_nombre: current.client_nombre,
+        nuevo_estado: nuevoEstado,
+        trackingUrl:  `${PORTAL_URL}/${current.ticket_token}`,
+      }),
+    }).catch(() => {})
+  }
 
   // Auto-create task when project is newly assigned and no task exists yet
   const newProjectId = updates.project_id as string | undefined | null
