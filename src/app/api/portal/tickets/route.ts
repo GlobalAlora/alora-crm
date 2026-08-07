@@ -16,6 +16,7 @@ export async function POST(req: NextRequest) {
     titulo: string
     descripcion?: string
     prioridad?: TicketPrioridad
+    categoria?: string
     attachments?: TicketAttachment[]
   }
 
@@ -49,8 +50,8 @@ export async function POST(req: NextRequest) {
       numero,
       titulo:          body.titulo.trim(),
       descripcion:     body.descripcion?.trim() ?? null,
-      prioridad:       body.prioridad ?? 'media',
-      categoria:       'soporte',
+      prioridad:       'media',
+      categoria:       body.categoria ?? 'soporte',
       client_nombre:   body.client_nombre.trim(),
       client_email:    body.client_email.trim().toLowerCase(),
       client_empresa:  body.client_empresa?.trim() ?? null,

@@ -5,14 +5,14 @@ import { useRouter } from 'next/navigation'
 import {
   ChevronRight, Loader2, Paperclip, X, FileVideo, AlertTriangle, ArrowLeft,
 } from 'lucide-react'
-import type { TicketPrioridad } from '@/types'
-
 interface PortalClient {
   id: string
   email: string
   nombre: string
   empresa: string | null
   plan_horas_mensual: number
+  logo_url: string | null
+  color_acento: string | null
 }
 
 interface UploadedFile {
@@ -23,10 +23,14 @@ interface UploadedFile {
 
 type Step = 'form' | 'uploading' | 'creating'
 
-const URGENCIAS: { value: TicketPrioridad; label: string; sub: string; color: string; bg: string; ring: string }[] = [
-  { value: 'media',   label: 'Normal',  sub: 'Podés atender cuando tengas tiempo',   color: '#2563eb', bg: '#eff6ff', ring: '#93c5fd' },
-  { value: 'alta',    label: 'Alta',    sub: 'Necesito resolución en el día',          color: '#ea580c', bg: '#fff7ed', ring: '#fdba74' },
-  { value: 'urgente', label: 'Urgente', sub: 'Impacta mi operación ahora mismo',       color: '#dc2626', bg: '#fef2f2', ring: '#fca5a5' },
+type TipoSolicitud = 'soporte' | 'bug' | 'mejora' | 'nuevo' | 'consulta'
+
+const TIPOS: { value: TipoSolicitud; label: string; sub: string; color: string; bg: string; ring: string }[] = [
+  { value: 'soporte',  label: 'Soporte',           sub: 'Necesito ayuda con algo existente',    color: '#2563eb', bg: '#eff6ff', ring: '#93c5fd' },
+  { value: 'bug',      label: 'Error técnico',      sub: 'Algo no funciona correctamente',       color: '#dc2626', bg: '#fef2f2', ring: '#fca5a5' },
+  { value: 'mejora',   label: 'Mejora',             sub: 'Quiero optimizar algo que ya existe',  color: '#7c3aed', bg: '#f5f3ff', ring: '#c4b5fd' },
+  { value: 'nuevo',    label: 'Algo nuevo',         sub: 'Nuevo desarrollo o funcionalidad',     color: '#059669', bg: '#ecfdf5', ring: '#6ee7b7' },
+  { value: 'consulta', label: 'Consulta',           sub: 'Tengo una pregunta o duda',            color: '#d97706', bg: '#fffbeb', ring: '#fde68a' },
 ]
 
 const inputCls = `
@@ -55,7 +59,7 @@ export default function NuevoTicketPage() {
   const [telefono, setTelefono]       = useState('')
   const [titulo, setTitulo]           = useState('')
   const [descripcion, setDescripcion] = useState('')
-  const [prioridad, setPrioridad]     = useState<TicketPrioridad>('media')
+  const [tipo, setTipo]               = useState<TipoSolicitud>('soporte')
   const [uploads, setUploads]         = useState<UploadedFile[]>([])
   const [dragOver, setDragOver]       = useState(false)
   const [error, setError]             = useState('')
@@ -122,7 +126,7 @@ export default function NuevoTicketPage() {
         client_telefono: telefono || null,
         titulo,
         descripcion,
-        prioridad,
+        categoria:       tipo,
         attachments,
       }),
     })
@@ -151,16 +155,19 @@ export default function NuevoTicketPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
-      <header style={{ background: '#0f172a', borderBottom: '1px solid #1e293b' }}>
+      <header style={{ background: client?.color_acento ?? '#0f172a', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
         <div style={{ maxWidth: 660, margin: '0 auto', padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 14 }}>
           <button
             onClick={() => router.back()}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', padding: 4 }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', padding: 4 }}
           >
             <ArrowLeft size={18} />
           </button>
-          <img src="/logo-nav-white.png" alt="Alora" style={{ height: 30, objectFit: 'contain' }} />
-          <span style={{ color: '#64748b', fontSize: 13 }}>Nuevo ticket</span>
+          {client?.logo_url
+            ? <img src={client.logo_url} alt="Logo" style={{ height: 30, objectFit: 'contain', maxWidth: 120 }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+            : <img src="/logo-nav-white.png" alt="Alora" style={{ height: 30, objectFit: 'contain' }} />
+          }
+          <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13 }}>Nuevo ticket</span>
         </div>
       </header>
 
@@ -248,29 +255,29 @@ export default function NuevoTicketPage() {
 
             <div style={{ height: 1, background: '#f1f5f9', margin: '20px 0' }} />
 
-            {/* Urgencia */}
+            {/* Tipo de solicitud */}
             <div style={{ padding: '0 28px' }}>
               <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 12px' }}>
-                Nivel de urgencia
+                Tipo de solicitud
               </p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-                {URGENCIAS.map(u => {
-                  const sel = prioridad === u.value
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+                {TIPOS.map(t => {
+                  const sel = tipo === t.value
                   return (
                     <button
-                      key={u.value}
+                      key={t.value}
                       type="button"
-                      onClick={() => setPrioridad(u.value)}
+                      onClick={() => setTipo(t.value)}
                       style={{
-                        padding: '12px 10px', borderRadius: 12, cursor: 'pointer', textAlign: 'left', transition: 'all .15s',
-                        border: `2px solid ${sel ? u.color : '#e2e8f0'}`,
-                        background: sel ? u.bg : '#f8fafc',
-                        boxShadow: sel ? `0 0 0 3px ${u.ring}40` : 'none',
+                        padding: '12px 14px', borderRadius: 12, cursor: 'pointer', textAlign: 'left', transition: 'all .15s',
+                        border: `2px solid ${sel ? t.color : '#e2e8f0'}`,
+                        background: sel ? t.bg : '#f8fafc',
+                        boxShadow: sel ? `0 0 0 3px ${t.ring}40` : 'none',
                       }}
                     >
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: u.color, marginBottom: 8 }} />
-                      <p style={{ fontSize: 13, fontWeight: 700, color: sel ? u.color : '#334155', margin: '0 0 3px' }}>{u.label}</p>
-                      <p style={{ fontSize: 11, color: '#64748b', margin: 0, lineHeight: 1.4 }}>{u.sub}</p>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: t.color, marginBottom: 8 }} />
+                      <p style={{ fontSize: 13, fontWeight: 700, color: sel ? t.color : '#334155', margin: '0 0 3px' }}>{t.label}</p>
+                      <p style={{ fontSize: 11, color: '#64748b', margin: 0, lineHeight: 1.4 }}>{t.sub}</p>
                     </button>
                   )
                 })}
