@@ -138,6 +138,7 @@ function PersonalizeModal({
 }) {
   const [color,          setColor]          = useState(client.color_acento ?? '#0f172a')
   const [nombrePlan,     setNombrePlan]     = useState(client.nombre_plan ?? '')
+  const [planHoras,      setPlanHoras]      = useState(client.plan_horas_mensual)
   const [mensaje,        setMensaje]        = useState(client.mensaje_bienvenida ?? '')
   const [logoUrl,        setLogoUrl]        = useState(client.logo_url ?? '')
   const [managerNombre,  setManagerNombre]  = useState(client.manager_nombre ?? '')
@@ -161,6 +162,7 @@ function PersonalizeModal({
       await patchClient(client.id, {
         color_acento:       color,
         nombre_plan:        nombrePlan.trim() || null,
+        plan_horas_mensual: planHoras,
         mensaje_bienvenida: mensaje.trim() || null,
         logo_url:           logoUrl.trim() || null,
         manager_nombre:     managerNombre.trim() || null,
@@ -170,6 +172,7 @@ function PersonalizeModal({
       onSaved({
         color_acento:       color,
         nombre_plan:        nombrePlan.trim() || null,
+        plan_horas_mensual: planHoras,
         mensaje_bienvenida: mensaje.trim() || null,
         logo_url:           logoUrl.trim() || null,
         manager_nombre:     managerNombre.trim() || null,
@@ -241,15 +244,51 @@ function PersonalizeModal({
             </div>
           </div>
 
-          {/* Plan name */}
+          {/* Plan */}
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">Nombre del plan</label>
-            <input
-              value={nombrePlan}
-              onChange={e => setNombrePlan(e.target.value)}
-              placeholder="Plan Premium, Plan Básico..."
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-card-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Plan</label>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              {[
+                { label: 'Plan Básico', horas: 0, sub: 'Solo mantenimiento' },
+                { label: 'Plan Premium', horas: 5, sub: 'Bolsa de 5 hs/mes' },
+              ].map(p => {
+                const active = planHoras === p.horas && (nombrePlan === p.label || nombrePlan === '')
+                return (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => { setPlanHoras(p.horas); setNombrePlan(p.label) }}
+                    className={`px-3 py-2.5 rounded-lg border text-left transition-all ${
+                      active
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
+                        : 'border-card-border bg-muted hover:border-blue-300'
+                    }`}
+                  >
+                    <p className={`text-xs font-semibold ${active ? 'text-blue-600 dark:text-blue-400' : 'text-foreground'}`}>{p.label}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">{p.sub}</p>
+                  </button>
+                )
+              })}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                value={nombrePlan}
+                onChange={e => setNombrePlan(e.target.value)}
+                placeholder="Nombre del plan (opcional)"
+                className="flex-1 px-3 py-2 rounded-lg bg-muted border border-card-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-muted border border-card-border">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={planHoras}
+                  onChange={e => setPlanHoras(Number(e.target.value))}
+                  className="w-10 bg-transparent text-sm text-foreground text-center focus:outline-none"
+                />
+                <span className="text-xs text-muted-foreground">hs/mes</span>
+              </div>
+            </div>
           </div>
 
           {/* Welcome message */}
