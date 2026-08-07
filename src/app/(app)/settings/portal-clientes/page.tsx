@@ -434,7 +434,21 @@ export default function PortalClientesPage() {
   const clients = data?.data ?? []
   const personalizingClient = clients.find(c => c.id === personalizingId) ?? null
 
-  if (error) { router.push('/settings'); return null }
+  if (error) {
+    return (
+      <div className="p-6 max-w-2xl mx-auto mt-10">
+        <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-2xl p-6">
+          <h2 className="text-base font-semibold text-red-700 dark:text-red-300 mb-2">Error al cargar clientes del portal</h2>
+          <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+            {error instanceof Error ? error.message : 'Error desconocido'}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Si la tabla <code className="bg-muted px-1 rounded">portal_clients</code> no existe, ejecutá el SQL de migración en Supabase primero.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
