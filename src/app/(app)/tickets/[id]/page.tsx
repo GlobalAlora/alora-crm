@@ -34,6 +34,7 @@ const CATEGORIA_LABELS: Record<TicketCategoria, string> = {
   soporte:  'Soporte',
   consulta: 'Consulta',
   mejora:   'Mejora',
+  nuevo:    'Nuevo desarrollo',
   otro:     'Otro',
 }
 
