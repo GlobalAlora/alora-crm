@@ -438,13 +438,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Hours gauge */}
-        {hours && (
-          <div style={{ marginBottom: 24 }}>
-            <HoursGauge data={hours} accentColor={accentColor} nombrePlan={client?.nombre_plan ?? null} />
-          </div>
-        )}
-
         {/* Tickets header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0 }}>Mis tickets</h2>
@@ -534,6 +527,13 @@ export default function DashboardPage() {
             </div>
           )
         })()}
+
+        {/* Hours gauge — solo plan premium (plan_horas_mensual > 0) */}
+        {hours && hours.plan_horas_mensual > 0 && (
+          <div style={{ marginTop: 32 }}>
+            <HoursGauge data={hours} accentColor={accentColor} nombrePlan={client?.nombre_plan ?? null} />
+          </div>
+        )}
 
         {/* Manager contact */}
         {client?.manager_nombre && (
