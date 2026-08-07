@@ -98,6 +98,7 @@ export interface Lead {
   presupuesto_estimado: number | null       // hidden from UI, kept in DB
   estado_pipeline: PipelineStage
   fuente: LeadFuente | null
+  idioma: 'es' | 'en' | null
   valor_propuesta_usd: number | null        // legacy, will use propuestas table
   valor_propuesta_ars: number | null        // legacy, will use propuestas table
   valor_propuesta_moneda: 'USD' | 'ARS'     // legacy
@@ -626,6 +627,11 @@ export const FUENTES: { value: LeadFuente; label: string }[] = [
   { value: 'mail', label: 'Mail' },
   { value: 'calendario', label: 'Calendario' },
   { value: 'otro', label: 'Otro' },
+]
+
+export const IDIOMAS: { value: 'es' | 'en'; label: string }[] = [
+  { value: 'es', label: 'ES' },
+  { value: 'en', label: 'EN' },
 ]
 
 // Revenue probability per stage
