@@ -96,7 +96,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (key in body) updates[key] = body[key] ?? null
   }
 
-  if ('estado' in updates && updates.estado === 'resuelto' && !updates.resolved_at) {
+  if ('estado' in updates && (updates.estado === 'resuelto' || updates.estado === 'cerrado') && !updates.resolved_at) {
     updates.resolved_at = new Date().toISOString()
   }
   if ('estado' in updates && updates.estado !== 'resuelto' && updates.estado !== 'cerrado') {

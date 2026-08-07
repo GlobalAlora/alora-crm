@@ -26,12 +26,13 @@ export async function GET(req: NextRequest) {
       .lt('resolved_at', monthEnd)
       .is('deleted_at', null)
       .order('resolved_at', { ascending: false }),
-    // Open tickets this month: count horas_estimadas as committed hours
+    // Open tickets this month with approved hours
     admin
       .from('tickets')
       .select('id, numero, titulo, horas_estimadas, estado')
       .eq('client_email', client.email)
       .not('estado', 'in', '("resuelto","cerrado")')
+      .eq('horas_aprobadas', true)
       .gte('created_at', monthStart)
       .lt('created_at', monthEnd)
       .is('deleted_at', null)

@@ -37,9 +37,12 @@ interface PortalTicket {
   prioridad: string
   categoria: string | null
   horas_estimadas: number | null
+  horas_aprobadas: boolean | null
   created_at: string
   resolved_at: string | null
   client_nombre: string | null
+  color_acento: string | null
+  logo_url: string | null
   comments: {
     id: string
     body: string
@@ -83,11 +86,23 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
     e.target.value = ''
   }
 
-  const { data: res, isLoading, error: fetchErr } = useQuery<{ data: PortalTicket; error?: string }>({
+  const [approvingHours, setApprovingHours] = useState(false)
+
+  const { data: res, isLoading, error: fetchErr, refetch } = useQuery<{ data: PortalTicket; error?: string }>({
     queryKey: ['portal-ticket', token],
     queryFn: () => fetch(`/api/portal/tickets/${token}`).then(r => r.json()),
     refetchInterval: 30_000,
   })
+
+  async function handleApproveHours() {
+    setApprovingHours(true)
+    try {
+      await fetch(`/api/portal/tickets/${token}/approve-hours`, { method: 'POST' })
+      await refetch()
+    } finally {
+      setApprovingHours(false)
+    }
+  }
 
   const addComment = useMutation({
     mutationFn: ({ body, attachments }: { body: string; attachments: UploadedFile[] }) =>
@@ -104,23 +119,24 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
   })
 
   const ticket: PortalTicket | null = res?.data ?? null
-  const isClosed = ticket && ['resuelto', 'cerrado'].includes(ticket.estado)
+  const isClosed    = ticket && ['resuelto', 'cerrado'].includes(ticket.estado)
+  const headerBg    = ticket?.color_acento ?? '#0f172a'
+  const needsHoursApproval = ticket && ticket.horas_estimadas != null && !ticket.horas_aprobadas && !isClosed
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
       {/* Header */}
-      <header className="bg-slate-900 border-b border-slate-800">
+      <header style={{ background: headerBg, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
         <div className="max-w-2xl mx-auto px-6 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img
-              src="https://www.globalalora.com/logo-nav-white.png"
-              alt="Alora"
-              style={{ height: 32, display: 'block', objectFit: 'contain' }}
-            />
-            <span className="text-slate-400 text-sm">Centro de Soporte</span>
+            {ticket?.logo_url
+              ? <img src={ticket.logo_url} alt="Logo" style={{ height: 32, objectFit: 'contain', maxWidth: 120 }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+              : <img src="/logo-nav-white.png" alt="Alora" style={{ height: 32, display: 'block', objectFit: 'contain' }} />
+            }
+            <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>Seguimiento</span>
           </div>
           {ticket && (
-            <span className="font-mono text-slate-400 text-sm">{ticket.numero}</span>
+            <span style={{ fontFamily: 'monospace', color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>{ticket.numero}</span>
           )}
         </div>
       </header>
@@ -137,7 +153,7 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
           {(fetchErr || res?.error) && (
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 text-center">
               <p className="text-slate-500 dark:text-slate-400 text-sm">No pudimos encontrar este ticket.</p>
-              <a href="/ticket-portal" className="text-blue-500 text-sm hover:underline mt-2 inline-block">Volver al formulario</a>
+              <a href="/dashboard" className="text-blue-500 text-sm hover:underline mt-2 inline-block">Volver al portal</a>
             </div>
           )}
 
@@ -174,6 +190,7 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
                     {ticket.horas_estimadas != null && (
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                         ⏱ {ticket.horas_estimadas} hs estimadas
+                        {ticket.horas_aprobadas && <span className="ml-2 text-green-600 font-semibold">· Aprobadas ✓</span>}
                       </p>
                     )}
                   </div>
@@ -185,6 +202,39 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
                   </div>
                 )}
               </div>
+
+              {/* Hours approval banner */}
+              {needsHoursApproval && (
+                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 16, padding: '20px 24px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                    <div style={{ fontSize: 24, lineHeight: 1 }}>⏱</div>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: '#92400e', margin: '0 0 4px' }}>
+                        Alora estimó {ticket.horas_estimadas} hs para esta tarea
+                      </p>
+                      <p style={{ fontSize: 13, color: '#78350f', margin: '0 0 16px', lineHeight: 1.5 }}>
+                        Necesitamos tu aprobación para asignar estas horas a tu plan mensual. Si tenés dudas, escribinos en la conversación.
+                      </p>
+                      <button
+                        onClick={handleApproveHours}
+                        disabled={approvingHours}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 8,
+                          padding: '10px 20px', borderRadius: 10, border: 'none',
+                          background: approvingHours ? '#94a3b8' : '#d97706',
+                          color: '#fff', fontSize: 13, fontWeight: 700,
+                          cursor: approvingHours ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {approvingHours
+                          ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Aprobando...</>
+                          : <>✓ Aprobar {ticket.horas_estimadas} hs</>
+                        }
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Thread */}
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
@@ -317,7 +367,7 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
                 ) : (
                   <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 text-center">
                     <p className="text-xs text-slate-400">Este ticket está {ESTADO_CONFIG[ticket.estado].label.toLowerCase()}.</p>
-                    <a href="/ticket-portal" className="text-blue-500 text-xs hover:underline mt-1 inline-block">Abrir un nuevo ticket →</a>
+                    <a href="/nuevo" className="text-blue-500 text-xs hover:underline mt-1 inline-block">Abrir un nuevo ticket →</a>
                   </div>
                 )}
               </div>
@@ -327,6 +377,7 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
           <p className="text-center text-xs text-slate-400 dark:text-slate-600 pb-4">
             Alora Digital · <a href="https://globalalora.com" className="hover:text-slate-600 dark:hover:text-slate-400 transition-colors">globalalora.com</a>
           </p>
+          <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
         </div>
       </main>
 

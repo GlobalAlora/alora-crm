@@ -9,15 +9,18 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const { data: ticket, error } = await admin
     .from('tickets')
-    .select('id,numero,titulo,descripcion,estado,prioridad,categoria,created_at,updated_at,resolved_at,client_nombre,ticket_token,horas_estimadas')
+    .select('id,numero,titulo,descripcion,estado,prioridad,categoria,created_at,updated_at,resolved_at,client_nombre,client_email,ticket_token,horas_estimadas,horas_aprobadas')
     .eq('ticket_token', token)
     .is('deleted_at', null)
     .single()
 
   if (error || !ticket) return NextResponse.json({ error: 'Ticket no encontrado' }, { status: 404 })
 
-  // Mark as read by client (fire-and-forget)
-  void Promise.resolve(admin.from('tickets').update({ client_unread: false }).eq('id', ticket.id))
+  // Mark as read + fetch portal client branding in parallel (fire-and-forget for unread)
+  const [, portalClientRes] = await Promise.all([
+    Promise.resolve(admin.from('tickets').update({ client_unread: false }).eq('id', ticket.id)),
+    admin.from('portal_clients').select('color_acento,logo_url').eq('email', ticket.client_email ?? '').maybeSingle(),
+  ])
 
   const { data: comments } = await admin
     .from('ticket_comments')
@@ -47,5 +50,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
     attachments:   (c.attachments ?? []) as { url: string; name: string; type: string }[],
   }))
 
-  return NextResponse.json({ data: { ...ticket, comments: enrichedComments } })
+  return NextResponse.json({
+    data: {
+      ...ticket,
+      comments: enrichedComments,
+      color_acento: portalClientRes.data?.color_acento ?? null,
+      logo_url:     portalClientRes.data?.logo_url ?? null,
+    },
+  })
 }
