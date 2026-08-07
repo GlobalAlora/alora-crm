@@ -333,6 +333,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [loggingOut, setLoggingOut] = useState(false)
   const [showChangePwd, setShowChangePwd] = useState(false)
+  const [filtro, setFiltro] = useState<'todos' | 'nuevos' | 'en_progreso' | 'resueltos'>('todos')
 
   useEffect(() => {
     async function loadData() {
@@ -445,13 +446,8 @@ export default function DashboardPage() {
         )}
 
         {/* Tickets header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <div>
-            <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: '0 0 2px' }}>Mis tickets</h2>
-            <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>
-              {openTickets.length} abierto{openTickets.length !== 1 ? 's' : ''} · {resolvedTickets.length} resuelto{resolvedTickets.length !== 1 ? 's' : ''}
-            </p>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0 }}>Mis tickets</h2>
           <button
             onClick={() => router.push('/nuevo')}
             style={{
@@ -464,6 +460,47 @@ export default function DashboardPage() {
           </button>
         </div>
 
+        {/* Filter tabs */}
+        {tickets.length > 0 && (() => {
+          const tabs: { key: typeof filtro; label: string; count: number }[] = [
+            { key: 'todos',       label: 'Todos',       count: tickets.length },
+            { key: 'nuevos',      label: 'Nuevos',      count: tickets.filter(t => t.estado === 'nuevo').length },
+            { key: 'en_progreso', label: 'En progreso', count: tickets.filter(t => ['en_progreso', 'en_espera'].includes(t.estado)).length },
+            { key: 'resueltos',   label: 'Resueltos',   count: resolvedTickets.length },
+          ]
+          return (
+            <div style={{ display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', paddingBottom: 2 }}>
+              {tabs.map(tab => {
+                const active = filtro === tab.key
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setFiltro(tab.key)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '7px 14px', borderRadius: 99, border: active ? 'none' : '1px solid #e2e8f0',
+                      background: active ? accentColor : '#fff',
+                      color: active ? '#fff' : '#64748b',
+                      fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap',
+                      transition: 'all .15s',
+                    }}
+                  >
+                    {tab.label}
+                    <span style={{
+                      fontSize: 11, fontWeight: 700,
+                      background: active ? 'rgba(255,255,255,0.25)' : '#f1f5f9',
+                      color: active ? '#fff' : '#94a3b8',
+                      borderRadius: 99, padding: '1px 7px',
+                    }}>
+                      {tab.count}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )
+        })()}
+
         {/* Ticket list */}
         {tickets.length === 0 ? (
           <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', padding: '40px 24px', textAlign: 'center' }}>
@@ -475,31 +512,28 @@ export default function DashboardPage() {
               Crear primer ticket
             </button>
           </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {openTickets.length > 0 && (
-              <>
-                <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 4px 4px' }}>
-                  Abiertos
-                </p>
-                {openTickets.map(t => (
-                  <TicketCard key={t.id} ticket={t} accentColor={accentColor} onClick={() => router.push(`/${t.ticket_token}`)} />
-                ))}
-              </>
-            )}
+        ) : (() => {
+          const filtered = filtro === 'todos'       ? tickets
+                         : filtro === 'nuevos'      ? tickets.filter(t => t.estado === 'nuevo')
+                         : filtro === 'en_progreso' ? tickets.filter(t => ['en_progreso', 'en_espera'].includes(t.estado))
+                         : resolvedTickets
 
-            {resolvedTickets.length > 0 && (
-              <>
-                <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', margin: `${openTickets.length > 0 ? '16px' : '0px'} 0 4px 4px` }}>
-                  Resueltos
-                </p>
-                {resolvedTickets.map(t => (
-                  <TicketCard key={t.id} ticket={t} accentColor={accentColor} onClick={() => router.push(`/${t.ticket_token}`)} />
-                ))}
-              </>
-            )}
-          </div>
-        )}
+          if (filtered.length === 0) {
+            return (
+              <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', padding: '32px 24px', textAlign: 'center' }}>
+                <p style={{ fontSize: 14, color: '#94a3b8', margin: 0 }}>No hay tickets en esta categoría</p>
+              </div>
+            )
+          }
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {filtered.map(t => (
+                <TicketCard key={t.id} ticket={t} accentColor={accentColor} onClick={() => router.push(`/${t.ticket_token}`)} />
+              ))}
+            </div>
+          )
+        })()}
 
         {/* Manager contact */}
         {client?.manager_nombre && (
