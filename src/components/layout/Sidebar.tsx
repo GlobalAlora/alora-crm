@@ -7,7 +7,7 @@ import { useState } from 'react'
 import {
   LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, List,
   MessageCircle, Smartphone, ContactRound, X, Menu, UserCog, Bot, FolderKanban,
-  ShieldCheck, Receipt, Ticket, BarChart2, Globe,
+  ShieldCheck, Receipt, Ticket, BarChart2, Globe, Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
@@ -48,7 +48,8 @@ const SETTINGS_NAV = [
   { href: '/settings/whatsapp',    label: 'WhatsApp',      icon: Smartphone     },
   { href: '/settings/whatsapp-faqs', label: 'FAQs Lidia',  icon: Bot            },
   { href: '/settings/whatsapp-portfolio', label: 'Portfolio Lidia', icon: BarChart2 },
-  { href: '/settings/portal-clientes',   label: 'Portal clientes', icon: Globe     },
+  { href: '/settings/portal-clientes',      label: 'Portal clientes',   icon: Globe },
+  { href: '/settings/respuestas-rapidas',   label: 'Respuestas rápidas', icon: Zap  },
 ]
 
 // ─── helpers ───────────────────────────────────────────────

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Plus, LogOut, Clock, CheckCircle2, AlertCircle,
-  ChevronRight, Loader2, Timer, MessageCircle, KeyRound, X, Eye, EyeOff,
+  ChevronRight, Loader2, Timer, MessageCircle, KeyRound, X, Eye, EyeOff, Search, ChevronDown,
 } from 'lucide-react'
 import type { TicketEstado, TicketPrioridad, TicketCategoria } from '@/types'
 
@@ -47,6 +47,7 @@ interface HoursData {
   tickets_resueltos: { numero: string; titulo: string; horas_reales: number | null; resolved_at: string }[]
   tickets_abiertos:  { numero: string; titulo: string; horas_estimadas: number | null }[]
   mes: string
+  historial: { mes: string; horas_consumidas: number; plan_horas_mensual: number; porcentaje: number }[]
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -82,6 +83,7 @@ function formatDate(dateStr: string) {
 // ─── Hours Gauge ─────────────────────────────────────────────
 
 function HoursGauge({ data, accentColor, nombrePlan }: { data: HoursData; accentColor: string; nombrePlan: string | null }) {
+  const [showHistorial, setShowHistorial] = useState(false)
   const pct = data.porcentaje
   const barColor  = pct < 70 ? accentColor : pct < 90 ? '#f59e0b' : '#ef4444'
   const badgeBg   = pct < 70 ? `${accentColor}18` : pct < 90 ? '#fffbeb' : '#fef2f2'
@@ -123,6 +125,40 @@ function HoursGauge({ data, accentColor, nombrePlan }: { data: HoursData; accent
           {pct}%
         </span>
       </div>
+
+      {/* History accordion */}
+      {data.historial && data.historial.length > 0 && (
+        <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f1f5f9' }}>
+          <button
+            onClick={() => setShowHistorial(v => !v)}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%', justifyContent: 'space-between' }}
+          >
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Historial de horas</span>
+            <ChevronDown size={14} color="#94a3b8" style={{ transform: showHistorial ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform .2s' }} />
+          </button>
+          {showHistorial && (
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {data.historial.map(h => {
+                const hPct = h.porcentaje
+                const hBar = hPct < 70 ? accentColor : hPct < 90 ? '#f59e0b' : '#ef4444'
+                return (
+                  <div key={h.mes}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, color: '#475569', textTransform: 'capitalize' }}>{h.mes}</span>
+                      <span style={{ fontSize: 12, color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>
+                        {h.horas_consumidas % 1 === 0 ? h.horas_consumidas : h.horas_consumidas.toFixed(1)} / {h.plan_horas_mensual} hs
+                      </span>
+                    </div>
+                    <div style={{ height: 6, background: '#f1f5f9', borderRadius: 99, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${hPct}%`, background: hBar, borderRadius: 99 }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {(data.tickets_resueltos.length > 0 || data.tickets_abiertos.length > 0) && (
         <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -334,7 +370,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [loggingOut, setLoggingOut] = useState(false)
   const [showChangePwd, setShowChangePwd] = useState(false)
-  const [filtro, setFiltro] = useState<'todos' | 'nuevos' | 'en_progreso' | 'resueltos'>('todos')
+  const [filtro, setFiltro]   = useState<'todos' | 'nuevos' | 'en_progreso' | 'resueltos'>('todos')
+  const [busqueda, setBusqueda] = useState('')
 
   useEffect(() => {
     async function loadData() {
@@ -454,13 +491,36 @@ export default function DashboardPage() {
           </button>
         </div>
 
+        {/* Search */}
+        {tickets.length > 0 && (
+          <div style={{ position: 'relative', marginBottom: 12 }}>
+            <Search size={14} color="#94a3b8" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+            <input
+              type="text"
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              placeholder="Buscar ticket..."
+              style={{
+                width: '100%', padding: '9px 12px 9px 34px', borderRadius: 10, border: '1px solid #e2e8f0',
+                background: '#fff', fontSize: 13, color: '#0f172a', outline: 'none',
+              }}
+            />
+            {busqueda && (
+              <button onClick={() => setBusqueda('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 2 }}>
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Filter tabs */}
         {tickets.length > 0 && (() => {
+          const base = busqueda.trim() ? tickets.filter(t => t.titulo.toLowerCase().includes(busqueda.toLowerCase())) : tickets
           const tabs: { key: typeof filtro; label: string; count: number }[] = [
-            { key: 'todos',       label: 'Todos',       count: tickets.length },
-            { key: 'nuevos',      label: 'Nuevos',      count: tickets.filter(t => t.estado === 'nuevo').length },
-            { key: 'en_progreso', label: 'En progreso', count: tickets.filter(t => ['en_progreso', 'en_espera'].includes(t.estado)).length },
-            { key: 'resueltos',   label: 'Resueltos',   count: resolvedTickets.length },
+            { key: 'todos',       label: 'Todos',       count: base.length },
+            { key: 'nuevos',      label: 'Nuevos',      count: base.filter(t => t.estado === 'nuevo').length },
+            { key: 'en_progreso', label: 'En progreso', count: base.filter(t => ['en_progreso', 'en_espera'].includes(t.estado)).length },
+            { key: 'resueltos',   label: 'Resueltos',   count: base.filter(t => ['resuelto', 'cerrado'].includes(t.estado)).length },
           ]
           return (
             <div style={{ display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', paddingBottom: 2 }}>
@@ -507,10 +567,11 @@ export default function DashboardPage() {
             </button>
           </div>
         ) : (() => {
-          const filtered = filtro === 'todos'       ? tickets
-                         : filtro === 'nuevos'      ? tickets.filter(t => t.estado === 'nuevo')
-                         : filtro === 'en_progreso' ? tickets.filter(t => ['en_progreso', 'en_espera'].includes(t.estado))
-                         : resolvedTickets
+          const base     = busqueda.trim() ? tickets.filter(t => t.titulo.toLowerCase().includes(busqueda.toLowerCase())) : tickets
+          const filtered = filtro === 'todos'       ? base
+                         : filtro === 'nuevos'      ? base.filter(t => t.estado === 'nuevo')
+                         : filtro === 'en_progreso' ? base.filter(t => ['en_progreso', 'en_espera'].includes(t.estado))
+                         : base.filter(t => ['resuelto', 'cerrado'].includes(t.estado))
 
           if (filtered.length === 0) {
             return (

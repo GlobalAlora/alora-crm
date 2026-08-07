@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Send, Trash2, FolderKanban, User as UserIcon,
-  Calendar, AlertCircle, CheckCircle2, Paperclip, FileVideo, Loader2, X,
+  Calendar, AlertCircle, CheckCircle2, Paperclip, FileVideo, Loader2, X, Zap, ChevronDown,
 } from 'lucide-react'
 
 type UploadedFile = { url: string; name: string; type: string }
@@ -52,18 +52,69 @@ function Avatar({ user }: { user: { full_name: string; avatar_url: string | null
   )
 }
 
+// ─── AssigneeDropdown ───────────────────────────────────────
+
+function AssigneeDropdown({ users, value, onChange }: { users: User[]; value: string | null; onChange: (id: string | null) => void }) {
+  const [open, setOpen] = useState(false)
+  const selected = users.find(u => u.id === value) ?? null
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-muted border border-card-border text-sm text-foreground hover:border-blue-400 transition-colors"
+      >
+        {selected ? (
+          <>
+            <Avatar user={selected} />
+            <span className="flex-1 text-left">{selected.full_name}</span>
+          </>
+        ) : (
+          <span className="flex-1 text-left text-muted-foreground">Sin asignar</span>
+        )}
+        <ChevronDown size={13} className="text-muted-foreground flex-shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute z-10 top-full left-0 mt-1 w-full bg-card border border-card-border rounded-xl shadow-lg overflow-hidden">
+          <button
+            type="button"
+            onClick={() => { onChange(null); setOpen(false) }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-muted transition-colors"
+          >
+            <div className="w-7 h-7 rounded-full bg-muted border border-card-border" />
+            Sin asignar
+          </button>
+          {users.map(u => (
+            <button
+              key={u.id}
+              type="button"
+              onClick={() => { onChange(u.id); setOpen(false) }}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors ${u.id === value ? 'bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400' : 'text-foreground'}`}
+            >
+              <Avatar user={u} />
+              {u.full_name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Page ───────────────────────────────────────────────────
 
 export default function TicketDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
   const qc = useQueryClient()
-  const [comment, setComment]       = useState('')
-  const [isInternal, setIsInternal] = useState(false)
-  const [editing, setEditing]       = useState<{ field: string; value: string } | null>(null)
-  const [uploads, setUploads]       = useState<UploadedFile[]>([])
-  const [uploading, setUploading]   = useState(false)
+  const [comment, setComment]         = useState('')
+  const [isInternal, setIsInternal]   = useState(false)
+  const [editing, setEditing]         = useState<{ field: string; value: string } | null>(null)
+  const [uploads, setUploads]         = useState<UploadedFile[]>([])
+  const [uploading, setUploading]     = useState(false)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+  const [showQR, setShowQR]           = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -87,6 +138,12 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   const { data: usersRes } = useQuery<{ data: User[] }>({
     queryKey: ['admin-users'],
     queryFn: () => fetch('/api/admin/users').then(r => r.json()),
+  })
+
+  const { data: quickRepliesRes } = useQuery<{ data: { id: string; titulo: string; cuerpo: string }[] }>({
+    queryKey: ['quick-replies'],
+    queryFn:  () => fetch('/api/admin/quick-replies').then(r => r.json()),
+    staleTime: 60_000,
   })
 
   const patch = useMutation({
@@ -132,6 +189,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   const ticket = res?.data
   const projects = projectsRes?.data ?? []
   const users = usersRes?.data ?? []
+  const quickReplies = quickRepliesRes?.data ?? []
 
   if (isLoading) {
     return (
@@ -317,6 +375,36 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                 className="hidden"
                 onChange={handleFileSelect}
               />
+
+              {/* Quick replies dropdown */}
+              {quickReplies.length > 0 && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowQR(v => !v)}
+                    className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-card-border text-muted-foreground hover:text-foreground hover:border-blue-300 transition-colors"
+                  >
+                    <Zap size={12} /> Respuestas rápidas <ChevronDown size={11} />
+                  </button>
+                  {showQR && (
+                    <div className="absolute z-10 top-full left-0 mt-1 w-72 bg-card border border-card-border rounded-xl shadow-lg overflow-hidden">
+                      <div className="max-h-52 overflow-y-auto">
+                        {quickReplies.map(qr => (
+                          <button
+                            key={qr.id}
+                            type="button"
+                            onClick={() => { setComment(prev => prev ? `${prev}\n${qr.cuerpo}` : qr.cuerpo); setShowQR(false); textareaRef.current?.focus() }}
+                            className="w-full text-left px-3.5 py-2.5 hover:bg-muted transition-colors border-b border-card-border last:border-b-0"
+                          >
+                            <p className="text-xs font-medium text-foreground truncate">{qr.titulo}</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{qr.cuerpo}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Upload preview strip */}
               {(uploads.length > 0 || uploading) && (
@@ -521,14 +609,11 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5 mb-1">
                 <UserIcon size={12} /> Asignado a
               </label>
-              <select
-                value={ticket.assignee_id ?? ''}
-                onChange={e => patch.mutate({ assignee_id: e.target.value || null })}
-                className="w-full px-3 py-2 rounded-lg bg-muted border border-card-border text-sm text-foreground focus:outline-none"
-              >
-                <option value="">Sin asignar</option>
-                {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-              </select>
+              <AssigneeDropdown
+                users={users}
+                value={ticket.assignee_id ?? null}
+                onChange={id => patch.mutate({ assignee_id: id })}
+              />
             </div>
           </div>
 
@@ -549,6 +634,14 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <AlertCircle size={12} />
                 <span>Por {ticket.creator.full_name}</span>
+              </div>
+            )}
+            {(ticket as { csat_score?: number | null }).csat_score != null && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-base">{(ticket as { csat_score?: number | null }).csat_score === 1 ? '👍' : '👎'}</span>
+                <span className={`font-medium ${(ticket as { csat_score?: number | null }).csat_score === 1 ? 'text-green-600' : 'text-red-500'}`}>
+                  {(ticket as { csat_score?: number | null }).csat_score === 1 ? 'Cliente satisfecho' : 'Cliente insatisfecho'}
+                </span>
               </div>
             )}
           </div>

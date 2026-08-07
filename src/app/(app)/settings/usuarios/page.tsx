@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { UserPlus, Trash2, Shield, Eye, Briefcase, Check, Loader2 } from 'lucide-react'
+import { UserPlus, Trash2, Shield, Eye, Briefcase, Camera, Loader2, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
@@ -61,7 +61,62 @@ async function deleteUser(id: string) {
   if (!r.ok) throw new Error(j.error ?? 'Error')
 }
 
+async function uploadAvatar(id: string, file: File): Promise<string> {
+  const fd = new FormData()
+  fd.append('file', file)
+  const up = await fetch('/api/portal/upload', { method: 'POST', body: fd })
+  const { url, error } = await up.json()
+  if (!up.ok || !url) throw new Error(error ?? 'Error al subir imagen')
+  const patch = await fetch(`/api/admin/users/${id}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avatar_url: url }),
+  })
+  if (!patch.ok) throw new Error('Error al guardar avatar')
+  return url
+}
+
 // ─── Page ─────────────────────────────────────────────────
+function AvatarUpload({ user, onUploaded }: { user: CrmUser; onUploaded: (id: string, url: string) => void }) {
+  const ref = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setBusy(true)
+    try {
+      const url = await uploadAvatar(user.id, file)
+      onUploaded(user.id, url)
+      toast.success('Foto actualizada')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error')
+    } finally {
+      setBusy(false)
+      e.target.value = ''
+    }
+  }
+
+  return (
+    <button
+      onClick={() => ref.current?.click()}
+      disabled={busy}
+      className="relative group flex-shrink-0"
+      title="Cambiar foto"
+    >
+      <input ref={ref} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      {user.avatar_url ? (
+        <img src={user.avatar_url} className="w-8 h-8 rounded-full object-cover" alt={user.full_name} />
+      ) : (
+        <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-semibold">
+          {user.full_name.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()}
+        </div>
+      )}
+      <div className={`absolute inset-0 rounded-full bg-black/40 flex items-center justify-center transition-opacity ${busy ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+        <Camera size={12} className="text-white" />
+      </div>
+    </button>
+  )
+}
+
 export default function UsuariosPage() {
   const router   = useRouter()
   const qc       = useQueryClient()
@@ -165,13 +220,14 @@ export default function UsuariosPage() {
                       {/* Name + avatar */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          {user.avatar_url ? (
-                            <img src={user.avatar_url} className="w-8 h-8 rounded-full object-cover" alt={user.full_name} />
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
-                              {user.full_name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()}
-                            </div>
-                          )}
+                          <AvatarUpload
+                            user={user}
+                            onUploaded={(id, url) => {
+                              qc.setQueryData(['admin-users'], (old: { data: CrmUser[] } | undefined) =>
+                                old ? { ...old, data: old.data.map(u => u.id === id ? { ...u, avatar_url: url } : u) } : old
+                              )
+                            }}
+                          />
                           <span className="font-medium text-slate-800">{user.full_name}</span>
                           {!user.in_crm && (
                             <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Pendiente</span>

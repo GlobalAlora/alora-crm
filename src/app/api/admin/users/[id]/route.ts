@@ -19,10 +19,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const auth = await requireAdmin()
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  const body = await req.json() as { role?: string; full_name?: string }
+  const body = await req.json() as { role?: string; full_name?: string; avatar_url?: string | null }
   const updates: Record<string, unknown> = {}
-  if (body.role)      updates.role      = body.role
-  if (body.full_name) updates.full_name = body.full_name
+  if (body.role)               updates.role       = body.role
+  if (body.full_name)          updates.full_name  = body.full_name
+  if ('avatar_url' in body)    updates.avatar_url = body.avatar_url ?? null
 
   if (!Object.keys(updates).length) {
     return NextResponse.json({ error: 'Sin campos para actualizar' }, { status: 400 })

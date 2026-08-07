@@ -224,6 +224,51 @@ export function buildHorasAprobadasAdminHtml(ticket: {
   return wrap(HEADER('Cliente aprobó las horas estimadas', ticket.numero), body)
 }
 
+// ─── CSAT email (after ticket resolved) ──────────────────────
+
+export function buildCsatEmailHtml(ticket: {
+  numero: string; titulo: string; client_nombre: string | null
+  thumbsUpUrl: string; thumbsDownUrl: string
+}) {
+  const body = `
+    <p style="font-size:15px;color:#1e293b">Hola${ticket.client_nombre ? ` <strong>${ticket.client_nombre}</strong>` : ''},</p>
+    <p style="font-size:14px;color:#475569;line-height:1.6">
+      Tu ticket <strong>${ticket.numero}</strong> fue marcado como resuelto. ¿Cómo calificás la atención que recibiste?
+    </p>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px;margin:20px 0">
+      <p style="margin:0 0 4px;color:#64748b;font-size:12px">Ticket</p>
+      <p style="margin:0 0 20px;font-size:15px;font-weight:600;color:#1e293b">${ticket.titulo}</p>
+      <div style="display:flex;gap:12px;justify-content:center">
+        <a href="${ticket.thumbsUpUrl}" style="display:inline-block;padding:12px 28px;background:#22c55e;color:#fff;border-radius:10px;text-decoration:none;font-size:24px;line-height:1">👍</a>
+        <a href="${ticket.thumbsDownUrl}" style="display:inline-block;padding:12px 28px;background:#ef4444;color:#fff;border-radius:10px;text-decoration:none;font-size:24px;line-height:1">👎</a>
+      </div>
+    </div>
+    <p style="font-size:13px;color:#94a3b8">Tu opinión nos ayuda a mejorar el servicio.</p>`
+  return wrap(HEADER('Alora — ¿Cómo fue tu experiencia?', ticket.numero), body)
+}
+
+// ─── 80% hours warning ────────────────────────────────────────
+
+export function buildHorasAlertaHtml(data: {
+  client_nombre: string | null; porcentaje: number
+  horas_consumidas: number; plan: number; mes: string
+}) {
+  const restantes = Math.max(0, data.plan - data.horas_consumidas)
+  const body = `
+    <p style="font-size:15px;color:#1e293b">Hola${data.client_nombre ? ` <strong>${data.client_nombre}</strong>` : ''},</p>
+    <p style="font-size:14px;color:#475569;line-height:1.6">
+      Utilizaste el <strong>${data.porcentaje}%</strong> de tu bolsa de horas de ${data.mes}.
+    </p>
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:20px;margin:20px 0;text-align:center">
+      <p style="margin:0 0 6px;color:#92400e;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em">${data.porcentaje}% utilizado</p>
+      <p style="margin:0;font-size:32px;font-weight:800;color:#1e293b">${data.horas_consumidas % 1 === 0 ? data.horas_consumidas : data.horas_consumidas.toFixed(1)} <span style="font-size:16px;color:#94a3b8">/ ${data.plan} hs</span></p>
+    </div>
+    <p style="font-size:14px;color:#475569;line-height:1.6">
+      Te quedan <strong>${restantes % 1 === 0 ? restantes : restantes.toFixed(1)} horas</strong> disponibles este mes. Si necesitás ampliar tu plan, contactanos a <a href="mailto:hola@globalalora.com" style="color:#3b82f6">hola@globalalora.com</a>.
+    </p>`
+  return wrap(HEADER('Alerta — Consumo de horas', data.mes), body)
+}
+
 // ─── Client reply notification (team responded) ────────────
 
 export function buildTeamReplyHtml(ticket: {

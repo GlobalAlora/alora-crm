@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createLinkedTask } from '@/lib/ticket-task'
 import { sendGmail } from '@/lib/google-gmail'
-import { PORTAL_URL, buildStatusChangeHtml, buildHorasEstimadasHtml } from '@/lib/ticket-emails'
+import { PORTAL_URL, buildStatusChangeHtml, buildHorasEstimadasHtml, buildCsatEmailHtml } from '@/lib/ticket-emails'
 const INTERNAL_EMAIL = 'somosglobalalora@gmail.com'
 
 const ALLOWED_ROLES = ['admin', 'sales']
@@ -140,6 +140,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         client_nombre: current.client_nombre,
         nuevo_estado: nuevoEstado,
         trackingUrl:  `${PORTAL_URL}/${current.ticket_token}`,
+      }),
+    }).catch(() => {})
+  }
+
+  // CSAT email when ticket is resolved or closed
+  if (nuevoEstado && (nuevoEstado === 'resuelto' || nuevoEstado === 'cerrado') && nuevoEstado !== current?.estado && current?.client_email && current?.ticket_token) {
+    sendGmail({
+      from:    'info@globalalora.com',
+      to:      current.client_email,
+      subject: `[${current.numero}] ¿Cómo fue tu experiencia?`,
+      html:    buildCsatEmailHtml({
+        numero:          current.numero,
+        titulo:          current.titulo,
+        client_nombre:   current.client_nombre,
+        thumbsUpUrl:     `${PORTAL_URL}/api/portal/tickets/${current.ticket_token}/csat?score=1`,
+        thumbsDownUrl:   `${PORTAL_URL}/api/portal/tickets/${current.ticket_token}/csat?score=0`,
       }),
     }).catch(() => {})
   }

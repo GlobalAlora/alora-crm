@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { UserPlus, Trash2, Pencil, Check, X, Loader2, ExternalLink, Clock, Palette } from 'lucide-react'
+import { UserPlus, Trash2, Pencil, Check, X, Loader2, ExternalLink, Clock, Palette, ChevronDown } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
@@ -32,6 +32,12 @@ interface PortalClientRow {
 interface ProjectOption {
   id:     string
   nombre: string
+}
+
+interface CrmUserOption {
+  id:         string
+  full_name:  string
+  avatar_url: string | null
 }
 
 // ─── API helpers ─────────────────────────────────────────
@@ -146,6 +152,7 @@ function PersonalizeModal({
   const [projectId,      setProjectId]      = useState(client.project_id ?? '')
   const [loading,        setLoading]        = useState(false)
   const [error,          setError]          = useState('')
+  const [userPickerOpen, setUserPickerOpen] = useState(false)
 
   const { data: projectsData } = useQuery<{ data: ProjectOption[] }>({
     queryKey: ['projects-list'],
@@ -153,6 +160,13 @@ function PersonalizeModal({
     staleTime: 60_000,
   })
   const projects = projectsData?.data ?? []
+
+  const { data: usersData } = useQuery<{ data: CrmUserOption[] }>({
+    queryKey: ['admin-users'],
+    queryFn:  () => fetch('/api/admin/users').then(r => r.json()),
+    staleTime: 60_000,
+  })
+  const crmUsers = (usersData?.data ?? []).filter(u => u.full_name)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -338,19 +352,58 @@ function PersonalizeModal({
           {/* Manager */}
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Responsable Alora</label>
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                value={managerNombre}
-                onChange={e => setManagerNombre(e.target.value)}
-                placeholder="Nombre"
-                className="px-3 py-2 rounded-lg bg-muted border border-card-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <input
-                value={managerAvatar}
-                onChange={e => setManagerAvatar(e.target.value)}
-                placeholder="URL de foto (opcional)"
-                className="px-3 py-2 rounded-lg bg-muted border border-card-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setUserPickerOpen(v => !v)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg bg-muted border border-card-border text-sm text-foreground hover:border-blue-400 transition-colors"
+              >
+                {managerNombre ? (
+                  <>
+                    {managerAvatar ? (
+                      <img src={managerAvatar} alt={managerNombre} className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0">
+                        {managerNombre[0].toUpperCase()}
+                      </div>
+                    )}
+                    <span className="flex-1 text-left">{managerNombre}</span>
+                  </>
+                ) : (
+                  <span className="flex-1 text-left text-muted-foreground">Sin responsable</span>
+                )}
+                <ChevronDown size={14} className="text-muted-foreground flex-shrink-0" />
+              </button>
+
+              {userPickerOpen && (
+                <div className="absolute z-20 mt-1 w-full bg-card border border-card-border rounded-xl shadow-lg overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => { setManagerNombre(''); setManagerAvatar(''); setUserPickerOpen(false) }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-muted-foreground hover:bg-muted transition-colors"
+                  >
+                    <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 flex-shrink-0" />
+                    Sin responsable
+                  </button>
+                  {crmUsers.map(u => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => { setManagerNombre(u.full_name); setManagerAvatar(u.avatar_url ?? ''); setUserPickerOpen(false) }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                    >
+                      {u.avatar_url ? (
+                        <img src={u.avatar_url} alt={u.full_name} className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0">
+                          {u.full_name[0].toUpperCase()}
+                        </div>
+                      )}
+                      {u.full_name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
