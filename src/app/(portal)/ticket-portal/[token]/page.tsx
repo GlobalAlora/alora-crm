@@ -35,6 +35,8 @@ interface PortalTicket {
   descripcion: string | null
   estado: TicketEstado
   prioridad: string
+  categoria: string | null
+  horas_estimadas: number | null
   created_at: string
   resolved_at: string | null
   client_nombre: string | null
@@ -169,6 +171,11 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
                       Abierto {timeAgo(ticket.created_at)}
                       {ticket.resolved_at && ` · Resuelto ${timeAgo(ticket.resolved_at)}`}
                     </p>
+                    {ticket.horas_estimadas != null && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        ⏱ {ticket.horas_estimadas} hs estimadas
+                      </p>
+                    )}
                   </div>
                 </div>
 

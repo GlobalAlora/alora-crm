@@ -26,6 +26,12 @@ interface PortalClientRow {
   logo_url:            string | null
   manager_nombre:      string | null
   manager_avatar:      string | null
+  project_id:          string | null
+}
+
+interface ProjectOption {
+  id:     string
+  nombre: string
 }
 
 // ─── API helpers ─────────────────────────────────────────
@@ -136,8 +142,16 @@ function PersonalizeModal({
   const [logoUrl,        setLogoUrl]        = useState(client.logo_url ?? '')
   const [managerNombre,  setManagerNombre]  = useState(client.manager_nombre ?? '')
   const [managerAvatar,  setManagerAvatar]  = useState(client.manager_avatar ?? '')
+  const [projectId,      setProjectId]      = useState(client.project_id ?? '')
   const [loading,        setLoading]        = useState(false)
   const [error,          setError]          = useState('')
+
+  const { data: projectsData } = useQuery<{ data: ProjectOption[] }>({
+    queryKey: ['projects-list'],
+    queryFn:  () => fetch('/api/projects?limit=100').then(r => r.json()),
+    staleTime: 60_000,
+  })
+  const projects = projectsData?.data ?? []
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -151,6 +165,7 @@ function PersonalizeModal({
         logo_url:           logoUrl.trim() || null,
         manager_nombre:     managerNombre.trim() || null,
         manager_avatar:     managerAvatar.trim() || null,
+        project_id:         projectId || null,
       })
       onSaved({
         color_acento:       color,
@@ -159,6 +174,7 @@ function PersonalizeModal({
         logo_url:           logoUrl.trim() || null,
         manager_nombre:     managerNombre.trim() || null,
         manager_avatar:     managerAvatar.trim() || null,
+        project_id:         projectId || null,
       })
       onClose()
     } catch (err: unknown) {
@@ -262,6 +278,22 @@ function PersonalizeModal({
               className="w-full px-3 py-2 rounded-lg bg-muted border border-card-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <p className="text-xs text-muted-foreground mt-1">Recomendado: logo en blanco o claro, formato PNG con fondo transparente.</p>
+          </div>
+
+          {/* Project */}
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Proyecto vinculado</label>
+            <select
+              value={projectId}
+              onChange={e => setProjectId(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-card-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Sin proyecto</option>
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{p.nombre}</option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">Los tickets del portal se asignan automáticamente a este proyecto.</p>
           </div>
 
           {/* Manager */}

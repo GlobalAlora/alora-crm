@@ -19,6 +19,7 @@ export interface PortalClient {
   logo_url: string | null
   manager_nombre: string | null
   manager_avatar: string | null
+  project_id: string | null
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -59,7 +60,7 @@ export async function getPortalClient(sessionId: string): Promise<PortalClient |
 
   const { data } = await admin
     .from('portal_sessions')
-    .select('expires_at, portal_clients(id, email, nombre, empresa, plan_horas_mensual, color_acento, nombre_plan, mensaje_bienvenida, logo_url, manager_nombre, manager_avatar)')
+    .select('expires_at, portal_clients(id, email, nombre, empresa, plan_horas_mensual, color_acento, nombre_plan, mensaje_bienvenida, logo_url, manager_nombre, manager_avatar, project_id)')
     .eq('id', sessionId)
     .gt('expires_at', new Date().toISOString())
     .maybeSingle()

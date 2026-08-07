@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sendGmail } from '@/lib/google-gmail'
 import { createLinkedTask } from '@/lib/ticket-task'
 import { PORTAL_URL, buildTeamNotifHtml, buildClientConfirmHtml } from '@/lib/ticket-emails'
-import type { TicketPrioridad, TicketAttachment } from '@/types'
+import type { TicketAttachment } from '@/types'
 
 const INTERNAL_EMAIL = 'somosglobalalora@gmail.com'
 
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     client_telefono?: string
     titulo: string
     descripcion?: string
-    prioridad?: TicketPrioridad
+    prioridad?: string
     categoria?: string
     attachments?: TicketAttachment[]
   }
@@ -32,17 +32,15 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient()
   const year  = new Date().getFullYear()
 
-  // Run ticket count and project match in parallel
-  const [{ count }, { data: matchedProject }] = await Promise.all([
+  // Run ticket count and portal client project lookup in parallel
+  const [{ count }, { data: portalClient }] = await Promise.all([
     admin.from('tickets').select('*', { count: 'exact', head: true }).like('numero', `TICK-${year}-%`),
-    body.client_empresa?.trim()
-      ? admin.from('projects').select('id').ilike('nombre', body.client_empresa.trim()).is('deleted_at', null).limit(1).maybeSingle()
-      : Promise.resolve({ data: null }),
+    admin.from('portal_clients').select('project_id').eq('email', body.client_email.trim().toLowerCase()).maybeSingle(),
   ])
 
   const seq          = (count ?? 0) + 1
   const numero       = `TICK-${year}-${String(seq).padStart(3, '0')}`
-  const autoProjectId = matchedProject?.id ?? null
+  const autoProjectId = portalClient?.project_id ?? null
 
   const { data: ticket, error } = await admin
     .from('tickets')

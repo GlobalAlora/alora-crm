@@ -22,7 +22,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const { admin } = auth
 
   const body = await req.json()
-  const ALLOWED = ['nombre', 'empresa', 'plan_horas_mensual', 'password', 'color_acento', 'nombre_plan', 'mensaje_bienvenida', 'logo_url', 'manager_nombre', 'manager_avatar']
+  const ALLOWED = ['nombre', 'empresa', 'plan_horas_mensual', 'password', 'color_acento', 'nombre_plan', 'mensaje_bienvenida', 'logo_url', 'manager_nombre', 'manager_avatar', 'project_id']
   const updates: Record<string, unknown> = {}
 
   for (const key of ALLOWED) {
@@ -46,7 +46,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     .from('portal_clients')
     .update(updates)
     .eq('id', id)
-    .select('id, email, nombre, empresa, plan_horas_mensual, color_acento, nombre_plan, mensaje_bienvenida, logo_url, manager_nombre, manager_avatar, created_at')
+    .select('id, email, nombre, empresa, plan_horas_mensual, color_acento, nombre_plan, mensaje_bienvenida, logo_url, manager_nombre, manager_avatar, project_id, created_at')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

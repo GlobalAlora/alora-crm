@@ -21,7 +21,7 @@ export async function GET() {
 
   const { data: clients, error } = await admin
     .from('portal_clients')
-    .select('id, email, nombre, empresa, plan_horas_mensual, color_acento, nombre_plan, mensaje_bienvenida, logo_url, manager_nombre, manager_avatar, created_at')
+    .select('id, email, nombre, empresa, plan_horas_mensual, color_acento, nombre_plan, mensaje_bienvenida, logo_url, manager_nombre, manager_avatar, project_id, created_at')
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
       empresa:            empresa?.trim() || null,
       plan_horas_mensual: Number(plan_horas_mensual) || 20,
     })
-    .select('id, email, nombre, empresa, plan_horas_mensual, color_acento, nombre_plan, mensaje_bienvenida, logo_url, manager_nombre, manager_avatar, created_at')
+    .select('id, email, nombre, empresa, plan_horas_mensual, color_acento, nombre_plan, mensaje_bienvenida, logo_url, manager_nombre, manager_avatar, project_id, created_at')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

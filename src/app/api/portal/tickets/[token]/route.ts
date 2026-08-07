@@ -9,7 +9,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const { data: ticket, error } = await admin
     .from('tickets')
-    .select('id,numero,titulo,descripcion,estado,prioridad,categoria,created_at,updated_at,resolved_at,client_nombre,ticket_token')
+    .select('id,numero,titulo,descripcion,estado,prioridad,categoria,created_at,updated_at,resolved_at,client_nombre,ticket_token,horas_estimadas')
     .eq('ticket_token', token)
     .is('deleted_at', null)
     .single()
