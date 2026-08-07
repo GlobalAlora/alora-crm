@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
   const responsableId   = searchParams.get('responsable_id')
   const fuente          = searchParams.get('fuente')
   const pais            = searchParams.get('pais')
+  const idioma          = searchParams.get('idioma')
   const servicios       = searchParams.getAll('servicio')
   const fechaDesde      = searchParams.get('fecha_desde')
   const fechaHasta      = searchParams.get('fecha_hasta')
@@ -52,6 +53,9 @@ export async function GET(req: NextRequest) {
   }
   if (pais) {
     query = query.eq('pais', pais)
+  }
+  if (idioma) {
+    query = query.eq('idioma', idioma)
   }
   if (servicios.length > 0) {
     query = query.contains('servicios_interesados', servicios)

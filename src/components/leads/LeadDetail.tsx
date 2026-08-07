@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { leadsApi, usersApi } from '@/lib/api'
 import { cn, formatUSD, formatARS, timeAgo, getProjectStatus, getDaysUntil } from '@/lib/utils'
-import { PIPELINE_STAGES, FUENTES, PAISES, PIPELINE_STAGE_MAP } from '@/types'
+import { PIPELINE_STAGES, FUENTES, PAISES, IDIOMAS, PIPELINE_STAGE_MAP } from '@/types'
 import type { Lead, PipelineStage, TeamMember, User } from '@/types'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { UserAvatar } from '@/components/shared/UserAvatar'
@@ -519,6 +519,19 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                 >
                   <option value="">— Sin fuente —</option>
                   {FUENTES.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+                </select>
+              </div>
+
+              {/* Idioma */}
+              <div>
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Idioma</p>
+                <select
+                  value={lead.idioma ?? ''}
+                  onChange={(e) => patch({ idioma: (e.target.value as Lead['idioma']) || null })}
+                  className="text-sm text-slate-800 bg-transparent focus:outline-none cursor-pointer hover:text-blue-600 transition-colors w-full"
+                >
+                  <option value="">— Sin idioma —</option>
+                  {IDIOMAS.map((i) => <option key={i.value} value={i.value}>{i.label}</option>)}
                 </select>
               </div>
 

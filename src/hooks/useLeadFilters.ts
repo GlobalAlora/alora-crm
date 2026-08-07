@@ -10,6 +10,7 @@ export interface LeadFilterState {
   responsableId: string
   fuente: string
   pais: string
+  idioma: string
   servicios: string[]
   sortBy: 'nombre' | 'empresa' | 'valor_propuesta_usd' | 'last_activity_at' | 'created_at'
   sortOrder: 'asc' | 'desc'
@@ -29,6 +30,7 @@ export function useLeadFilters() {
     responsableId: searchParams.get('responsable_id') ?? '',
     fuente: searchParams.get('fuente') ?? '',
     pais: searchParams.get('pais') ?? '',
+    idioma: searchParams.get('idioma') ?? '',
     servicios: searchParams.getAll('servicio') ?? [],
     sortBy: (searchParams.get('sort_by') as LeadFilterState['sortBy']) ?? 'last_activity_at',
     sortOrder: (searchParams.get('sort_order') as 'asc' | 'desc') ?? 'desc',
@@ -84,6 +86,13 @@ export function useLeadFilters() {
       params.delete('pais')
     }
 
+    // Handle idioma
+    if (filters.idioma) {
+      params.set('idioma', filters.idioma)
+    } else {
+      params.delete('idioma')
+    }
+
     // Handle servicios
     params.delete('servicio')
     filters.servicios.forEach((s) => params.append('servicio', s))
@@ -107,7 +116,7 @@ export function useLeadFilters() {
       router.replace(`${pathname}?${newQuery}`, { scroll: false })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedBuscar, filters.estados, filters.responsableId, filters.fuente, filters.pais, filters.servicios, filters.sortBy, filters.sortOrder, pathname, router, searchParams])
+  }, [debouncedBuscar, filters.estados, filters.responsableId, filters.fuente, filters.pais, filters.idioma, filters.servicios, filters.sortBy, filters.sortOrder, pathname, router, searchParams])
 
   const setBuscar = useCallback((buscar: string) => {
     setFilters((f) => ({ ...f, buscar }))
@@ -138,6 +147,10 @@ export function useLeadFilters() {
     setFilters((f) => ({ ...f, pais }))
   }, [])
 
+  const setIdioma = useCallback((idioma: string) => {
+    setFilters((f) => ({ ...f, idioma }))
+  }, [])
+
   const toggleServicio = useCallback((servicio: string) => {
     setFilters((f) => ({
       ...f,
@@ -166,6 +179,7 @@ export function useLeadFilters() {
       responsableId: '',
       fuente: '',
       pais: '',
+      idioma: '',
       servicios: [],
       sortBy: 'last_activity_at',
       sortOrder: 'desc',
@@ -179,6 +193,7 @@ export function useLeadFilters() {
     responsable_id: filters.responsableId || undefined,
     fuente: filters.fuente || undefined,
     pais: filters.pais || undefined,
+    idioma: filters.idioma || undefined,
     servicio: filters.servicios.length > 0 ? filters.servicios : undefined,
     sort_by: filters.sortBy,
     sort_order: filters.sortOrder,
@@ -193,10 +208,11 @@ export function useLeadFilters() {
     setResponsableId,
     setFuente,
     setPais,
+    setIdioma,
     toggleServicio,
     setServicios,
     setSort,
     clearAll,
-    hasActiveFilters: debouncedBuscar || filters.estados.length > 0 || filters.responsableId || filters.fuente || filters.pais || filters.servicios.length > 0,
+    hasActiveFilters: debouncedBuscar || filters.estados.length > 0 || filters.responsableId || filters.fuente || filters.pais || filters.idioma || filters.servicios.length > 0,
   }
 }

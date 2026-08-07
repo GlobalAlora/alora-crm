@@ -7,6 +7,22 @@ import { PAISES, SERVICIOS } from '@/types'
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const URL_RE = /^https?:\/\/[^\s]+\.[^\s]+$|^[^\s]+\.[a-z]{2,}([/?#][^\s]*)?$/i
 
+// WhatsApp never carries structured page/locale data — the first message's
+// wording is the only signal available. Keyword scoring, same spirit as the
+// ES/EN word lists already used on the site's own chatbot widget.
+const ES_WORDS = ['hola', 'buenas', 'buenos', 'quiero', 'necesito', 'gracias', 'cómo', 'como', 'qué', 'que', 'información', 'informacion', 'ustedes', 'favor', 'presupuesto', 'cuánto', 'cuanto', 'saludos', 'consulta', 'somos', 'empresa']
+const EN_WORDS = ['hello', 'hi', 'hey', 'want', 'need', 'thanks', 'thank', 'how', 'what', 'information', 'please', 'price', 'quote', 'company', 'looking', 'interested']
+
+function detectIdioma(text: string | null): 'es' | 'en' | null {
+  if (!text) return null
+  const normalized = text.toLowerCase()
+  const words = normalized.split(/[^a-zà-ÿñ]+/i).filter(Boolean)
+  const esScore = words.filter((w) => ES_WORDS.includes(w)).length + (/[¿¡]/.test(normalized) ? 1 : 0)
+  const enScore = words.filter((w) => EN_WORDS.includes(w)).length
+  if (esScore === enScore) return null // tie or no signal at all — don't guess
+  return esScore > enScore ? 'es' : 'en'
+}
+
 type AdminClient = ReturnType<typeof createAdminClient>
 
 export interface InboundWhatsAppMessage {
@@ -266,6 +282,7 @@ async function findOrCreateLeadByPhone(
       nombre:          cleanName || `+${phone}`,
       telefono:        phone,
       fuente:          'whatsapp',
+      idioma:          detectIdioma(text),
       estado_pipeline: 'lead_entrante',
       kanban_position: (maxPos?.kanban_position ?? 0) + 1,
       responsable_id:  responsableId,
