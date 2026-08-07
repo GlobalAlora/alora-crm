@@ -4,7 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 // Paths que un usuario con rol Viewer puede visitar
 const VIEWER_ALLOWED: string[] = ['/projects']
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const path     = req.nextUrl.pathname
   const hostname = req.headers.get('host') ?? ''
 
@@ -14,7 +14,7 @@ export async function middleware(req: NextRequest) {
     hostname.startsWith('ticket.globalalora.com:')
 
   if (isPortalDomain) {
-    // Pass through: API, Next.js internals, static assets
+    // Pass through: API, Next.js internals, static assets (.json, .ico, .png, .js, .css …)
     if (
       path.startsWith('/api/') ||
       path.startsWith('/_next/') ||
@@ -87,8 +87,6 @@ export async function middleware(req: NextRequest) {
   }
 
   // ── Viewer role guard ───────────────────────────────────────────────
-  // Viewers solo pueden acceder a /projects. Si intentan entrar a cualquier
-  // otra ruta del CRM (dashboard, leads, whatsapp, etc.) los redirige.
   const response = NextResponse.next()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
