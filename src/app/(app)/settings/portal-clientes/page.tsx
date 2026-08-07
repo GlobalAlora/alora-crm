@@ -412,8 +412,6 @@ export default function PortalClientesPage() {
     retry:    false,
   })
 
-  if (error) { router.push('/projects'); return null }
-
   const updatePlan = useMutation({
     mutationFn: ({ id, plan }: { id: string; plan: number }) => patchClient(id, { plan_horas_mensual: plan }),
     onSuccess: () => {
@@ -435,6 +433,8 @@ export default function PortalClientesPage() {
 
   const clients = data?.data ?? []
   const personalizingClient = clients.find(c => c.id === personalizingId) ?? null
+
+  if (error) { router.push('/settings'); return null }
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
