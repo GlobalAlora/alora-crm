@@ -51,7 +51,8 @@ export async function GET(req: NextRequest) {
       horas_consumidas:   horasConsumidas,
       horas_restantes:    Math.max(0, plan - horasConsumidas),
       porcentaje:         plan > 0 ? Math.min(100, Math.round((horasConsumidas / plan) * 100)) : 0,
-      tickets_mes:        [...(resolvedTickets ?? []), ...(openTickets ?? [])],
+      tickets_resueltos:  resolvedTickets ?? [],
+      tickets_abiertos:   openTickets ?? [],
       mes:                mesLabel,
     },
   })

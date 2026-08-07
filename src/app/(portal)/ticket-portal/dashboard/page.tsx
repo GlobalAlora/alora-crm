@@ -44,7 +44,8 @@ interface HoursData {
   horas_consumidas: number
   horas_restantes: number
   porcentaje: number
-  tickets_mes: { numero: string; titulo: string; horas_reales: number | null; resolved_at: string }[]
+  tickets_resueltos: { numero: string; titulo: string; horas_reales: number | null; resolved_at: string }[]
+  tickets_abiertos:  { numero: string; titulo: string; horas_estimadas: number | null }[]
   mes: string
 }
 
@@ -122,24 +123,48 @@ function HoursGauge({ data, accentColor, nombrePlan }: { data: HoursData; accent
         </span>
       </div>
 
-      {data.tickets_mes.length > 0 && (
-        <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f1f5f9' }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-            Tickets resueltos este mes
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {data.tickets_mes.map(t => (
-              <div key={t.numero} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#94a3b8' }}>{t.numero}</span>
-                <span style={{ fontSize: 12, color: '#475569', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {t.titulo}
-                </span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>
-                  {t.horas_reales != null ? `${t.horas_reales} hs` : '—'}
-                </span>
+      {(data.tickets_resueltos.length > 0 || data.tickets_abiertos.length > 0) && (
+        <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {data.tickets_abiertos.length > 0 && (
+            <div>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                Tickets en curso este mes
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {data.tickets_abiertos.map(t => (
+                  <div key={t.numero} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#94a3b8' }}>{t.numero}</span>
+                    <span style={{ fontSize: 12, color: '#475569', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {t.titulo}
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>
+                      {t.horas_estimadas != null ? `~${t.horas_estimadas} hs` : '—'}
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+          {data.tickets_resueltos.length > 0 && (
+            <div>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                Tickets resueltos este mes
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {data.tickets_resueltos.map(t => (
+                  <div key={t.numero} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#94a3b8' }}>{t.numero}</span>
+                    <span style={{ fontSize: 12, color: '#475569', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {t.titulo}
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#0f172a', whiteSpace: 'nowrap' }}>
+                      {t.horas_reales != null ? `${t.horas_reales} hs` : '—'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
