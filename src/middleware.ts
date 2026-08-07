@@ -14,8 +14,7 @@ export async function middleware(req: NextRequest) {
     hostname.startsWith('ticket.globalalora.com:')
 
   if (isPortalDomain) {
-    // Pass through: API, Next.js internals, and anything with an extension
-    // (.json, .ico, .png, .js, .css, .svg, .webp …)
+    // Pass through: API, Next.js internals, static assets
     if (
       path.startsWith('/api/') ||
       path.startsWith('/_next/') ||
@@ -25,11 +24,37 @@ export async function middleware(req: NextRequest) {
       return NextResponse.next()
     }
 
-    // Rewrite clean paths to the portal route group
-    // /         → /ticket-portal          (submission form)
-    // /<token>  → /ticket-portal/<token>  (tracking page)
+    const hasSession = req.cookies.has('portal_session')
+
+    // Root → redirect based on auth state
+    if (path === '/') {
+      const url = req.nextUrl.clone()
+      url.pathname = hasSession ? '/dashboard' : '/login'
+      return NextResponse.redirect(url)
+    }
+
+    // Protected routes: require session
+    const PROTECTED = ['/dashboard', '/nuevo']
+    if (PROTECTED.includes(path) && !hasSession) {
+      const url = req.nextUrl.clone()
+      url.pathname = '/login'
+      return NextResponse.redirect(url)
+    }
+
+    // Login page → redirect if already authenticated
+    if (path === '/login' && hasSession) {
+      const url = req.nextUrl.clone()
+      url.pathname = '/dashboard'
+      return NextResponse.redirect(url)
+    }
+
+    // Rewrite all portal paths to /ticket-portal/*
+    // /login      → /ticket-portal/login
+    // /dashboard  → /ticket-portal/dashboard
+    // /nuevo      → /ticket-portal/nuevo
+    // /<token>    → /ticket-portal/<token>
     const url = req.nextUrl.clone()
-    url.pathname = path === '/' ? '/ticket-portal' : `/ticket-portal${path}`
+    url.pathname = `/ticket-portal${path}`
     return NextResponse.rewrite(url)
   }
 

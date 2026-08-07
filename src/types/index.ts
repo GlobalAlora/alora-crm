@@ -521,6 +521,15 @@ export type TicketPrioridad = 'baja' | 'media' | 'alta' | 'urgente'
 export type TicketCategoria = 'bug' | 'soporte' | 'consulta' | 'mejora' | 'otro'
 export type TicketAttachment = { url: string; name: string; type: string }
 
+export interface PortalClient {
+  id: string
+  email: string
+  nombre: string
+  empresa: string | null
+  plan_horas_mensual: number
+  created_at: string
+}
+
 export interface Ticket {
   id: string
   numero: string
@@ -540,6 +549,8 @@ export interface Ticket {
   client_telefono: string | null
   attachments: TicketAttachment[]
   linked_task_id: string | null
+  horas_estimadas: number | null
+  horas_reales: number | null
   resolved_at: string | null
   deleted_at: string | null
   created_at: string

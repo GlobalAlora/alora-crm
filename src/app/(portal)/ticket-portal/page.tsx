@@ -12,7 +12,7 @@ import {
 function AloraLogo() {
   return (
     <img
-      src="https://www.globalalora.com/logo-nav-white.png"
+      src="/logo-nav-white.png"
       alt="Alora"
       style={{ height: 36, display: 'block', objectFit: 'contain' }}
     />

@@ -454,6 +454,53 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
             </div>
           )}
 
+          {/* Horas */}
+          <div className="bg-card border border-card-border rounded-2xl p-5">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Horas</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Estimadas</label>
+                <input
+                  key={`est-${ticket.id}-${ticket.horas_estimadas}`}
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  defaultValue={ticket.horas_estimadas ?? ''}
+                  placeholder="0"
+                  onBlur={e => {
+                    const val = e.target.value ? Number(e.target.value) : null
+                    if (val !== ticket.horas_estimadas) patch.mutate({ horas_estimadas: val })
+                  }}
+                  className="w-full px-3 py-2 rounded-lg bg-muted border border-card-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Reales</label>
+                <input
+                  key={`real-${ticket.id}-${ticket.horas_reales}`}
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  defaultValue={ticket.horas_reales ?? ''}
+                  placeholder="0"
+                  onBlur={e => {
+                    const val = e.target.value ? Number(e.target.value) : null
+                    if (val !== ticket.horas_reales) patch.mutate({ horas_reales: val })
+                  }}
+                  className="w-full px-3 py-2 rounded-lg bg-muted border border-card-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              {ticket.horas_estimadas != null && ticket.horas_reales != null && (
+                <p className={`text-xs font-medium ${ticket.horas_reales > ticket.horas_estimadas ? 'text-red-500' : 'text-green-600'}`}>
+                  {ticket.horas_reales > ticket.horas_estimadas
+                    ? `+${(ticket.horas_reales - ticket.horas_estimadas).toFixed(1)} hs sobre lo estimado`
+                    : `${(ticket.horas_estimadas - ticket.horas_reales).toFixed(1)} hs bajo estimación`
+                  }
+                </p>
+              )}
+            </div>
+          </div>
+
           {/* Project + Assignee */}
           <div className="bg-card border border-card-border rounded-2xl p-5 space-y-3">
             <div>
