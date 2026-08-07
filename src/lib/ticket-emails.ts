@@ -180,6 +180,50 @@ export function buildStatusChangeHtml(ticket: {
   return wrap(HEADER(`Alora — Ticket ${label.toLowerCase()}`, ticket.numero), body)
 }
 
+// ─── Hours estimated (admin set hours, client must approve) ──
+
+export function buildHorasEstimadasHtml(ticket: {
+  numero: string; titulo: string; client_nombre: string | null
+  horas_estimadas: number; trackingUrl: string
+}) {
+  const body = `
+    <p style="font-size:15px;color:#1e293b">Hola${ticket.client_nombre ? ` <strong>${ticket.client_nombre}</strong>` : ''},</p>
+    <p style="font-size:14px;color:#475569;line-height:1.6">
+      Estimamos el tiempo necesario para resolver tu solicitud <strong>${ticket.numero}</strong>.
+    </p>
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:20px;margin:20px 0;text-align:center">
+      <p style="margin:0 0 4px;color:#92400e;font-size:13px;text-transform:uppercase;letter-spacing:.05em;font-weight:700">Horas estimadas</p>
+      <p style="margin:0;font-size:36px;font-weight:800;color:#1e293b">${ticket.horas_estimadas} hs</p>
+      <p style="margin:8px 0 0;font-size:13px;color:#78350f">${ticket.titulo}</p>
+    </div>
+    <p style="font-size:14px;color:#475569;line-height:1.6">
+      Para que estas horas se descuenten de tu plan mensual necesitamos tu aprobación. Ingresá al portal y hacé click en "Aprobar".
+    </p>
+    <a href="${ticket.trackingUrl}" style="display:inline-block;padding:10px 20px;background:#d97706;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">
+      Aprobar horas →
+    </a>`
+
+  return wrap(HEADER('Alora — Estimación de horas', ticket.numero), body)
+}
+
+// ─── Hours approved (client approved, notify admin) ──────────
+
+export function buildHorasAprobadasAdminHtml(ticket: {
+  numero: string; titulo: string; client_nombre: string | null
+  client_email: string | null; horas_estimadas: number
+}) {
+  const body = `
+    <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+      <tr><td style="padding:5px 0;color:#64748b;font-size:13px;width:110px">Cliente</td><td style="font-size:13px;font-weight:600">${ticket.client_nombre ?? '—'}</td></tr>
+      <tr><td style="padding:5px 0;color:#64748b;font-size:13px">Email</td><td style="font-size:13px">${ticket.client_email ?? '—'}</td></tr>
+      <tr><td style="padding:5px 0;color:#64748b;font-size:13px">Ticket</td><td style="font-size:13px;font-family:monospace">${ticket.numero}</td></tr>
+      <tr><td style="padding:5px 0;color:#64748b;font-size:13px">Horas</td><td style="font-size:14px;font-weight:700;color:#16a34a">${ticket.horas_estimadas} hs aprobadas ✓</td></tr>
+    </table>
+    <p style="font-size:14px;color:#475569">${ticket.titulo}</p>`
+
+  return wrap(HEADER('Cliente aprobó las horas estimadas', ticket.numero), body)
+}
+
 // ─── Client reply notification (team responded) ────────────
 
 export function buildTeamReplyHtml(ticket: {

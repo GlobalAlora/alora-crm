@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendGmail } from '@/lib/google-gmail'
+import { buildHorasAprobadasAdminHtml } from '@/lib/ticket-emails'
 
+const INTERNAL_EMAIL = 'somosglobalalora@gmail.com'
 type Params = { params: Promise<{ token: string }> }
 
 export async function POST(_req: NextRequest, { params }: Params) {
@@ -9,7 +12,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
   const { data: ticket, error } = await admin
     .from('tickets')
-    .select('id, horas_estimadas, horas_aprobadas')
+    .select('id, numero, titulo, horas_estimadas, horas_aprobadas, client_nombre, client_email')
     .eq('ticket_token', token)
     .is('deleted_at', null)
     .single()
@@ -24,6 +27,20 @@ export async function POST(_req: NextRequest, { params }: Params) {
     .eq('id', ticket.id)
 
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+
+  // Notify admin team
+  sendGmail({
+    from:    'info@globalalora.com',
+    to:      INTERNAL_EMAIL,
+    subject: `[${ticket.numero}] ${ticket.client_nombre ?? 'Cliente'} aprobó ${ticket.horas_estimadas} hs`,
+    html:    buildHorasAprobadasAdminHtml({
+      numero:          ticket.numero,
+      titulo:          ticket.titulo,
+      client_nombre:   ticket.client_nombre,
+      client_email:    ticket.client_email,
+      horas_estimadas: ticket.horas_estimadas,
+    }),
+  }).catch(() => {})
 
   return NextResponse.json({ success: true })
 }

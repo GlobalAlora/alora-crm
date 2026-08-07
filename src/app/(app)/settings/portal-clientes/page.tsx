@@ -611,15 +611,17 @@ export default function PortalClientesPage() {
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-1 justify-end">
-                        <a
-                          href="https://ticket.globalalora.com"
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          onClick={async () => {
+                            const res = await fetch(`/api/admin/portal-clients/${c.id}/impersonate`, { method: 'POST' })
+                            const { url } = await res.json()
+                            if (url) window.open(url, '_blank')
+                          }}
                           className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                          title="Abrir portal"
+                          title="Ver portal del cliente"
                         >
                           <ExternalLink size={14} />
-                        </a>
+                        </button>
                         <button
                           onClick={() => setPersonalizingId(c.id)}
                           className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"

@@ -3,7 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createLinkedTask } from '@/lib/ticket-task'
 import { sendGmail } from '@/lib/google-gmail'
-import { PORTAL_URL, buildStatusChangeHtml } from '@/lib/ticket-emails'
+import { PORTAL_URL, buildStatusChangeHtml, buildHorasEstimadasHtml } from '@/lib/ticket-emails'
+const INTERNAL_EMAIL = 'somosglobalalora@gmail.com'
 
 const ALLOWED_ROLES = ['admin', 'sales']
 type Params = { params: Promise<{ id: string }> }
@@ -110,7 +111,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // Load current ticket before updating
   const { data: current } = await admin
     .from('tickets')
-    .select('numero,titulo,prioridad,project_id,linked_task_id,attachments,estado,client_email,client_nombre,ticket_token')
+    .select('numero,titulo,prioridad,project_id,linked_task_id,attachments,estado,client_email,client_nombre,ticket_token,horas_estimadas')
     .eq('id', id)
     .is('deleted_at', null)
     .maybeSingle()
@@ -141,6 +142,25 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         trackingUrl:  `${PORTAL_URL}/${current.ticket_token}`,
       }),
     }).catch(() => {})
+  }
+
+  // Email client when hours are estimated (new value different from current)
+  const nuevasHoras = updates.horas_estimadas as number | null | undefined
+  if (nuevasHoras != null && nuevasHoras > 0 && nuevasHoras !== current?.horas_estimadas && current?.client_email && current?.ticket_token) {
+    sendGmail({
+      from:    'info@globalalora.com',
+      to:      current.client_email,
+      subject: `[${current.numero}] Alora estimó ${nuevasHoras} hs para tu ticket`,
+      html:    buildHorasEstimadasHtml({
+        numero:           current.numero,
+        titulo:           current.titulo,
+        client_nombre:    current.client_nombre,
+        horas_estimadas:  nuevasHoras,
+        trackingUrl:      `${PORTAL_URL}/${current.ticket_token}`,
+      }),
+    }).catch(() => {})
+    // Reset approval when hours change
+    void Promise.resolve(admin.from('tickets').update({ horas_aprobadas: false }).eq('id', id))
   }
 
   // Auto-create task when project is newly assigned and no task exists yet
