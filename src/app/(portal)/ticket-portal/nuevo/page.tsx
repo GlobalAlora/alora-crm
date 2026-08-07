@@ -70,7 +70,11 @@ export default function NuevoTicketPage() {
       .then(async res => {
         if (res.status === 401) { router.replace('/login'); return }
         const data = await res.json()
-        setClient(data.data)
+        const c = data.data
+        setClient(c)
+        if ((c?.plan_horas_mensual ?? 0) === 0 && ['mejora', 'nuevo'].includes(tipo)) {
+          setTipo('soporte')
+        }
         setAuthLoading(false)
       })
       .catch(() => router.replace('/login'))
@@ -261,7 +265,7 @@ export default function NuevoTicketPage() {
                 Tipo de solicitud
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
-                {TIPOS.map(t => {
+                {TIPOS.filter(t => (client?.plan_horas_mensual ?? 0) > 0 || !['mejora', 'nuevo'].includes(t.value)).map(t => {
                   const sel = tipo === t.value
                   return (
                     <button
