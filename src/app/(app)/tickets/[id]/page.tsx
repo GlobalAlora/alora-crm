@@ -547,13 +547,14 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
           <div className="bg-card border border-card-border rounded-2xl p-5">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Horas</h2>
             <div className="space-y-3">
+              <p className="text-xs text-muted-foreground -mt-1">0.5 = 30 min · 0.25 = 15 min</p>
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">Estimadas</label>
                 <input
                   key={`est-${ticket.id}-${ticket.horas_estimadas}`}
                   type="number"
                   min="0"
-                  step="0.5"
+                  step="0.25"
                   defaultValue={ticket.horas_estimadas ?? ''}
                   placeholder="0"
                   onBlur={e => {
@@ -569,7 +570,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                   key={`real-${ticket.id}-${ticket.horas_reales}`}
                   type="number"
                   min="0"
-                  step="0.5"
+                  step="0.25"
                   defaultValue={ticket.horas_reales ?? ''}
                   placeholder="0"
                   onBlur={e => {
