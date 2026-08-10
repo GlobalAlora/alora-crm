@@ -236,6 +236,7 @@ export interface ProjectTask {
   created_by: string | null
   fecha_inicio: string | null
   fecha_limite: string | null
+  fecha_finalizacion: string | null
   horas_estimadas: number | null
   position: number
   attachments: TicketAttachment[]

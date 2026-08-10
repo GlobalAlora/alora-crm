@@ -1174,11 +1174,20 @@ function SortableTaskRow({
       {subtaskCount > 0 && (
         <span className="text-[10px] text-slate-400 whitespace-nowrap hidden sm:block">{subtaskDone}/{subtaskCount}</span>
       )}
-      {task.fecha_limite && (
+      {isDone && task.fecha_finalizacion ? (
+        <span className="text-xs whitespace-nowrap hidden sm:block text-green-600 font-medium">
+          ✓ {format(new Date(task.fecha_finalizacion + 'T00:00:00'), 'd MMM', { locale: es })}
+          {task.fecha_limite && (() => {
+            const diff = Math.round((new Date(task.fecha_finalizacion).getTime() - new Date(task.fecha_limite).getTime()) / 86_400_000)
+            if (diff === 0) return null
+            return <span className={diff < 0 ? 'text-green-500' : 'text-red-400'}> {diff < 0 ? `↑${Math.abs(diff)}d` : `↓${diff}d`}</span>
+          })()}
+        </span>
+      ) : task.fecha_limite ? (
         <span className={cn('text-xs whitespace-nowrap hidden sm:block', isOverdue ? 'text-red-500 font-medium' : 'text-slate-400')}>
           {isOverdue ? overdueLabel(task.fecha_limite) : format(new Date(task.fecha_limite + 'T00:00:00'), 'd MMM', { locale: es })}
         </span>
-      )}
+      ) : null}
       {assignee && <Avatar name={assignee.full_name} url={assignee.avatar_url} size={20} />}
       {task.prioridad && task.prioridad !== 'media' && (
         <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0',

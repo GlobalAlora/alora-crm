@@ -299,6 +299,27 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
             </div>
           </PropRow>
 
+          {/* Fecha finalización */}
+          <PropRow label="Finalizada el">
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="date"
+                value={task.fecha_finalizacion ?? ''}
+                onChange={e => onUpdate({ fecha_finalizacion: e.target.value || null })}
+                className="text-xs border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              {(() => {
+                if (!task.fecha_finalizacion || !task.fecha_limite) return null
+                const fin  = new Date(task.fecha_finalizacion)
+                const lim  = new Date(task.fecha_limite)
+                const diff = Math.round((fin.getTime() - lim.getTime()) / 86_400_000)
+                if (diff === 0) return <span className="text-xs text-green-600 font-medium">En fecha</span>
+                if (diff < 0)  return <span className="text-xs text-green-600 font-medium">↑ {Math.abs(diff)}d antes</span>
+                return <span className="text-xs text-red-500 font-medium">↓ {diff}d tarde</span>
+              })()}
+            </div>
+          </PropRow>
+
           {/* Hours */}
           <PropRow label="Horas est.">
             <input
@@ -544,6 +565,11 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
           <p className="text-xs text-slate-400">
             Creada {format(new Date(task.created_at), "d 'de' MMM yyyy", { locale: es })}
           </p>
+          {task.fecha_finalizacion && (
+            <p className="text-xs text-green-600 font-medium">
+              Finalizada {format(new Date(task.fecha_finalizacion), "d 'de' MMM yyyy", { locale: es })}
+            </p>
+          )}
         </div>
       </div>
     </div>

@@ -15,7 +15,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const body = await req.json() as Record<string, unknown>
-  const ALLOWED = ['titulo', 'descripcion', 'estado', 'prioridad', 'section_id', 'assignee_id', 'fecha_inicio', 'fecha_limite', 'horas_estimadas', 'position']
+  const ALLOWED = ['titulo', 'descripcion', 'estado', 'prioridad', 'section_id', 'assignee_id', 'fecha_inicio', 'fecha_limite', 'fecha_finalizacion', 'horas_estimadas', 'position']
   const updates: Record<string, unknown> = {}
   for (const key of ALLOWED) {
     if (key in body) updates[key] = body[key] ?? null
@@ -30,12 +30,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const admin = createAdminClient()
 
-  // Fetch current task to detect assignee change
+  // Fetch current task to detect estado/assignee change
   const { data: currentTask } = await admin
     .from('project_tasks')
-    .select('assignee_id, titulo, descripcion, prioridad, fecha_limite, project_id')
+    .select('assignee_id, titulo, descripcion, prioridad, fecha_limite, project_id, estado, fecha_finalizacion')
     .eq('id', id)
     .maybeSingle()
+
+  // Auto-set fecha_finalizacion when marking as finalizada
+  if ('estado' in updates) {
+    if (updates.estado === 'finalizada' && !currentTask?.fecha_finalizacion && !('fecha_finalizacion' in updates)) {
+      updates.fecha_finalizacion = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+    } else if (updates.estado !== 'finalizada' && currentTask?.estado === 'finalizada' && !('fecha_finalizacion' in updates)) {
+      updates.fecha_finalizacion = null
+    }
+  }
 
   const { data, error } = await admin
     .from('project_tasks')
