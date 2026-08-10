@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Plus, LogOut, Clock, CheckCircle2, AlertCircle,
   ChevronRight, Loader2, Timer, MessageCircle, KeyRound, X, Eye, EyeOff, Search, ChevronDown,
+  FileText, Download,
 } from 'lucide-react'
 import type { TicketEstado, TicketPrioridad, TicketCategoria } from '@/types'
 
@@ -76,8 +77,23 @@ const CATEGORIA_LABELS: Record<TicketCategoria, string> = {
   otro:     'Otro',
 }
 
+interface MaintenanceReport {
+  id: string
+  titulo: string
+  mes: string
+  contenido: string | null
+  archivo_url: string | null
+  archivo_nombre: string | null
+  created_at: string
+}
+
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function formatMes(mes: string) {
+  const [y, m] = mes.split('-')
+  return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
 }
 
 // ─── Hours Gauge ─────────────────────────────────────────────
@@ -367,19 +383,22 @@ export default function DashboardPage() {
   const [client, setClient]   = useState<PortalClient | null>(null)
   const [tickets, setTickets] = useState<PortalTicket[]>([])
   const [hours, setHours]     = useState<HoursData | null>(null)
+  const [reports, setReports] = useState<MaintenanceReport[]>([])
   const [loading, setLoading] = useState(true)
   const [loggingOut, setLoggingOut] = useState(false)
   const [showChangePwd, setShowChangePwd] = useState(false)
   const [filtro, setFiltro]   = useState<'todos' | 'nuevos' | 'en_progreso' | 'resueltos'>('todos')
   const [busqueda, setBusqueda] = useState('')
+  const [selectedReport, setSelectedReport] = useState<MaintenanceReport | null>(null)
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [meRes, ticketsRes, hoursRes] = await Promise.all([
+        const [meRes, ticketsRes, hoursRes, reportsRes] = await Promise.all([
           fetch('/api/portal/auth/me'),
           fetch('/api/portal/my-tickets'),
           fetch('/api/portal/hours'),
+          fetch('/api/portal/maintenance-reports'),
         ])
 
         if (meRes.status === 401) {
@@ -387,15 +406,17 @@ export default function DashboardPage() {
           return
         }
 
-        const [meData, ticketsData, hoursData] = await Promise.all([
+        const [meData, ticketsData, hoursData, reportsData] = await Promise.all([
           meRes.json(),
           ticketsRes.json(),
           hoursRes.json(),
+          reportsRes.json(),
         ])
 
         setClient(meData.data)
         setTickets(ticketsData.data ?? [])
         setHours(hoursData.data ?? null)
+        setReports(reportsData.data ?? [])
         setLoading(false)
       } catch {
         router.replace('/login')
@@ -620,7 +641,92 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        {/* Maintenance reports */}
+        {reports.length > 0 && (
+          <div style={{ marginTop: 32 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <FileText size={15} color="#64748b" />
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0 }}>Reportes de mantenimiento</h2>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {reports.map(r => (
+                <button
+                  key={r.id}
+                  onClick={() => setSelectedReport(r)}
+                  style={{
+                    width: '100%', textAlign: 'left',
+                    background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12,
+                    padding: '14px 16px', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    transition: 'all .15s',
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = accentColor + '60' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#e2e8f0' }}
+                >
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: `${accentColor}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <FileText size={16} color={accentColor} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.titulo}</p>
+                    <p style={{ fontSize: 11, color: '#94a3b8', margin: 0, textTransform: 'capitalize' }}>{formatMes(r.mes)}</p>
+                  </div>
+                  {r.archivo_url && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 99, background: '#f1f5f9', flexShrink: 0 }}>
+                      <Download size={11} color="#64748b" />
+                      <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>PDF</span>
+                    </div>
+                  )}
+                  <ChevronRight size={15} color="#cbd5e1" style={{ flexShrink: 0 }} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </main>
+
+      {/* Report detail modal */}
+      {selectedReport && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)', padding: 16 }} onClick={() => setSelectedReport(null)}>
+          <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 500, maxHeight: '85vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+              <div>
+                <p style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, textTransform: 'capitalize', letterSpacing: '0.06em', margin: '0 0 4px' }}>{formatMes(selectedReport.mes)}</p>
+                <h2 style={{ fontSize: 17, fontWeight: 700, color: '#0f172a', margin: 0 }}>{selectedReport.titulo}</h2>
+              </div>
+              <button onClick={() => setSelectedReport(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', flexShrink: 0, marginTop: 2 }}>
+                <X size={18} />
+              </button>
+            </div>
+            <div style={{ padding: 24 }}>
+              {selectedReport.contenido && (
+                <div style={{ marginBottom: selectedReport.archivo_url ? 20 : 0 }}>
+                  <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{selectedReport.contenido}</p>
+                </div>
+              )}
+              {!selectedReport.contenido && !selectedReport.archivo_url && (
+                <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>Sin descripción adicional.</p>
+              )}
+              {selectedReport.archivo_url && (
+                <a
+                  href={selectedReport.archivo_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '14px 18px', borderRadius: 12,
+                    background: accentColor, color: '#fff',
+                    textDecoration: 'none', fontWeight: 600, fontSize: 14,
+                  }}
+                >
+                  <Download size={16} />
+                  Descargar {selectedReport.archivo_nombre ?? 'archivo'}
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
