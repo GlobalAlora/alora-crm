@@ -37,6 +37,7 @@ interface PortalTicket {
   ticket_token: string
   horas_estimadas: number | null
   horas_reales: number | null
+  horas_aprobadas: boolean | null
   client_unread: boolean
 }
 
@@ -316,51 +317,66 @@ function TicketCard({ ticket, onClick, accentColor }: { ticket: PortalTicket; on
   const ec = ESTADO_CONFIG[ticket.estado]
   const Icon = ec.icon
   const prioColor = PRIORIDAD_COLORS[ticket.prioridad]
+  const needsApproval = ticket.horas_estimadas != null && !ticket.horas_aprobadas && !['resuelto', 'cerrado'].includes(ticket.estado)
+  const borderColor = needsApproval ? '#f59e0b' : ticket.client_unread ? '#3b82f6' : '#e2e8f0'
 
   return (
     <button
       onClick={onClick}
       style={{
         width: '100%', textAlign: 'left',
-        background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14,
+        background: '#fff', border: `1px solid ${borderColor}`, borderRadius: 14,
         padding: '16px 18px', cursor: 'pointer',
         display: 'flex', alignItems: 'center', gap: 14,
         transition: 'all .15s',
-        boxShadow: '0 1px 4px rgba(0,0,0,0.03)',
+        boxShadow: needsApproval
+          ? '0 2px 8px rgba(245,158,11,0.12)'
+          : ticket.client_unread
+            ? '0 2px 8px rgba(59,130,246,0.12)'
+            : '0 1px 4px rgba(0,0,0,0.03)',
       }}
       onMouseEnter={e => {
         const el = e.currentTarget as HTMLElement
-        el.style.borderColor = accentColor + '60'
+        el.style.borderColor = accentColor + '80'
         el.style.boxShadow = `0 4px 16px ${accentColor}20`
       }}
       onMouseLeave={e => {
         const el = e.currentTarget as HTMLElement
-        el.style.borderColor = '#e2e8f0'
-        el.style.boxShadow = '0 1px 4px rgba(0,0,0,0.03)'
+        el.style.borderColor = borderColor
+        el.style.boxShadow = needsApproval
+          ? '0 2px 8px rgba(245,158,11,0.12)'
+          : ticket.client_unread
+            ? '0 2px 8px rgba(59,130,246,0.12)'
+            : '0 1px 4px rgba(0,0,0,0.03)'
       }}
     >
       <div style={{ position: 'relative', flexShrink: 0 }}>
         <div style={{ width: 36, height: 36, borderRadius: 10, background: ec.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Icon size={16} color={ec.color} />
         </div>
-        {ticket.client_unread && (
-          <span style={{ position: 'absolute', top: -4, right: -4, width: 10, height: 10, borderRadius: '50%', background: '#ef4444', border: '2px solid #f8fafc' }} />
-        )}
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
           <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#94a3b8' }}>{ticket.numero}</span>
           <span style={{ fontSize: 11, padding: '1px 8px', borderRadius: 99, background: ec.bg, color: ec.color, fontWeight: 600 }}>
             {ec.label}
           </span>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: prioColor, flexShrink: 0 }} />
-          <span style={{ fontSize: 11, color: '#94a3b8' }}>{CATEGORIA_LABELS[ticket.categoria]}</span>
+          {needsApproval && (
+            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: '#fffbeb', color: '#b45309', fontWeight: 700, border: '1px solid #fde68a', display: 'flex', alignItems: 'center', gap: 3 }}>
+              ⏱ Aprobación requerida
+            </span>
+          )}
+          {ticket.client_unread && !needsApproval && (
+            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: '#eff6ff', color: '#1d4ed8', fontWeight: 700, border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', gap: 3 }}>
+              💬 Nueva respuesta
+            </span>
+          )}
         </div>
         <p style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {ticket.titulo}
         </p>
-        <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>
+        <p style={{ fontSize: 11, color: '#94a3b8', margin: '3px 0 0' }}>
           {ticket.resolved_at
             ? `Resuelto el ${formatDate(ticket.resolved_at)}`
             : `Abierto el ${formatDate(ticket.created_at)}`
@@ -496,6 +512,52 @@ export default function DashboardPage() {
             <p style={{ fontSize: 13, color: '#334155', margin: 0, lineHeight: 1.6 }}>{client.mensaje_bienvenida}</p>
           </div>
         )}
+
+        {/* Attention banners */}
+        {(() => {
+          const pendingApproval = tickets.filter(t => t.horas_estimadas != null && !t.horas_aprobadas && !['resuelto', 'cerrado'].includes(t.estado))
+          const unreadTickets   = tickets.filter(t => t.client_unread)
+          return (
+            <>
+              {pendingApproval.length > 0 && (
+                <div style={{ marginBottom: 16, padding: '14px 18px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 14, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>⏱</span>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: '#92400e', margin: '0 0 6px' }}>
+                      {pendingApproval.length === 1
+                        ? 'Tenés una estimación de horas pendiente de aprobación'
+                        : `Tenés ${pendingApproval.length} estimaciones de horas pendientes de aprobación`}
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {pendingApproval.map(t => (
+                        <button
+                          key={t.id}
+                          onClick={() => router.push(`/${t.ticket_token}`)}
+                          style={{ textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                        >
+                          <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#b45309' }}>{t.numero}</span>
+                          <span style={{ fontSize: 12, color: '#92400e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>{t.titulo}</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309', flexShrink: 0 }}>— {t.horas_estimadas} hs</span>
+                          <span style={{ fontSize: 11, color: '#d97706', textDecoration: 'underline', flexShrink: 0 }}>Aprobar →</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {unreadTickets.length > 0 && (
+                <div style={{ marginBottom: 16, padding: '12px 18px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <MessageCircle size={15} color="#1d4ed8" style={{ flexShrink: 0 }} />
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#1e40af', margin: 0, flex: 1 }}>
+                    {unreadTickets.length === 1
+                      ? 'Tenés una respuesta nueva en un ticket'
+                      : `Tenés respuestas nuevas en ${unreadTickets.length} tickets`}
+                  </p>
+                </div>
+              )}
+            </>
+          )
+        })()}
 
         {/* Tickets header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
