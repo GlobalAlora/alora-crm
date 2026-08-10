@@ -94,6 +94,12 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
     refetchInterval: 30_000,
   })
 
+  const { data: hoursRes } = useQuery<{ data: { plan_horas_mensual: number; horas_restantes: number; horas_consumidas: number; porcentaje: number } | null }>({
+    queryKey: ['portal-hours-mini'],
+    queryFn: () => fetch('/api/portal/hours').then(r => r.json()).then(j => ({ data: j.data ? { plan_horas_mensual: j.data.plan_horas_mensual, horas_restantes: j.data.horas_restantes, horas_consumidas: j.data.horas_consumidas, porcentaje: j.data.porcentaje } : null })),
+    enabled: true,
+  })
+
   async function handleApproveHours() {
     setApprovingHours(true)
     try {
@@ -204,37 +210,74 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
               </div>
 
               {/* Hours approval banner */}
-              {needsHoursApproval && (
-                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 16, padding: '20px 24px' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                    <div style={{ fontSize: 24, lineHeight: 1 }}>⏱</div>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: '#92400e', margin: '0 0 4px' }}>
-                        Alora estimó {ticket.horas_estimadas} hs para esta tarea
-                      </p>
-                      <p style={{ fontSize: 13, color: '#78350f', margin: '0 0 16px', lineHeight: 1.5 }}>
-                        Necesitamos tu aprobación para asignar estas horas a tu plan mensual. Si tenés dudas, escribinos en la conversación.
-                      </p>
-                      <button
-                        onClick={handleApproveHours}
-                        disabled={approvingHours}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 8,
-                          padding: '10px 20px', borderRadius: 10, border: 'none',
-                          background: approvingHours ? '#94a3b8' : '#d97706',
-                          color: '#fff', fontSize: 13, fontWeight: 700,
-                          cursor: approvingHours ? 'not-allowed' : 'pointer',
-                        }}
-                      >
-                        {approvingHours
-                          ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Aprobando...</>
-                          : <>✓ Aprobar {ticket.horas_estimadas} hs</>
-                        }
-                      </button>
+              {needsHoursApproval && (() => {
+                const hours      = hoursRes?.data
+                const plan       = hours?.plan_horas_mensual ?? 0
+                const restantes  = hours?.horas_restantes ?? 0
+                const estimadas  = ticket.horas_estimadas ?? 0
+                const excede     = plan > 0 && estimadas > restantes
+                const sobrante   = plan > 0 ? restantes - estimadas : null
+
+                return (
+                  <div style={{ background: '#fffbeb', border: `1px solid ${excede ? '#fca5a5' : '#fde68a'}`, borderRadius: 16, padding: '20px 24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                      <div style={{ fontSize: 24, lineHeight: 1 }}>⏱</div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: '#92400e', margin: '0 0 4px' }}>
+                          Alora estimó {estimadas} hs para esta tarea
+                        </p>
+                        <p style={{ fontSize: 13, color: '#78350f', margin: '0 0 12px', lineHeight: 1.5 }}>
+                          Necesitamos tu aprobación para asignar estas horas a tu plan mensual. Si tenés dudas, escribinos en la conversación.
+                        </p>
+
+                        {/* Plan hours context */}
+                        {plan > 0 && hours && (
+                          <div style={{ marginBottom: 16, padding: '10px 14px', borderRadius: 10, background: excede ? '#fef2f2' : '#f0fdf4', border: `1px solid ${excede ? '#fca5a5' : '#bbf7d0'}` }}>
+                            {excede ? (
+                              <>
+                                <p style={{ fontSize: 13, fontWeight: 700, color: '#dc2626', margin: '0 0 4px' }}>
+                                  ⚠️ Esta estimación supera tu plan disponible
+                                </p>
+                                <p style={{ fontSize: 12, color: '#b91c1c', margin: 0, lineHeight: 1.5 }}>
+                                  Tenés <strong>{restantes} hs</strong> restantes de tu plan de {plan} hs, pero esta tarea requiere <strong>{estimadas} hs</strong>. Las {(estimadas - restantes).toFixed(estimadas - restantes % 1 === 0 ? 0 : 1)} hs adicionales se cotizarán por separado. Consultanos antes de aprobar si tenés dudas.
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <p style={{ fontSize: 12, color: '#15803d', margin: '0 0 2px', fontWeight: 600 }}>
+                                  ✓ Dentro de tu plan disponible
+                                </p>
+                                <p style={{ fontSize: 12, color: '#166534', margin: 0 }}>
+                                  Tenés <strong>{restantes} hs</strong> disponibles. Al aprobar te quedarán <strong>{sobrante! >= 0 ? sobrante!.toFixed(sobrante! % 1 === 0 ? 0 : 1) : 0} hs</strong> para el resto del mes.
+                                </p>
+                              </>
+                            )}
+                          </div>
+                        )}
+
+                        <button
+                          onClick={handleApproveHours}
+                          disabled={approvingHours}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 8,
+                            padding: '10px 20px', borderRadius: 10, border: 'none',
+                            background: approvingHours ? '#94a3b8' : excede ? '#dc2626' : '#d97706',
+                            color: '#fff', fontSize: 13, fontWeight: 700,
+                            cursor: approvingHours ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          {approvingHours
+                            ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Aprobando...</>
+                            : excede
+                              ? <>⚠️ Aprobar igual ({estimadas} hs)</>
+                              : <>✓ Aprobar {estimadas} hs</>
+                          }
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )
+              })()}
 
               {/* Thread */}
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">

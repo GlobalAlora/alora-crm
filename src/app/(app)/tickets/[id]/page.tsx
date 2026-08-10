@@ -146,6 +146,15 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
     staleTime: 60_000,
   })
 
+  const ticket = res?.data ?? null
+
+  const { data: clientHoursRes } = useQuery<{ data: { nombre: string; nombre_plan: string | null; plan: number; horas_consumidas: number; horas_restantes: number; porcentaje: number } | null }>({
+    queryKey: ['client-hours', ticket?.client_email],
+    queryFn:  () => fetch(`/api/admin/client-hours?email=${encodeURIComponent(ticket!.client_email!)}`).then(r => r.json()),
+    enabled:  !!(ticket?.client_email),
+    staleTime: 60_000,
+  })
+
   const patch = useMutation({
     mutationFn: (body: object) =>
       fetch(`/api/tickets/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -186,7 +195,6 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
     onSuccess: () => router.replace('/tickets'),
   })
 
-  const ticket = res?.data
   const projects = projectsRes?.data ?? []
   const users = usersRes?.data ?? []
   const quickReplies = quickRepliesRes?.data ?? []
@@ -546,6 +554,19 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
           {/* Horas */}
           <div className="bg-card border border-card-border rounded-2xl p-5">
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Horas</h2>
+            {/* Client plan usage */}
+            {clientHoursRes?.data && clientHoursRes.data.plan > 0 && (() => {
+              const ch = clientHoursRes.data!
+              const estimadas = ticket.horas_estimadas ?? 0
+              const excederia = estimadas > 0 && estimadas > ch.horas_restantes
+              return (
+                <div className={`mb-3 p-2.5 rounded-lg text-xs border ${excederia ? 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400' : 'bg-muted border-card-border text-muted-foreground'}`}>
+                  <span className="font-semibold">{ch.nombre} · {ch.nombre_plan ?? 'Plan'}</span>
+                  {' — '}{ch.horas_consumidas % 1 === 0 ? ch.horas_consumidas : ch.horas_consumidas.toFixed(1)}/{ch.plan} hs usadas · <span className={excederia ? 'font-bold text-red-600 dark:text-red-400' : 'font-semibold'}>{ch.horas_restantes % 1 === 0 ? ch.horas_restantes : ch.horas_restantes.toFixed(1)} hs restantes</span>
+                  {excederia && <span className="block mt-0.5 font-semibold">⚠️ Esta estimación supera el plan disponible ({(estimadas - ch.horas_restantes).toFixed(estimadas - ch.horas_restantes === Math.floor(estimadas - ch.horas_restantes) ? 0 : 1)} hs extra)</span>}
+                </div>
+              )
+            })()}
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground -mt-1">0.5 = 30 min · 0.25 = 15 min</p>
               <div>
