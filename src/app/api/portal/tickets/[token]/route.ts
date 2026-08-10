@@ -20,7 +20,8 @@ export async function GET(req: NextRequest, { params }: Params) {
   // Only mark as read when the actual portal client is viewing (not admin impersonation)
   const sessionId = req.cookies.get(PORTAL_COOKIE)?.value
   const portalClient = sessionId ? await getPortalClient(sessionId) : null
-  const isRealClient = portalClient?.email === ticket.client_email
+  const isAdminPreview = portalClient?.is_admin_preview ?? false
+  const isRealClient   = !isAdminPreview && portalClient?.email === ticket.client_email
 
   const [, portalClientRes] = await Promise.all([
     isRealClient
@@ -60,9 +61,10 @@ export async function GET(req: NextRequest, { params }: Params) {
   return NextResponse.json({
     data: {
       ...ticket,
-      comments: enrichedComments,
-      color_acento: portalClientRes.data?.color_acento ?? null,
-      logo_url:     portalClientRes.data?.logo_url ?? null,
+      comments:         enrichedComments,
+      color_acento:     portalClientRes.data?.color_acento ?? null,
+      logo_url:         portalClientRes.data?.logo_url ?? null,
+      is_admin_preview: isAdminPreview,
     },
   })
 }

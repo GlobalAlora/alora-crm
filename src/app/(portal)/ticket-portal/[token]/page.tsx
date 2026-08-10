@@ -43,6 +43,7 @@ interface PortalTicket {
   client_nombre: string | null
   color_acento: string | null
   logo_url: string | null
+  is_admin_preview: boolean
   comments: {
     id: string
     body: string
@@ -125,8 +126,9 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
   })
 
   const ticket: PortalTicket | null = res?.data ?? null
-  const isClosed    = ticket && ['resuelto', 'cerrado'].includes(ticket.estado)
-  const headerBg    = ticket?.color_acento ?? '#0f172a'
+  const isClosed        = ticket && ['resuelto', 'cerrado'].includes(ticket.estado)
+  const isAdminPreview  = ticket?.is_admin_preview ?? false
+  const headerBg        = ticket?.color_acento ?? '#0f172a'
   const needsHoursApproval = ticket && ticket.horas_estimadas != null && !ticket.horas_aprobadas && !isClosed
 
   return (
@@ -334,7 +336,13 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
                 </div>
 
                 {/* Reply box */}
-                {!isClosed ? (
+                {isAdminPreview ? (
+                  <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-amber-50/60 dark:bg-amber-950/30 text-center">
+                    <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+                      👁 Vista previa como cliente — para responder usá el CRM
+                    </p>
+                  </div>
+                ) : !isClosed ? (
                   <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-3">
                     <input
                       ref={fileInputRef}

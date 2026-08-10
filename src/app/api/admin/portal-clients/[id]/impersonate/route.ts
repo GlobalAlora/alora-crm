@@ -27,7 +27,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
   if (!client) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
 
-  const sessionId = await createSession(client.id)
+  const sessionId = await createSession(client.id, { isAdminPreview: true })
   const url = `${PORTAL_URL}/api/portal/auth/impersonate?session=${sessionId}`
 
   return NextResponse.json({ url })

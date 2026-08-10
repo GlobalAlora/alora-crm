@@ -39,14 +39,18 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   }
 }
 
-export async function createSession(clientId: string): Promise<string> {
+export async function createSession(clientId: string, options?: { isAdminPreview?: boolean }): Promise<string> {
   const admin = createAdminClient()
   const expiresAt = new Date()
   expiresAt.setDate(expiresAt.getDate() + SESSION_TTL_DAYS)
 
   const { data, error } = await admin
     .from('portal_sessions')
-    .insert({ portal_client_id: clientId, expires_at: expiresAt.toISOString() })
+    .insert({
+      portal_client_id: clientId,
+      expires_at:       expiresAt.toISOString(),
+      is_admin_preview: options?.isAdminPreview ?? false,
+    })
     .select('id')
     .single()
 
@@ -54,19 +58,22 @@ export async function createSession(clientId: string): Promise<string> {
   return data.id
 }
 
-export async function getPortalClient(sessionId: string): Promise<PortalClient | null> {
+export async function getPortalClient(sessionId: string): Promise<(PortalClient & { is_admin_preview: boolean }) | null> {
   if (!sessionId) return null
   const admin = createAdminClient()
 
   const { data } = await admin
     .from('portal_sessions')
-    .select('expires_at, portal_clients(id, email, nombre, empresa, plan_horas_mensual, color_acento, nombre_plan, mensaje_bienvenida, logo_url, manager_nombre, manager_avatar, project_id)')
+    .select('expires_at, is_admin_preview, portal_clients(id, email, nombre, empresa, plan_horas_mensual, color_acento, nombre_plan, mensaje_bienvenida, logo_url, manager_nombre, manager_avatar, project_id)')
     .eq('id', sessionId)
     .gt('expires_at', new Date().toISOString())
     .maybeSingle()
 
   if (!data?.portal_clients) return null
-  return data.portal_clients as unknown as PortalClient
+  return {
+    ...(data.portal_clients as unknown as PortalClient),
+    is_admin_preview: (data as { is_admin_preview?: boolean }).is_admin_preview ?? false,
+  }
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
