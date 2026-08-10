@@ -54,9 +54,18 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { body: text, is_internal, attachments } = await req.json() as { body: string; is_internal?: boolean; attachments?: { url: string; name: string; type: string }[] }
   if (!text?.trim() && !attachments?.length) return NextResponse.json({ error: 'El comentario no puede estar vacío' }, { status: 400 })
 
+  const { data: userRow2 } = await admin.from('users').select('full_name').eq('id', user.id).maybeSingle()
+
   const { data, error } = await admin
     .from('ticket_comments')
-    .insert({ ticket_id: id, user_id: user.id, body: text?.trim() ?? '', attachments: attachments ?? [] })
+    .insert({
+      ticket_id:    id,
+      user_id:      user.id,
+      body:         text?.trim() ?? '',
+      is_client:    false,
+      client_nombre: userRow2?.full_name ?? null,
+      attachments:  attachments ?? [],
+    })
     .select()
     .single()
 

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getPortalClient, PORTAL_COOKIE } from '@/lib/portal-auth'
 
 type Params = { params: Promise<{ token: string }> }
 
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params) {
   const { token } = await params
   const admin = createAdminClient()
 
@@ -16,9 +17,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   if (error || !ticket) return NextResponse.json({ error: 'Ticket no encontrado' }, { status: 404 })
 
-  // Mark as read + fetch portal client branding in parallel (fire-and-forget for unread)
+  // Only mark as read when the actual portal client is viewing (not admin impersonation)
+  const sessionId = req.cookies.get(PORTAL_COOKIE)?.value
+  const portalClient = sessionId ? await getPortalClient(sessionId) : null
+  const isRealClient = portalClient?.email === ticket.client_email
+
   const [, portalClientRes] = await Promise.all([
-    Promise.resolve(admin.from('tickets').update({ client_unread: false }).eq('id', ticket.id)),
+    isRealClient
+      ? Promise.resolve(admin.from('tickets').update({ client_unread: false }).eq('id', ticket.id))
+      : Promise.resolve(null),
     admin.from('portal_clients').select('color_acento,logo_url').eq('email', ticket.client_email ?? '').maybeSingle(),
   ])
 
