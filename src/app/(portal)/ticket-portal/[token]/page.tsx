@@ -88,6 +88,7 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
   }
 
   const [approvingHours, setApprovingHours] = useState(false)
+  const [rejectingHours, setRejectingHours] = useState(false)
 
   const { data: res, isLoading, error: fetchErr, refetch } = useQuery<{ data: PortalTicket; error?: string }>({
     queryKey: ['portal-ticket', token],
@@ -108,6 +109,16 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
       await refetch()
     } finally {
       setApprovingHours(false)
+    }
+  }
+
+  async function handleRejectHours() {
+    setRejectingHours(true)
+    try {
+      await fetch(`/api/portal/tickets/${token}/approve-hours`, { method: 'DELETE' })
+      await refetch()
+    } finally {
+      setRejectingHours(false)
     }
   }
 
@@ -241,7 +252,8 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
                                   ⚠️ Esta estimación supera tu plan disponible
                                 </p>
                                 <p style={{ fontSize: 12, color: '#b91c1c', margin: 0, lineHeight: 1.5 }}>
-                                  Tenés <strong>{restantes} hs</strong> restantes de tu plan de {plan} hs, pero esta tarea requiere <strong>{estimadas} hs</strong>. Las {(estimadas - restantes).toFixed(estimadas - restantes % 1 === 0 ? 0 : 1)} hs adicionales se cotizarán por separado. Consultanos antes de aprobar si tenés dudas.
+                                  Tenés <strong>{restantes} hs</strong> restantes de tu plan de {plan} hs, pero esta tarea requiere <strong>{estimadas} hs</strong>.{' '}
+                                  La{(estimadas - restantes) !== 1 ? 's' : ''} <strong>{(estimadas - restantes).toFixed((estimadas - restantes) % 1 === 0 ? 0 : 1)} hs adicional{(estimadas - restantes) !== 1 ? 'es' : ''}</strong> se facturarán por separado al precio vigente de <strong>$40.000 / hora</strong>.
                                 </p>
                               </>
                             ) : (
@@ -257,24 +269,42 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
                           </div>
                         )}
 
-                        <button
-                          onClick={handleApproveHours}
-                          disabled={approvingHours}
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 8,
-                            padding: '10px 20px', borderRadius: 10, border: 'none',
-                            background: approvingHours ? '#94a3b8' : excede ? '#dc2626' : '#d97706',
-                            color: '#fff', fontSize: 13, fontWeight: 700,
-                            cursor: approvingHours ? 'not-allowed' : 'pointer',
-                          }}
-                        >
-                          {approvingHours
-                            ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Aprobando...</>
-                            : excede
-                              ? <>⚠️ Aprobar igual ({estimadas} hs)</>
-                              : <>✓ Aprobar {estimadas} hs</>
-                          }
-                        </button>
+                        {/* Approve / Reject buttons */}
+                        <div style={{ display: 'flex', gap: 10 }}>
+                          <button
+                            onClick={handleApproveHours}
+                            disabled={approvingHours || rejectingHours}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 8,
+                              padding: '10px 20px', borderRadius: 10, border: 'none',
+                              background: approvingHours ? '#94a3b8' : '#16a34a',
+                              color: '#fff', fontSize: 13, fontWeight: 700,
+                              cursor: (approvingHours || rejectingHours) ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            {approvingHours
+                              ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Aprobando...</>
+                              : <>✓ Aprobar ticket</>
+                            }
+                          </button>
+                          <button
+                            onClick={handleRejectHours}
+                            disabled={approvingHours || rejectingHours}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 8,
+                              padding: '10px 20px', borderRadius: 10,
+                              border: '1.5px solid #dc2626',
+                              background: 'transparent',
+                              color: '#dc2626', fontSize: 13, fontWeight: 700,
+                              cursor: (approvingHours || rejectingHours) ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            {rejectingHours
+                              ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Rechazando...</>
+                              : <>✕ Rechazar ticket</>
+                            }
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>

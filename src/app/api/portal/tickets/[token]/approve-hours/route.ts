@@ -44,3 +44,34 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
   return NextResponse.json({ success: true })
 }
+
+export async function DELETE(_req: NextRequest, { params }: Params) {
+  const { token } = await params
+  const admin = createAdminClient()
+
+  const { data: ticket, error } = await admin
+    .from('tickets')
+    .select('id, numero, titulo, horas_estimadas, horas_aprobadas, client_nombre, client_email')
+    .eq('ticket_token', token)
+    .is('deleted_at', null)
+    .single()
+
+  if (error || !ticket) return NextResponse.json({ error: 'Ticket no encontrado' }, { status: 404 })
+  if (ticket.horas_aprobadas) return NextResponse.json({ error: 'Las horas ya fueron aprobadas' }, { status: 400 })
+
+  const { error: updateErr } = await admin
+    .from('tickets')
+    .update({ horas_aprobadas: false, estado: 'en_espera' })
+    .eq('id', ticket.id)
+
+  if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })
+
+  sendGmail({
+    from:    'info@globalalora.com',
+    to:      INTERNAL_EMAIL,
+    subject: `[${ticket.numero}] ${ticket.client_nombre ?? 'Cliente'} rechazó la estimación de ${ticket.horas_estimadas} hs`,
+    html:    `<p><strong>${ticket.client_nombre ?? 'El cliente'}</strong> rechazó la estimación de <strong>${ticket.horas_estimadas} hs</strong> para el ticket <strong>${ticket.numero} — ${ticket.titulo}</strong>. Revisá con el cliente antes de continuar.</p>`,
+  }).catch(() => {})
+
+  return NextResponse.json({ success: true })
+}
