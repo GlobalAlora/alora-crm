@@ -8,6 +8,7 @@ import {
   FileText, Download,
 } from 'lucide-react'
 import type { TicketEstado, TicketPrioridad, TicketCategoria } from '@/types'
+import { extraHourPrice, formatARS } from '@/lib/utils'
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -45,6 +46,7 @@ interface HoursData {
   plan_horas_mensual: number
   horas_consumidas: number
   horas_restantes: number
+  horas_extra: number
   porcentaje: number
   tickets_resueltos: { numero: string; titulo: string; horas_reales: number | null; resolved_at: string }[]
   tickets_abiertos:  { numero: string; titulo: string; horas_estimadas: number | null }[]
@@ -135,7 +137,9 @@ function HoursGauge({ data, accentColor, nombrePlan }: { data: HoursData; accent
         <span style={{ fontSize: 13, color: '#64748b' }}>
           {data.horas_restantes > 0
             ? <><strong style={{ color: '#0f172a' }}>{data.horas_restantes % 1 === 0 ? data.horas_restantes : data.horas_restantes.toFixed(1)} hs</strong> restantes</>
-            : <span style={{ color: '#ef4444', fontWeight: 600 }}>Plan consumido</span>
+            : data.horas_extra > 0
+              ? <><span style={{ color: '#ef4444', fontWeight: 600 }}>Plan agotado</span><span style={{ color: '#ef4444' }}> · {data.horas_extra % 1 === 0 ? data.horas_extra : data.horas_extra.toFixed(1)} hs adicionales · ${formatARS(extraHourPrice())} / hs</span></>
+              : <span style={{ color: '#ef4444', fontWeight: 600 }}>Plan agotado</span>
           }
         </span>
         <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 99, background: badgeBg, color: badgeText }}>

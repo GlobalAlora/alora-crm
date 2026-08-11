@@ -1,6 +1,7 @@
 import { sendGmail } from '@/lib/google-gmail'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendOutboundWhatsAppMessage } from '@/lib/whatsapp-outbound'
+import { notifyAll } from '@/lib/push-notify'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -162,7 +163,55 @@ async function send2hReminder(admin: AdminClient, lead: ReminderLead, meetingDat
   await logReminder(admin, lead.id, '2h')
 }
 
-export async function runMeetingReminders(admin: AdminClient): Promise<{ sent24h: number; sent2h: number; skipped: number }> {
+async function alertMissingAsistencia(admin: AdminClient): Promise<number> {
+  const oneHourAgo = new Date(Date.now() - 3_600_000).toISOString()
+
+  // Leads whose meeting already passed and asistencia was never set
+  const { data: leads } = await admin
+    .from('leads')
+    .select('id, nombre, apellido, fecha_reunion, reunion_hora')
+    .eq('estado_pipeline', 'reunion_reservada')
+    .is('reunion_asistencia', null)
+    .is('deleted_at', null)
+    .not('fecha_reunion', 'is', null)
+    .not('reunion_hora', 'is', null)
+
+  if (!leads?.length) return 0
+
+  let alerted = 0
+  for (const lead of leads) {
+    const meetingMs = new Date(`${lead.fecha_reunion}T${lead.reunion_hora}:00-03:00`).getTime()
+    if (meetingMs > Date.now() - 3_600_000) continue // not yet 1h past
+
+    // Deduplicate: only alert once per lead
+    const { data: existing } = await admin
+      .from('activities')
+      .select('id')
+      .eq('lead_id', lead.id)
+      .eq('tipo', 'alerta_asistencia')
+      .maybeSingle()
+    if (existing) continue
+
+    const name = [lead.nombre, lead.apellido].filter(Boolean).join(' ') || 'un lead'
+    await notifyAll({
+      title: `📋 ¿Cómo fue la reunión con ${name}?`,
+      body:  'La reunión ya pasó — marcá la asistencia en el CRM para activar el follow-up automático.',
+      url:   `/leads/${lead.id}`,
+    })
+
+    await admin.from('activities').insert({
+      lead_id:     lead.id,
+      user_id:     null,
+      tipo:        'alerta_asistencia',
+      descripcion: 'Alerta enviada al equipo: reunión pasada sin marcar asistencia.',
+    })
+
+    alerted++
+  }
+  return alerted
+}
+
+export async function runMeetingReminders(admin: AdminClient): Promise<{ sent24h: number; sent2h: number; skipped: number; alerted: number }> {
   const now = Date.now()
 
   const { data: leads } = await admin
@@ -173,15 +222,13 @@ export async function runMeetingReminders(admin: AdminClient): Promise<{ sent24h
     .not('fecha_reunion', 'is', null)
     .not('reunion_hora', 'is', null)
 
-  if (!leads || leads.length === 0) return { sent24h: 0, sent2h: 0, skipped: 0 }
+  if (!leads || leads.length === 0) return { sent24h: 0, sent2h: 0, skipped: 0, alerted: 0 }
 
   let sent24h = 0
   let sent2h  = 0
   let skipped = 0
 
   for (const lead of leads) {
-    if (!lead.email) { skipped++; continue }
-
     const meetingMs  = new Date(`${lead.fecha_reunion}T${lead.reunion_hora}:00-03:00`).getTime()
     const hoursUntil = (meetingMs - now) / 3_600_000
 
@@ -202,5 +249,7 @@ export async function runMeetingReminders(admin: AdminClient): Promise<{ sent24h
     }
   }
 
-  return { sent24h, sent2h, skipped }
+  const alerted = await alertMissingAsistencia(admin)
+
+  return { sent24h, sent2h, skipped, alerted }
 }

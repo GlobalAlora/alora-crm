@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendOutboundWhatsAppMessage } from '@/lib/whatsapp-outbound'
 import { isClientLead } from '@/lib/whatsapp-bot'
+import { notifyAll } from '@/lib/push-notify'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -79,10 +80,22 @@ export async function runWhatsAppFollowUps(admin: AdminClient): Promise<{ sent: 
 
     if (!result) continue
 
+    const newCount = conv.followup_count + 1
     await admin
       .from('whatsapp_conversations')
-      .update({ followup_count: conv.followup_count + 1 })
+      .update({ followup_count: newCount })
       .eq('id', conv.id)
+
+    // Last follow-up just sent — alert team
+    if (newCount >= FOLLOWUP_TEXT.length && conv.lead_id) {
+      const { data: lead } = await admin.from('leads').select('nombre, apellido').eq('id', conv.lead_id).maybeSingle()
+      const name = [lead?.nombre, lead?.apellido].filter(Boolean).join(' ') || conv.phone_number
+      notifyAll({
+        title: `🥶 ${name} no respondió a ningún follow-up`,
+        body:  'Ya enviamos los 2 mensajes de seguimiento. ¿Lo cerramos o lo dejamos?',
+        url:   `/leads/${conv.lead_id}`,
+      }).catch(() => {})
+    }
 
     sent++
   }
