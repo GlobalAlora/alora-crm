@@ -242,7 +242,7 @@ export async function runMeetingReminders(admin: AdminClient): Promise<{ sent24h
       catch (err) { console.error(`[Reminders] 24h failed lead=${lead.id}:`, err) }
     }
 
-    if (hoursUntil >= 1.5 && hoursUntil <= 2.5) {
+    if (hoursUntil >= 0.25 && hoursUntil <= 2.5) {
       if (await reminderAlreadySent(admin, lead.id, '2h')) { skipped++; continue }
       try { await send2hReminder(admin, lead as ReminderLead, meetingDate); sent2h++ }
       catch (err) { console.error(`[Reminders] 2h failed lead=${lead.id}:`, err) }
