@@ -4,6 +4,7 @@ import { useState, use, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Send, CheckCircle2, Clock, AlertCircle, Loader2, Paperclip, FileVideo, X } from 'lucide-react'
 import type { TicketEstado } from '@/types'
+import { extraHourPrice, formatARS } from '@/lib/utils'
 
 type UploadedFile = { url: string; name: string; type: string }
 
@@ -253,7 +254,7 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
                                 </p>
                                 <p style={{ fontSize: 12, color: '#b91c1c', margin: 0, lineHeight: 1.5 }}>
                                   Tenés <strong>{restantes} hs</strong> restantes de tu plan de {plan} hs, pero esta tarea requiere <strong>{estimadas} hs</strong>.{' '}
-                                  La{(estimadas - restantes) !== 1 ? 's' : ''} <strong>{(estimadas - restantes).toFixed((estimadas - restantes) % 1 === 0 ? 0 : 1)} hs adicional{(estimadas - restantes) !== 1 ? 'es' : ''}</strong> se facturarán por separado al precio vigente de <strong>$40.000 / hora</strong>.
+                                  La{(estimadas - restantes) !== 1 ? 's' : ''} <strong>{(estimadas - restantes).toFixed((estimadas - restantes) % 1 === 0 ? 0 : 1)} hs adicional{(estimadas - restantes) !== 1 ? 'es' : ''}</strong> se facturarán por separado al precio vigente de <strong>{formatARS(extraHourPrice())} / hora</strong>.
                                 </p>
                               </>
                             ) : (

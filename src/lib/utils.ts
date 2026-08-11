@@ -116,3 +116,17 @@ export function midpoint(a: number | null, b: number | null): number {
   if (b === null) return a
   return (a + b) / 2
 }
+
+// Base price for extra hours outside plan, with 9% quarterly compounding.
+// Adjust PRICE_BASE_DATE when renegotiating the base.
+const EXTRA_HOUR_BASE_PRICE = 40_000       // ARS at base date
+const PRICE_BASE_DATE       = new Date('2026-08-01')
+const QUARTERLY_INCREASE    = 0.09
+
+export function extraHourPrice(): number {
+  const now            = new Date()
+  const monthsElapsed  = (now.getFullYear() - PRICE_BASE_DATE.getFullYear()) * 12
+                       + (now.getMonth() - PRICE_BASE_DATE.getMonth())
+  const periods        = Math.max(0, Math.floor(monthsElapsed / 3))
+  return Math.round(EXTRA_HOUR_BASE_PRICE * Math.pow(1 + QUARTERLY_INCREASE, periods))
+}
