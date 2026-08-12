@@ -328,6 +328,7 @@ export default function TicketsPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Prioridad</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground hidden lg:table-cell">Asignado</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Estado</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground hidden md:table-cell">Cliente</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground hidden md:table-cell">Fecha</th>
                 </tr>
               </thead>
@@ -380,6 +381,31 @@ export default function TicketsPage() {
                         >
                           {ec.label}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 hidden md:table-cell">
+                        {ticket.client_email ? (
+                          ticket.horas_aprobadas && ticket.horas_estimadas ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ color: '#16a34a', background: '#f0fdf4' }}>
+                              Aprobó horas ✓
+                            </span>
+                          ) : ticket.horas_estimadas && !ticket.horas_aprobadas ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ color: '#b45309', background: '#fffbeb' }}>
+                              Pend. aprobación
+                            </span>
+                          ) : ticket.client_unread ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ color: '#ea580c', background: '#fff7ed' }}>
+                              Esperando respuesta
+                            </span>
+                          ) : ticket.last_client_activity_at ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ color: '#2563eb', background: '#eff6ff' }}>
+                              Respondió
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/50 text-xs">—</span>
+                          )
+                        ) : (
+                          <span className="text-muted-foreground/50 text-xs">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell text-xs text-muted-foreground">
                         {new Date(ticket.created_at).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}

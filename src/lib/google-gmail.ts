@@ -54,6 +54,7 @@ export interface SendGmailInput {
   from:       SenderEmail
   to:         string
   toName?:    string | null
+  cc?:        string | null
   subject:    string
   html:       string
   threadId?:  string | null  // pass to keep reply in same thread
@@ -79,6 +80,7 @@ function buildRaw(input: SendGmailInput): string {
     `MIME-Version: 1.0`,
     `Content-Type: text/html; charset=UTF-8`,
   ]
+  if (input.cc)         headers.push(`Cc: ${input.cc}`)
   if (input.inReplyTo)  headers.push(`In-Reply-To: ${input.inReplyTo}`)
   if (input.references) headers.push(`References: ${input.references}`)
 

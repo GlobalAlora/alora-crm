@@ -6,6 +6,7 @@ import { PORTAL_URL, buildTeamNotifHtml, buildClientConfirmHtml } from '@/lib/ti
 import type { TicketAttachment } from '@/types'
 
 const INTERNAL_EMAIL = 'somosglobalalora@gmail.com'
+const INTERNAL_CC    = 'bruno@globalalora.com'
 
 export async function POST(req: NextRequest) {
   const body = await req.json() as {
@@ -81,6 +82,7 @@ export async function POST(req: NextRequest) {
     sendGmail({
       from:    'info@globalalora.com',
       to:      INTERNAL_EMAIL,
+      cc:      INTERNAL_CC,
       subject: `[${numero}] Nuevo ticket: ${body.titulo.trim()}`,
       html:    buildTeamNotifHtml({
         numero, titulo: body.titulo.trim(), descripcion: body.descripcion?.trim() ?? null,

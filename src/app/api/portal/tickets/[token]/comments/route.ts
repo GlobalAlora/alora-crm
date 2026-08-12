@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendGmail } from '@/lib/google-gmail'
+import { notifyAll } from '@/lib/push-notify'
 
 const INTERNAL_EMAIL = 'somosglobalalora@gmail.com'
+const INTERNAL_CC    = 'bruno@globalalora.com'
 type Params = { params: Promise<{ token: string }> }
 
 export async function POST(req: NextRequest, { params }: Params) {
@@ -46,9 +48,16 @@ export async function POST(req: NextRequest, { params }: Params) {
     .eq('id', ticket.id)
 
   // Notify internal team
+  notifyAll({
+    title: `💬 ${ticket.client_nombre ?? 'Cliente'} respondió en ${ticket.numero}`,
+    body:  body.trim().slice(0, 100),
+    url:   `/tickets/${ticket.id}`,
+  }).catch(() => {})
+
   sendGmail({
     from:    'info@globalalora.com',
     to:      INTERNAL_EMAIL,
+    cc:      INTERNAL_CC,
     subject: `[${ticket.numero}] Nuevo mensaje del cliente`,
     html: `<div style="font-family:sans-serif;max-width:600px">
       <p><strong>${ticket.client_nombre ?? 'El cliente'}</strong> dejó un comentario en el ticket <strong>${ticket.numero}</strong>:</p>

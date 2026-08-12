@@ -552,7 +552,10 @@ export interface Ticket {
   attachments: TicketAttachment[]
   linked_task_id: string | null
   horas_estimadas: number | null
+  horas_aprobadas: boolean
   horas_reales: number | null
+  last_client_activity_at: string | null
+  client_unread: boolean
   resolved_at: string | null
   deleted_at: string | null
   created_at: string
