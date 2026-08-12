@@ -25,7 +25,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
   const { error: updateErr } = await admin
     .from('tickets')
-    .update({ horas_aprobadas: true })
+    .update({ horas_aprobadas: true, estado: 'en_progreso' })
     .eq('id', ticket.id)
 
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 })

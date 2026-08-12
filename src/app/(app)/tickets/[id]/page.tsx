@@ -15,11 +15,12 @@ import type { Ticket, TicketEstado, TicketPrioridad, TicketCategoria, Project, U
 // ─── helpers ───────────────────────────────────────────────
 
 const ESTADO_CONFIG: Record<TicketEstado, { label: string; color: string; bg: string }> = {
-  nuevo:       { label: 'Nuevo',       color: '#3b82f6', bg: '#eff6ff' },
-  en_progreso: { label: 'En progreso', color: '#f59e0b', bg: '#fffbeb' },
-  en_espera:   { label: 'En espera',   color: '#f97316', bg: '#fff7ed' },
-  resuelto:    { label: 'Resuelto',    color: '#22c55e', bg: '#f0fdf4' },
-  cerrado:     { label: 'Cerrado',     color: '#94a3b8', bg: '#f8fafc' },
+  nuevo:           { label: 'Nuevo',             color: '#3b82f6', bg: '#eff6ff' },
+  en_progreso:     { label: 'En progreso',       color: '#f59e0b', bg: '#fffbeb' },
+  en_espera:       { label: 'En espera',         color: '#f97316', bg: '#fff7ed' },
+  pend_aprobacion: { label: 'Pend. aprobación',  color: '#8b5cf6', bg: '#f5f3ff' },
+  resuelto:        { label: 'Resuelto',          color: '#22c55e', bg: '#f0fdf4' },
+  cerrado:         { label: 'Cerrado',           color: '#94a3b8', bg: '#f8fafc' },
 }
 
 const PRIORIDAD_CONFIG: Record<TicketPrioridad, { label: string; color: string }> = {

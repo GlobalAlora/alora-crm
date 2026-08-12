@@ -518,7 +518,7 @@ export interface Invoice {
 
 // ── Tickets ────────────────────────────────────────────────
 
-export type TicketEstado    = 'nuevo' | 'en_progreso' | 'en_espera' | 'resuelto' | 'cerrado'
+export type TicketEstado    = 'nuevo' | 'en_progreso' | 'en_espera' | 'pend_aprobacion' | 'resuelto' | 'cerrado'
 export type TicketPrioridad = 'baja' | 'media' | 'alta' | 'urgente'
 export type TicketCategoria = 'bug' | 'soporte' | 'consulta' | 'mejora' | 'nuevo' | 'otro'
 export type TicketAttachment = { url: string; name: string; type: string }

@@ -57,11 +57,12 @@ interface HoursData {
 // ─── Helpers ─────────────────────────────────────────────────
 
 const ESTADO_CONFIG: Record<TicketEstado, { label: string; color: string; bg: string; icon: React.ElementType }> = {
-  nuevo:       { label: 'Nuevo',       color: '#3b82f6', bg: '#eff6ff',  icon: AlertCircle  },
-  en_progreso: { label: 'En progreso', color: '#f59e0b', bg: '#fffbeb',  icon: Clock        },
-  en_espera:   { label: 'En espera',   color: '#f97316', bg: '#fff7ed',  icon: Clock        },
-  resuelto:    { label: 'Resuelto',    color: '#22c55e', bg: '#f0fdf4',  icon: CheckCircle2 },
-  cerrado:     { label: 'Cerrado',     color: '#94a3b8', bg: '#f8fafc',  icon: CheckCircle2 },
+  nuevo:           { label: 'Nuevo',            color: '#3b82f6', bg: '#eff6ff',  icon: AlertCircle  },
+  en_progreso:     { label: 'En progreso',      color: '#f59e0b', bg: '#fffbeb',  icon: Clock        },
+  en_espera:       { label: 'En espera',        color: '#f97316', bg: '#fff7ed',  icon: Clock        },
+  pend_aprobacion: { label: 'Pend. aprobación', color: '#8b5cf6', bg: '#f5f3ff',  icon: Clock        },
+  resuelto:        { label: 'Resuelto',         color: '#22c55e', bg: '#f0fdf4',  icon: CheckCircle2 },
+  cerrado:         { label: 'Cerrado',          color: '#94a3b8', bg: '#f8fafc',  icon: CheckCircle2 },
 }
 
 const PRIORIDAD_COLORS: Record<TicketPrioridad, string> = {
