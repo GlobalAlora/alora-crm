@@ -18,7 +18,7 @@ const ESTADO_CONFIG: Record<TicketEstado, { label: string; color: string; bg: st
   nuevo:           { label: 'Nuevo',             color: '#3b82f6', bg: '#eff6ff' },
   en_progreso:     { label: 'En progreso',       color: '#f59e0b', bg: '#fffbeb' },
   en_espera:       { label: 'En espera',         color: '#f97316', bg: '#fff7ed' },
-  estimacion:      { label: 'Estimación',         color: '#8b5cf6', bg: '#f5f3ff' },
+  estimacion:      { label: 'Estimado',            color: '#8b5cf6', bg: '#f5f3ff' },
   resuelto:        { label: 'Resuelto',          color: '#22c55e', bg: '#f0fdf4' },
   cerrado:         { label: 'Cerrado',           color: '#94a3b8', bg: '#f8fafc' },
 }
@@ -499,7 +499,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
               onChange={e => patch.mutate({ estado: e.target.value })}
               className="w-full px-3 py-2 rounded-lg bg-muted border border-card-border text-sm text-foreground focus:outline-none"
             >
-              {(['nuevo', 'en_progreso', 'estimacion', 'cerrado'] as TicketEstado[]).map(v => (
+              {(['nuevo', 'estimacion', 'en_progreso', 'cerrado'] as TicketEstado[]).map(v => (
                 <option key={v} value={v}>{ESTADO_CONFIG[v].label}</option>
               ))}
             </select>

@@ -13,7 +13,7 @@ const ESTADO_CONFIG: Record<TicketEstado, { label: string; color: string; bg: st
   nuevo:            { label: 'Nuevo',              color: '#3b82f6', bg: '#eff6ff' },
   en_progreso:      { label: 'En progreso',        color: '#f59e0b', bg: '#fffbeb' },
   en_espera:        { label: 'En espera',          color: '#f97316', bg: '#fff7ed' },
-  estimacion:  { label: 'Estimación',   color: '#8b5cf6', bg: '#f5f3ff' },
+  estimacion:  { label: 'Estimado',   color: '#8b5cf6', bg: '#f5f3ff' },
   resuelto:         { label: 'Resuelto',           color: '#22c55e', bg: '#f0fdf4' },
   cerrado:          { label: 'Cerrado',            color: '#94a3b8', bg: '#f8fafc' },
 }
@@ -237,8 +237,8 @@ export default function TicketsPage() {
   const TABS: { value: Tab; label: string; count?: number }[] = [
     { value: 'todos',       label: 'Todos',       count: tickets.length },
     { value: 'nuevo',       label: 'Nuevos',      count: tickets.filter(t => t.estado === 'nuevo').length },
+    { value: 'estimacion',  label: 'Estimado',    count: tickets.filter(t => t.estado === 'estimacion').length },
     { value: 'en_progreso', label: 'En progreso', count: tickets.filter(t => t.estado === 'en_progreso').length },
-    { value: 'estimacion',  label: 'Estimación',  count: tickets.filter(t => t.estado === 'estimacion').length },
     { value: 'cerrado',     label: 'Cerrados',    count: tickets.filter(t => t.estado === 'cerrado').length },
   ]
 
@@ -392,7 +392,7 @@ export default function TicketsPage() {
                             return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ color: '#16a34a', background: '#f0fdf4' }}>Aprobó horas ✓</span>
                           }
                           if (ticket.horas_estimadas && !ticket.horas_aprobadas) {
-                            return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ color: '#b45309', background: '#fffbeb' }}>Estimación</span>
+                            return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ color: '#b45309', background: '#fffbeb' }}>Estimado</span>
                           }
                           if (clientLast) {
                             return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ color: '#2563eb', background: '#eff6ff' }}>Respondió</span>
