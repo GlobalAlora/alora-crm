@@ -186,6 +186,7 @@ export default function TicketsPage() {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>('todos')
   const [search, setSearch] = useState('')
+  const [projectFilter, setProjectFilter] = useState('')
   const [showNew, setShowNew] = useState(false)
 
   const { data: ticketsRes, isLoading } = useQuery<{ data: TicketType[] }>({
@@ -215,6 +216,7 @@ export default function TicketsPage() {
 
   const filtered = tickets.filter(t => {
     if (tab !== 'todos' && t.estado !== tab) return false
+    if (projectFilter && t.project_id !== projectFilter) return false
     if (search) {
       const q = search.toLowerCase()
       return (
@@ -294,6 +296,19 @@ export default function TicketsPage() {
             </button>
           ))}
         </div>
+
+        {/* Project filter */}
+        <select
+          value={projectFilter}
+          onChange={e => setProjectFilter(e.target.value)}
+          className="px-3 py-2 rounded-xl bg-muted border border-card-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">Todos los proyectos</option>
+          {projects
+            .filter(p => tickets.some(t => t.project_id === p.id))
+            .map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)
+          }
+        </select>
 
         {/* Search */}
         <div className="relative min-w-0 flex-1 max-w-xs">
