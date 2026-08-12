@@ -127,7 +127,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // Email client on status change (only for portal clients with email)
-  const NOTIFY_STATES = ['en_progreso', 'en_espera', 'pend_aprobacion', 'resuelto', 'cerrado']
+  const NOTIFY_STATES = ['en_progreso', 'en_espera', 'estimacion', 'resuelto', 'cerrado']
   const nuevoEstado = updates.estado as string | undefined
   if (nuevoEstado && nuevoEstado !== current?.estado && NOTIFY_STATES.includes(nuevoEstado) && current?.client_email && current?.ticket_token) {
     sendGmail({
@@ -160,10 +160,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }).catch(() => {})
   }
 
-  // Auto-set estado to pend_aprobacion when hours are first estimated
+  // Auto-set estado to estimacion when hours are first estimated
   const nuevasHoras = updates.horas_estimadas as number | null | undefined
   if (nuevasHoras != null && nuevasHoras > 0 && nuevasHoras !== current?.horas_estimadas) {
-    void Promise.resolve(admin.from('tickets').update({ estado: 'pend_aprobacion' }).eq('id', id))
+    void Promise.resolve(admin.from('tickets').update({ estado: 'estimacion' }).eq('id', id))
   }
 
   if (nuevasHoras != null && nuevasHoras > 0 && nuevasHoras !== current?.horas_estimadas && current?.client_email && current?.ticket_token) {
