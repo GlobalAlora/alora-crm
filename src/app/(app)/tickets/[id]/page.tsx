@@ -499,7 +499,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
               onChange={e => patch.mutate({ estado: e.target.value })}
               className="w-full px-3 py-2 rounded-lg bg-muted border border-card-border text-sm text-foreground focus:outline-none"
             >
-              {Object.entries(ESTADO_CONFIG).map(([v, c]) => (
+              {Object.entries(ESTADO_CONFIG).filter(([v]) => v !== 'resuelto').map(([v, c]) => (
                 <option key={v} value={v}>{c.label}</option>
               ))}
             </select>
