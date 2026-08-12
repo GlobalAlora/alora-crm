@@ -59,26 +59,32 @@ export async function GET(req: NextRequest) {
       : { data: [] },
     admin
       .from('ticket_comments')
-      .select('ticket_id')
-      .in('ticket_id', tickets.map(t => t.id)),
+      .select('ticket_id, created_at, is_client')
+      .in('ticket_id', tickets.map(t => t.id))
+      .order('created_at', { ascending: false }),
   ])
 
   const projectMap = Object.fromEntries((projectsRes.data ?? []).map(p => [p.id, p]))
   const leadMap    = Object.fromEntries((leadsRes.data ?? []).map(l => [l.id, l]))
   const userMap    = Object.fromEntries((usersRes.data ?? []).map(u => [u.id, u]))
 
-  const commentCounts: Record<string, number> = {}
+  const commentCounts:    Record<string, number> = {}
+  const lastTeamReplyAt:  Record<string, string> = {}
   for (const c of commentsRes.data ?? []) {
     commentCounts[c.ticket_id] = (commentCounts[c.ticket_id] ?? 0) + 1
+    if (!c.is_client && !lastTeamReplyAt[c.ticket_id]) {
+      lastTeamReplyAt[c.ticket_id] = c.created_at
+    }
   }
 
   const enriched = tickets.map(t => ({
     ...t,
-    project:        t.project_id  ? projectMap[t.project_id]  ?? null : null,
-    lead:           t.lead_id     ? leadMap[t.lead_id]         ?? null : null,
-    assignee:       t.assignee_id ? userMap[t.assignee_id]     ?? null : null,
-    creator:        t.created_by  ? userMap[t.created_by]      ?? null : null,
-    comments_count: commentCounts[t.id] ?? 0,
+    project:           t.project_id  ? projectMap[t.project_id]  ?? null : null,
+    lead:              t.lead_id     ? leadMap[t.lead_id]         ?? null : null,
+    assignee:          t.assignee_id ? userMap[t.assignee_id]     ?? null : null,
+    creator:           t.created_by  ? userMap[t.created_by]      ?? null : null,
+    comments_count:    commentCounts[t.id]   ?? 0,
+    last_team_reply_at: lastTeamReplyAt[t.id] ?? null,
   }))
 
   return NextResponse.json({ data: enriched })

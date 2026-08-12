@@ -383,27 +383,25 @@ export default function TicketsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
-                        {ticket.client_email ? (
-                          ticket.horas_aprobadas && ticket.horas_estimadas ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ color: '#16a34a', background: '#f0fdf4' }}>
-                              Aprobó horas ✓
-                            </span>
-                          ) : ticket.horas_estimadas && !ticket.horas_aprobadas ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ color: '#b45309', background: '#fffbeb' }}>
-                              Pend. aprobación
-                            </span>
-                          ) : ticket.client_unread ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ color: '#ea580c', background: '#fff7ed' }}>
-                              Esperando respuesta
-                            </span>
-                          ) : ticket.last_client_activity_at ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ color: '#2563eb', background: '#eff6ff' }}>
-                              Respondió
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground/50 text-xs">—</span>
-                          )
-                        ) : (
+                        {ticket.client_email ? (() => {
+                          const clientAt  = ticket.last_client_activity_at ? new Date(ticket.last_client_activity_at).getTime() : 0
+                          const teamAt    = ticket.last_team_reply_at       ? new Date(ticket.last_team_reply_at).getTime()       : 0
+                          const clientLast = clientAt > 0 && clientAt >= teamAt
+
+                          if (ticket.horas_aprobadas && ticket.horas_estimadas) {
+                            return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ color: '#16a34a', background: '#f0fdf4' }}>Aprobó horas ✓</span>
+                          }
+                          if (ticket.horas_estimadas && !ticket.horas_aprobadas) {
+                            return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ color: '#b45309', background: '#fffbeb' }}>Pend. aprobación</span>
+                          }
+                          if (clientLast) {
+                            return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ color: '#2563eb', background: '#eff6ff' }}>Respondió</span>
+                          }
+                          if (teamAt > 0) {
+                            return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ color: '#ea580c', background: '#fff7ed' }}>Esperando respuesta</span>
+                          }
+                          return <span className="text-muted-foreground/50 text-xs">—</span>
+                        })() : (
                           <span className="text-muted-foreground/50 text-xs">—</span>
                         )}
                       </td>

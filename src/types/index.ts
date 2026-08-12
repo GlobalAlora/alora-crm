@@ -567,6 +567,7 @@ export interface Ticket {
   creator?: Pick<User, 'id' | 'full_name' | 'avatar_url'> | null
   comments?: TicketComment[]
   comments_count?: number
+  last_team_reply_at?: string | null
 }
 
 export interface TicketComment {
