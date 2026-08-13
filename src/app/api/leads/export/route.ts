@@ -117,7 +117,11 @@ export async function GET(req: NextRequest) {
       lead.responsable?.full_name,
       lead.valor_propuesta_usd,
       lead.valor_propuesta_ars,
-      lead.consulta_detallada,
+      lead.consulta_detallada
+        ?? (lead.form_data as Record<string, string> | null)?.mensaje
+        ?? (lead.form_data as Record<string, string> | null)?.consulta
+        ?? (lead.form_data as Record<string, string> | null)?.message
+        ?? null,
       lead.created_at,
       lead.last_activity_at,
     ])
