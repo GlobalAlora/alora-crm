@@ -12,9 +12,9 @@ async function queryMonthHoras(
 ) {
   const [{ data: resolved }, { data: open }] = await Promise.all([
     admin.from('tickets').select('horas_reales').eq('client_email', clientEmail).in('estado', ['resuelto', 'cerrado']).gte('resolved_at', monthStart).lt('resolved_at', monthEnd).is('deleted_at', null),
-    admin.from('tickets').select('horas_estimadas').eq('client_email', clientEmail).not('estado', 'in', '("resuelto","cerrado")').eq('horas_aprobadas', true).gte('created_at', monthStart).lt('created_at', monthEnd).is('deleted_at', null),
+    admin.from('tickets').select('horas_estimadas, horas_reales').eq('client_email', clientEmail).not('estado', 'in', '("resuelto","cerrado")').eq('horas_aprobadas', true).gte('created_at', monthStart).lt('created_at', monthEnd).is('deleted_at', null),
   ])
-  const consumidas = (resolved ?? []).reduce((s, t) => s + (Number(t.horas_reales) || 0), 0) + (open ?? []).reduce((s, t) => s + (Number(t.horas_estimadas) || 0), 0)
+  const consumidas = (resolved ?? []).reduce((s, t) => s + (Number(t.horas_reales) || 0), 0) + (open ?? []).reduce((s, t) => s + (Number(t.horas_reales ?? t.horas_estimadas) || 0), 0)
   return consumidas
 }
 
@@ -33,11 +33,11 @@ export async function GET(req: NextRequest) {
 
   const [{ data: resolvedTickets }, { data: openTickets }] = await Promise.all([
     admin.from('tickets').select('id, numero, titulo, horas_estimadas, horas_reales, resolved_at, estado').eq('client_email', client.email).in('estado', ['resuelto', 'cerrado']).gte('resolved_at', monthStart).lt('resolved_at', monthEnd).is('deleted_at', null).order('resolved_at', { ascending: false }),
-    admin.from('tickets').select('id, numero, titulo, horas_estimadas, estado').eq('client_email', client.email).not('estado', 'in', '("resuelto","cerrado")').eq('horas_aprobadas', true).gte('created_at', monthStart).lt('created_at', monthEnd).is('deleted_at', null).order('created_at', { ascending: false }),
+    admin.from('tickets').select('id, numero, titulo, horas_estimadas, horas_reales, estado').eq('client_email', client.email).not('estado', 'in', '("resuelto","cerrado")').eq('horas_aprobadas', true).gte('created_at', monthStart).lt('created_at', monthEnd).is('deleted_at', null).order('created_at', { ascending: false }),
   ])
 
-  const horasResueltas  = (resolvedTickets ?? []).reduce((s, t) => s + (Number(t.horas_reales)    || 0), 0)
-  const horasAbiertas   = (openTickets    ?? []).reduce((s, t) => s + (Number(t.horas_estimadas) || 0), 0)
+  const horasResueltas  = (resolvedTickets ?? []).reduce((s, t) => s + (Number(t.horas_reales) || 0), 0)
+  const horasAbiertas   = (openTickets    ?? []).reduce((s, t) => s + (Number(t.horas_reales ?? t.horas_estimadas) || 0), 0)
   const horasConsumidas = horasResueltas + horasAbiertas
 
   const plan     = client.plan_horas_mensual || 0
@@ -74,6 +74,7 @@ export async function GET(req: NextRequest) {
       plan_horas_mensual: plan,
       horas_consumidas:   horasConsumidas,
       horas_restantes:    Math.max(0, plan - horasConsumidas),
+      horas_extra:        Math.max(0, horasConsumidas - plan),
       porcentaje,
       tickets_resueltos:  resolvedTickets ?? [],
       tickets_abiertos:   openTickets ?? [],

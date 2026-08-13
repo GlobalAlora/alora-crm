@@ -29,11 +29,11 @@ export async function GET(req: NextRequest) {
 
   const [{ data: resolved }, { data: open }] = await Promise.all([
     admin.from('tickets').select('horas_reales').eq('client_email', email).in('estado', ['resuelto', 'cerrado']).gte('resolved_at', monthStart).lt('resolved_at', monthEnd).is('deleted_at', null),
-    admin.from('tickets').select('horas_estimadas').eq('client_email', email).not('estado', 'in', '("resuelto","cerrado")').eq('horas_aprobadas', true).gte('created_at', monthStart).lt('created_at', monthEnd).is('deleted_at', null),
+    admin.from('tickets').select('horas_estimadas, horas_reales').eq('client_email', email).not('estado', 'in', '("resuelto","cerrado")').eq('horas_aprobadas', true).gte('created_at', monthStart).lt('created_at', monthEnd).is('deleted_at', null),
   ])
 
   const horas_consumidas = (resolved ?? []).reduce((s, t) => s + (Number(t.horas_reales) || 0), 0)
-                         + (open    ?? []).reduce((s, t) => s + (Number(t.horas_estimadas) || 0), 0)
+                         + (open    ?? []).reduce((s, t) => s + (Number(t.horas_reales ?? t.horas_estimadas) || 0), 0)
 
   return NextResponse.json({
     data: {
