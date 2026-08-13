@@ -9,6 +9,7 @@ import { formatUSD, timeAgo } from '@/lib/utils'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { LeadFilters } from './LeadFilters'
+import { ExportModal } from './ExportModal'
 import { useLeadFilters } from '@/hooks/useLeadFilters'
 import { BulkActionsBar } from './BulkActionsBar'
 import { cn } from '@/lib/utils'
@@ -88,17 +89,10 @@ export function LeadTable({ onLeadClick }: LeadTableProps) {
     clearAll()
   }
 
-  const handleExport = () => {
-    const params = new URLSearchParams()
-    Object.entries(queryFilters).forEach(([k, v]) => {
-      if (v === undefined || v === '') return
-      if (Array.isArray(v)) v.forEach((val) => params.append(k, String(val)))
-      else params.set(k, String(v))
-    })
-    window.location.href = `/api/leads/export?${params}`
-  }
+  const handleExport = () => setShowExport(true)
 
-  const [sortBy, setSortBy]       = useState<SortColumn>('created_at')
+  const [showExport, setShowExport] = useState(false)
+  const [sortBy, setSortBy]         = useState<SortColumn>('created_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [selected, setSelected]   = useState<Set<string>>(new Set())
   const [page, setPage]           = useState(1)
@@ -283,6 +277,8 @@ export function LeadTable({ onLeadClick }: LeadTableProps) {
           </div>
         </div>
       )}
+
+      {showExport && <ExportModal onClose={() => setShowExport(false)} />}
     </div>
   )
 }
