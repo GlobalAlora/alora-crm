@@ -182,8 +182,6 @@ function NewTicketModal({ onClose, projects, users }: {
 
 function isEnCliente(t: TicketType): boolean {
   if (!t.client_email) return false
-  // Actively working on it → our side
-  if (t.estado === 'en_progreso' && t.horas_aprobadas) return false
   const clientAt = t.last_client_activity_at ? new Date(t.last_client_activity_at).getTime() : 0
   const teamAt   = t.last_team_reply_at       ? new Date(t.last_team_reply_at).getTime()       : 0
   return (!!t.horas_estimadas && !t.horas_aprobadas) ||
