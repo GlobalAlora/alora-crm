@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
   const [{ data: resolved }, { data: open }] = await Promise.all([
     admin.from('tickets').select('horas_reales').eq('client_email', email).in('estado', ['resuelto', 'cerrado']).gte('resolved_at', monthStart).lt('resolved_at', monthEnd).is('deleted_at', null),
-    admin.from('tickets').select('horas_estimadas, horas_reales').eq('client_email', email).not('estado', 'in', '("resuelto","cerrado")').eq('horas_aprobadas', true).gte('created_at', monthStart).lt('created_at', monthEnd).is('deleted_at', null),
+    admin.from('tickets').select('horas_estimadas, horas_reales').eq('client_email', email).not('estado', 'in', '("resuelto","cerrado")').not('horas_estimadas', 'is', null).gte('created_at', monthStart).lt('created_at', monthEnd).is('deleted_at', null),
   ])
 
   const horas_consumidas = (resolved ?? []).reduce((s, t) => s + (Number(t.horas_reales) || 0), 0)
