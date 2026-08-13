@@ -178,16 +178,28 @@ function NewTicketModal({ onClose, projects, users }: {
   )
 }
 
+// ─── helpers ────────────────────────────────────────────────
+
+function isEnCliente(t: TicketType): boolean {
+  if (!t.client_email) return false
+  // Actively working on it → our side
+  if (t.estado === 'en_progreso' && t.horas_aprobadas) return false
+  const clientAt = t.last_client_activity_at ? new Date(t.last_client_activity_at).getTime() : 0
+  const teamAt   = t.last_team_reply_at       ? new Date(t.last_team_reply_at).getTime()       : 0
+  return (!!t.horas_estimadas && !t.horas_aprobadas) ||
+         (teamAt > 0 && clientAt < teamAt) ||
+         !!t.client_unread
+}
+
 // ─── Page ───────────────────────────────────────────────────
 
-type Tab = 'todos' | TicketEstado
+type Tab = 'todos' | 'del_cliente' | TicketEstado
 
 export default function TicketsPage() {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>('todos')
   const [search, setSearch] = useState('')
   const [projectFilter, setProjectFilter] = useState('')
-  const [ladoFilter, setLadoFilter] = useState<'' | 'cliente' | 'equipo'>('')
   const [showNew, setShowNew] = useState(false)
 
   const { data: ticketsRes, isLoading } = useQuery<{ data: TicketType[] }>({
@@ -216,17 +228,10 @@ export default function TicketsPage() {
   const users = usersRes?.data ?? []
 
   const filtered = tickets.filter(t => {
-    if (tab !== 'todos' && t.estado !== tab) return false
+    if (tab === 'del_cliente') {
+      if (!isEnCliente(t)) return false
+    } else if (tab !== 'todos' && t.estado !== tab) return false
     if (projectFilter && t.project_id !== projectFilter) return false
-    if (ladoFilter && t.client_email) {
-      const clientAt = t.last_client_activity_at ? new Date(t.last_client_activity_at).getTime() : 0
-      const teamAt   = t.last_team_reply_at       ? new Date(t.last_team_reply_at).getTime()       : 0
-      const enCliente = (t.horas_estimadas && !t.horas_aprobadas) || (teamAt > 0 && clientAt < teamAt) || t.client_unread
-      if (ladoFilter === 'cliente' && !enCliente) return false
-      if (ladoFilter === 'equipo'  &&  enCliente) return false
-    } else if (ladoFilter) {
-      return false // sin cliente, no aplica a ningún lado
-    }
     if (search) {
       const q = search.toLowerCase()
       return (
@@ -242,21 +247,17 @@ export default function TicketsPage() {
   const stats = {
     total:    tickets.filter(t => t.estado !== 'cerrado').length,
     urgentes: tickets.filter(t => t.prioridad === 'urgente' && t.estado !== 'cerrado').length,
-    cliente:  tickets.filter(t => {
-      if (!t.client_email) return false
-      const clientAt = t.last_client_activity_at ? new Date(t.last_client_activity_at).getTime() : 0
-      const teamAt   = t.last_team_reply_at       ? new Date(t.last_team_reply_at).getTime()       : 0
-      return (t.horas_estimadas && !t.horas_aprobadas) || (teamAt > 0 && clientAt < teamAt) || t.client_unread
-    }).length,
+    cliente:  tickets.filter(t => isEnCliente(t)).length,
     cerrados: tickets.filter(t => t.estado === 'cerrado').length,
   }
 
-  const TABS: { value: Tab; label: string; count?: number }[] = [
+  const TABS: { value: Tab; label: string; count?: number; highlight?: boolean }[] = [
     { value: 'todos',       label: 'Todos',       count: tickets.length },
     { value: 'nuevo',       label: 'Nuevos',      count: tickets.filter(t => t.estado === 'nuevo').length },
     { value: 'estimacion',  label: 'Estimado',    count: tickets.filter(t => t.estado === 'estimacion').length },
     { value: 'en_progreso', label: 'En progreso', count: tickets.filter(t => t.estado === 'en_progreso').length },
     { value: 'cerrado',     label: 'Cerrados',    count: tickets.filter(t => t.estado === 'cerrado').length },
+    { value: 'del_cliente', label: '⏳ Del cliente', count: stats.cliente, highlight: true },
   ]
 
   return (
@@ -304,7 +305,11 @@ export default function TicketsPage() {
             >
               {t.label}
               {t.count !== undefined && t.count > 0 && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${tab === t.value ? 'bg-blue-100 text-blue-600' : 'bg-muted text-muted-foreground'}`}>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                  tab === t.value
+                    ? (t.highlight ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600')
+                    : (t.highlight ? 'bg-orange-50 text-orange-500' : 'bg-muted text-muted-foreground')
+                }`}>
                   {t.count}
                 </span>
               )}
@@ -323,17 +328,6 @@ export default function TicketsPage() {
             .filter(p => tickets.some(t => t.project_id === p.id))
             .map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)
           }
-        </select>
-
-        {/* Lado filter */}
-        <select
-          value={ladoFilter}
-          onChange={e => setLadoFilter(e.target.value as '' | 'cliente' | 'equipo')}
-          className="px-3 py-2 rounded-xl bg-muted border border-card-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">Todos los lados</option>
-          <option value="cliente">⏳ Del cliente</option>
-          <option value="equipo">⚡ Nuestro</option>
         </select>
 
         {/* Search */}
