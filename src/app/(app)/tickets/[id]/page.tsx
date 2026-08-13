@@ -348,7 +348,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                   <Avatar user={c.user} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-2 mb-1">
-                      <span className="text-xs font-medium text-foreground">{c.user?.full_name ?? 'Sistema'}</span>
+                      <span className="text-xs font-medium text-foreground">{c.user?.full_name ?? c.client_nombre ?? 'Cliente'}</span>
                       <span className="text-[10px] text-muted-foreground">
                         {new Date(c.created_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
                       </span>
@@ -504,6 +504,30 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
               ))}
             </select>
           </div>
+
+          {/* Pelota en... */}
+          {ticket.client_email && (() => {
+            const clientAt = ticket.last_client_activity_at ? new Date(ticket.last_client_activity_at).getTime() : 0
+            const teamAt   = ticket.last_team_reply_at       ? new Date(ticket.last_team_reply_at).getTime()       : 0
+            const horasEsperando = ticket.horas_estimadas && !ticket.horas_aprobadas
+            const enCliente = horasEsperando || (teamAt > 0 && clientAt < teamAt) || ticket.client_unread
+            const enEquipo  = clientAt > 0 && clientAt >= teamAt && !horasEsperando
+
+            if (!enCliente && !enEquipo) return null
+            return (
+              <div className={`rounded-2xl p-4 border flex items-center gap-3 ${enCliente ? 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800' : 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800'}`}>
+                <span className="text-lg">{enCliente ? '⏳' : '⚡'}</span>
+                <div>
+                  <p className={`text-xs font-semibold ${enCliente ? 'text-orange-700 dark:text-orange-400' : 'text-blue-700 dark:text-blue-400'}`}>
+                    {enCliente ? 'Esperando al cliente' : 'Acción requerida'}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {horasEsperando ? 'Debe aprobar la estimación de horas' : enCliente ? 'Respondimos, esperamos su respuesta' : 'El cliente respondió — revisá y contestá'}
+                  </p>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Prioridad + Categoría */}
           <div className="bg-card border border-card-border rounded-2xl p-5 space-y-3">

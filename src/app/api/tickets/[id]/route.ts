@@ -66,14 +66,19 @@ export async function GET(_req: NextRequest, { params }: Params) {
     user: c.user_id ? commentUserMap[c.user_id] ?? null : null,
   }))
 
+  const lastTeamReplyAt = comments
+    .filter(c => !c.is_client && c.created_at)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.created_at ?? null
+
   return NextResponse.json({
     data: {
       ...ticket,
-      project:  projectRes.data ?? null,
-      lead:     leadRes.data ?? null,
-      assignee: ticket.assignee_id ? userMap[ticket.assignee_id] ?? null : null,
-      creator:  ticket.created_by  ? userMap[ticket.created_by]  ?? null : null,
+      project:           projectRes.data ?? null,
+      lead:              leadRes.data ?? null,
+      assignee:          ticket.assignee_id ? userMap[ticket.assignee_id] ?? null : null,
+      creator:           ticket.created_by  ? userMap[ticket.created_by]  ?? null : null,
       comments,
+      last_team_reply_at: lastTeamReplyAt,
     },
   })
 }

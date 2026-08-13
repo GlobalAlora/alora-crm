@@ -187,6 +187,7 @@ export default function TicketsPage() {
   const [tab, setTab] = useState<Tab>('todos')
   const [search, setSearch] = useState('')
   const [projectFilter, setProjectFilter] = useState('')
+  const [ladoFilter, setLadoFilter] = useState<'' | 'cliente' | 'equipo'>('')
   const [showNew, setShowNew] = useState(false)
 
   const { data: ticketsRes, isLoading } = useQuery<{ data: TicketType[] }>({
@@ -217,6 +218,15 @@ export default function TicketsPage() {
   const filtered = tickets.filter(t => {
     if (tab !== 'todos' && t.estado !== tab) return false
     if (projectFilter && t.project_id !== projectFilter) return false
+    if (ladoFilter && t.client_email) {
+      const clientAt = t.last_client_activity_at ? new Date(t.last_client_activity_at).getTime() : 0
+      const teamAt   = t.last_team_reply_at       ? new Date(t.last_team_reply_at).getTime()       : 0
+      const enCliente = (t.horas_estimadas && !t.horas_aprobadas) || (teamAt > 0 && clientAt < teamAt) || t.client_unread
+      if (ladoFilter === 'cliente' && !enCliente) return false
+      if (ladoFilter === 'equipo'  &&  enCliente) return false
+    } else if (ladoFilter) {
+      return false // sin cliente, no aplica a ningún lado
+    }
     if (search) {
       const q = search.toLowerCase()
       return (
@@ -230,10 +240,15 @@ export default function TicketsPage() {
   })
 
   const stats = {
-    total:       tickets.filter(t => !['cerrado'].includes(t.estado)).length,
-    urgentes:    tickets.filter(t => t.prioridad === 'urgente' && !['cerrado', 'resuelto'].includes(t.estado)).length,
-    en_espera:   tickets.filter(t => t.estado === 'en_espera').length,
-    resueltos:   tickets.filter(t => t.estado === 'resuelto').length,
+    total:    tickets.filter(t => t.estado !== 'cerrado').length,
+    urgentes: tickets.filter(t => t.prioridad === 'urgente' && t.estado !== 'cerrado').length,
+    cliente:  tickets.filter(t => {
+      if (!t.client_email) return false
+      const clientAt = t.last_client_activity_at ? new Date(t.last_client_activity_at).getTime() : 0
+      const teamAt   = t.last_team_reply_at       ? new Date(t.last_team_reply_at).getTime()       : 0
+      return (t.horas_estimadas && !t.horas_aprobadas) || (teamAt > 0 && clientAt < teamAt) || t.client_unread
+    }).length,
+    cerrados: tickets.filter(t => t.estado === 'cerrado').length,
   }
 
   const TABS: { value: Tab; label: string; count?: number }[] = [
@@ -269,8 +284,8 @@ export default function TicketsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard icon={Ticket}       label="Abiertos"  value={stats.total}     color="#3b82f6" />
         <StatCard icon={AlertCircle}  label="Urgentes"  value={stats.urgentes}  color="#ef4444" />
-        <StatCard icon={Clock}        label="En espera" value={stats.en_espera} color="#f97316" />
-        <StatCard icon={CheckCircle2} label="Resueltos" value={stats.resueltos} color="#22c55e" />
+        <StatCard icon={Clock}        label="Del cliente" value={stats.cliente}  color="#f97316" />
+        <StatCard icon={CheckCircle2} label="Cerrados"   value={stats.cerrados} color="#22c55e" />
       </div>
 
       {/* Filters */}
@@ -308,6 +323,17 @@ export default function TicketsPage() {
             .filter(p => tickets.some(t => t.project_id === p.id))
             .map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)
           }
+        </select>
+
+        {/* Lado filter */}
+        <select
+          value={ladoFilter}
+          onChange={e => setLadoFilter(e.target.value as '' | 'cliente' | 'equipo')}
+          className="px-3 py-2 rounded-xl bg-muted border border-card-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">Todos los lados</option>
+          <option value="cliente">⏳ Del cliente</option>
+          <option value="equipo">⚡ Nuestro</option>
         </select>
 
         {/* Search */}
