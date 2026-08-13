@@ -18,7 +18,7 @@ const CSV_COLUMNS = [
   'responsable',
   'valor_propuesta_usd',
   'valor_propuesta_ars',
-  'consulta',
+  'consulta_detallada',
   'created_at',
   'last_activity_at',
 ] as const
@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
       lead.responsable?.full_name,
       lead.valor_propuesta_usd,
       lead.valor_propuesta_ars,
-      lead.consulta,
+      lead.consulta_detallada,
       lead.created_at,
       lead.last_activity_at,
     ])
