@@ -3,7 +3,7 @@
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import type { Lead, PipelineStage } from '@/types'
-import { PIPELINE_STAGE_MAP } from '@/types'
+import { useStageMap } from '@/hooks/usePipelineStages'
 import { cn } from '@/lib/utils'
 import { LeadCard } from './LeadCard'
 
@@ -15,7 +15,8 @@ interface KanbanColumnProps {
 }
 
 export function KanbanColumn({ stage, leads, onLeadClick, isOver }: KanbanColumnProps) {
-  const config = PIPELINE_STAGE_MAP[stage] ?? { color: '#64748b', bgColor: '#f1f5f9', label: stage }
+  const stageMap = useStageMap()
+  const config = stageMap[stage] ?? { color: '#64748b', bgColor: '#f1f5f9', label: stage }
   const { setNodeRef } = useDroppable({ id: stage })
 
   // valor_propuesta_* is kept in sync by propuestas-sync and reflects accepted proposals only.

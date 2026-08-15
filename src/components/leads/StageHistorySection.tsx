@@ -2,7 +2,7 @@
 
 import { ArrowRight } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
-import { PIPELINE_STAGE_MAP } from '@/types'
+import { useStageMap } from '@/hooks/usePipelineStages'
 import type { StageHistory } from '@/types'
 
 interface StageHistorySectionProps {
@@ -10,6 +10,8 @@ interface StageHistorySectionProps {
 }
 
 export function StageHistorySection({ history = [] }: StageHistorySectionProps) {
+  const stageMap = useStageMap()
+
   if (history.length === 0) {
     return <p className="text-sm text-slate-400 text-center py-6">Sin historial de estados.</p>
   }
@@ -17,7 +19,7 @@ export function StageHistorySection({ history = [] }: StageHistorySectionProps) 
   return (
     <div className="space-y-2">
       {history.map((h, i) => {
-        const stageLabel = PIPELINE_STAGE_MAP[h.etapa]?.label ?? h.etapa
+        const stageLabel = stageMap[h.etapa]?.label ?? h.etapa
         const next = history[i - 1]
         return (
           <div key={h.id} className="flex items-center gap-3 py-2 border-b border-slate-100 last:border-0">
@@ -28,7 +30,7 @@ export function StageHistorySection({ history = [] }: StageHistorySectionProps) 
                 {next && (
                   <>
                     <ArrowRight size={12} className="text-slate-300" />
-                    <span className="text-sm text-slate-500">{PIPELINE_STAGE_MAP[next.etapa]?.label ?? next.etapa}</span>
+                    <span className="text-sm text-slate-500">{stageMap[next.etapa]?.label ?? next.etapa}</span>
                   </>
                 )}
               </div>

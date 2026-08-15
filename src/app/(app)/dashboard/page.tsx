@@ -11,8 +11,9 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatUSD, formatARS } from '@/lib/utils'
-import { FUENTES, PAISES, PIPELINE_STAGE_MAP } from '@/types'
+import { FUENTES, PAISES } from '@/types'
 import type { PipelineStage } from '@/types'
+import { useStageMap } from '@/hooks/usePipelineStages'
 import { dashboardApi } from '@/lib/api'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { useLeadFormStore } from '@/hooks/useLeadFormStore'
@@ -186,6 +187,7 @@ function Skel({ h = 'h-24' }: { h?: string }) {
 export default function DashboardPage() {
   const router = useRouter()
   const { open: openLeadForm } = useLeadFormStore()
+  const stageMap = useStageMap()
 
   const [fechaDesde, setFechaDesde] = useState(getDefaultDesde)
   const [fechaHasta, setFechaHasta] = useState(getDefaultHasta)
@@ -580,7 +582,7 @@ export default function DashboardPage() {
               ))}
             </div>
             {a.leads_en_riesgo.map(lead => {
-              const stageConfig = PIPELINE_STAGE_MAP[lead.etapa as PipelineStage]
+              const stageConfig = stageMap[lead.etapa as PipelineStage]
               const exceso = lead.dias_en_etapa - lead.umbral
               const urg = exceso > 14 ? 'alta' : exceso > 7 ? 'media' : 'baja'
               return (
@@ -658,7 +660,7 @@ export default function DashboardPage() {
           ) : (
             <div className="space-y-1 max-h-72 overflow-y-auto">
               {(d?.ultimos_leads ?? []).slice(0, 4).map(lead => {
-                const sc = PIPELINE_STAGE_MAP[lead.estado_pipeline as PipelineStage]
+                const sc = stageMap[lead.estado_pipeline as PipelineStage]
                 return (
                   <div key={`lead-${lead.id}`} className="flex items-start gap-3 px-2 py-2 rounded-lg hover:bg-slate-50 cursor-pointer" onClick={() => router.push(`/leads/${lead.id}`)}>
                     <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5" style={{ backgroundColor: sc?.bgColor ?? '#f1f5f9' }}>

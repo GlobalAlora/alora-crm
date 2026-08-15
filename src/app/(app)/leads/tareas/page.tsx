@@ -13,7 +13,7 @@ import toast from 'react-hot-toast'
 import { tasksApi } from '@/lib/api'
 import type { GlobalTask } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { PIPELINE_STAGE_MAP } from '@/types'
+import { useStageMap } from '@/hooks/usePipelineStages'
 
 type Filter = 'pendientes' | 'completadas' | 'todas'
 
@@ -232,6 +232,7 @@ function TaskRow({
   onRescheduleDateChange, onRescheduleTitleChange, onRescheduleDescriptionChange,
   onLeadClick, isCompleting, isUncompleting, isDeleting,
 }: TaskRowProps) {
+  const stageMap = useStageMap()
   const isRescheduling = rescheduleId === task.id
 
   const due = task.vencimiento ? (() => {
@@ -253,7 +254,7 @@ function TaskRow({
     : null
 
   const stageConfig = task.lead?.estado_pipeline
-    ? PIPELINE_STAGE_MAP[task.lead.estado_pipeline as keyof typeof PIPELINE_STAGE_MAP]
+    ? stageMap[task.lead.estado_pipeline]
     : null
 
   return (

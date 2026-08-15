@@ -6,9 +6,10 @@ import { X, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useLeadFormStore } from '@/hooks/useLeadFormStore'
 import { leadsApi, usersApi } from '@/lib/api'
-import { SERVICIOS, PAISES, FUENTES, PIPELINE_STAGES } from '@/types'
+import { SERVICIOS, PAISES, FUENTES } from '@/types'
 import type { LeadFuente, PipelineStage } from '@/types'
 import { RichTextEditor } from '@/components/shared/RichTextEditor'
+import { useActivePipelineStages } from '@/hooks/usePipelineStages'
 
 const INPUT =
   'w-full border border-slate-200 rounded-md px-3 py-1.5 text-sm text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow'
@@ -42,6 +43,7 @@ export function LeadForm() {
   const { isOpen, editingLead, close } = useLeadFormStore()
   const queryClient = useQueryClient()
   const [form, setForm] = useState<FormState>(emptyForm)
+  const activeStages = useActivePipelineStages()
 
   useEffect(() => {
     if (!isOpen) return
@@ -273,7 +275,7 @@ export function LeadForm() {
                     <span className="text-xs font-medium text-slate-600">Etapa del pipeline</span>
                     <select value={form.estado_pipeline} onChange={set('estado_pipeline')} className={INPUT}>
                       <option value="">Lead entrante (por defecto)</option>
-                      {PIPELINE_STAGES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                      {activeStages.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>
                   </label>
                 )}

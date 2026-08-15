@@ -1,5 +1,7 @@
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { PIPELINE_STAGES } from '@/types'
+import type { PipelineStage } from '@/types'
 
 export interface PipelineStageDB {
   id: string
@@ -38,4 +40,35 @@ export function usePipelineStages() {
       created_at: '',
     })),
   })
+}
+
+export interface PipelineStageOption {
+  value: PipelineStage
+  label: string
+  color: string
+  bgColor: string
+  zone: string
+}
+
+// Single source of truth for "which stages can a lead be in" across every
+// selector/filter/kanban column. Always includes custom stages added in
+// Configuración → Pipeline, not just the original hardcoded set.
+export function useActivePipelineStages(): PipelineStageOption[] {
+  const { data } = usePipelineStages()
+  return useMemo(() => {
+    if (!data || data.length === 0) return PIPELINE_STAGES
+    return data.map((s) => ({
+      value: s.key as PipelineStage,
+      label: s.label,
+      color: s.color,
+      bgColor: s.bg_color,
+      zone: s.zone,
+    }))
+  }, [data])
+}
+
+// Lookup by key for badges/labels — same dynamic source as useActivePipelineStages.
+export function useStageMap(): Record<string, PipelineStageOption> {
+  const stages = useActivePipelineStages()
+  return useMemo(() => Object.fromEntries(stages.map((s) => [s.value, s])), [stages])
 }

@@ -10,8 +10,9 @@ import {
 } from 'lucide-react'
 import { leadsApi, usersApi } from '@/lib/api'
 import { cn, formatUSD, formatARS, timeAgo, getProjectStatus, getDaysUntil } from '@/lib/utils'
-import { PIPELINE_STAGES, FUENTES, PAISES, IDIOMAS, PIPELINE_STAGE_MAP } from '@/types'
+import { FUENTES, PAISES, IDIOMAS } from '@/types'
 import type { Lead, PipelineStage, TeamMember, User } from '@/types'
+import { useActivePipelineStages } from '@/hooks/usePipelineStages'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { UnifiedTimeline } from './UnifiedTimeline'
@@ -136,7 +137,7 @@ function StageSelector({ lead, onStageChange }: { lead: Lead; onStageChange?: (l
     onError: () => toast.error('Error al cambiar estado'),
   })
 
-  const stageCfg = PIPELINE_STAGE_MAP[lead.estado_pipeline]
+  const activeStages = useActivePipelineStages()
 
   return (
     <div className="relative">
@@ -151,7 +152,7 @@ function StageSelector({ lead, onStageChange }: { lead: Lead; onStageChange?: (l
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
           <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-slate-200 rounded-xl shadow-lg py-1 w-52 max-h-64 overflow-y-auto">
-            {PIPELINE_STAGES.map((s) => (
+            {activeStages.map((s) => (
               <button
                 key={s.value}
                 onClick={() => {

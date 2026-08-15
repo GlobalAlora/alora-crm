@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { X, Download } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { usersApi } from '@/lib/api'
-import { PIPELINE_STAGES, FUENTES } from '@/types'
+import { FUENTES } from '@/types'
 import type { PipelineStage } from '@/types'
+import { useActivePipelineStages } from '@/hooks/usePipelineStages'
 
 interface ExportModalProps {
   onClose: () => void
@@ -24,6 +25,7 @@ export function ExportModal({ onClose }: ExportModalProps) {
   const [responsableId,  setResponsableId]  = useState('')
   const [fuente,         setFuente]         = useState('')
   const [soloConEmail,   setSoloConEmail]   = useState(false)
+  const activeStages = useActivePipelineStages()
 
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
@@ -41,7 +43,7 @@ export function ExportModal({ onClose }: ExportModalProps) {
   }
 
   const toggleZone = (zone: string) => {
-    const zoneStages = PIPELINE_STAGES.filter(s => s.zone === zone).map(s => s.value)
+    const zoneStages = activeStages.filter(s => s.zone === zone).map(s => s.value)
     const allSelected = zoneStages.every(s => stages.has(s))
     setStages(prev => {
       const next = new Set(prev)
@@ -111,7 +113,7 @@ export function ExportModal({ onClose }: ExportModalProps) {
               <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Etapas del pipeline</h3>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setStages(new Set(PIPELINE_STAGES.map(s => s.value)))}
+                  onClick={() => setStages(new Set(activeStages.map(s => s.value)))}
                   className="text-[11px] text-blue-600 hover:underline"
                 >
                   Todas
@@ -129,7 +131,7 @@ export function ExportModal({ onClose }: ExportModalProps) {
 
             <div className="space-y-4">
               {ZONES.map(zone => {
-                const zoneStages = PIPELINE_STAGES.filter(s => s.zone === zone.key)
+                const zoneStages = activeStages.filter(s => s.zone === zone.key)
                 const allSel = zoneStages.every(s => stages.has(s.value))
                 const someSel = zoneStages.some(s => stages.has(s.value))
                 return (

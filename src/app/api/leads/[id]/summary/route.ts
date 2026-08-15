@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { PIPELINE_STAGE_MAP } from '@/types'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -41,7 +40,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   if (!lead) return NextResponse.json({ error: 'Lead no encontrado' }, { status: 404 })
 
-  const stageName = PIPELINE_STAGE_MAP[lead.estado_pipeline as keyof typeof PIPELINE_STAGE_MAP] ?? lead.estado_pipeline
+  const { data: stageRow } = await supabase
+    .from('pipeline_stages')
+    .select('label')
+    .eq('key', lead.estado_pipeline)
+    .maybeSingle()
+  const stageName = stageRow?.label ?? lead.estado_pipeline
 
   const parts: string[] = []
 

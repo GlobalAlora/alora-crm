@@ -7,8 +7,9 @@ import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 import type { LeadTag, LeadList, SegmentFilters } from '@/types'
-import { PIPELINE_STAGES, SERVICIOS, PAISES } from '@/types'
+import { SERVICIOS, PAISES } from '@/types'
 import { SegmentBuilder } from '@/components/email/SegmentBuilder'
+import { useActivePipelineStages } from '@/hooks/usePipelineStages'
 
 const PREVIEW_LEAD = { nombre: 'Juan', apellido: 'García', email: 'juan@ejemplo.com', empresa: 'ACME SA' }
 
@@ -21,6 +22,7 @@ function interpolatePreview(template: string): string {
 
 export default function NewCampaignPage() {
   const router = useRouter()
+  const activeStages = useActivePipelineStages()
 
   const [name, setName] = useState('')
   const [subject, setSubject] = useState('')
@@ -181,7 +183,7 @@ export default function NewCampaignPage() {
           onChange={setFilters}
           tags={tags}
           lists={lists}
-          stages={PIPELINE_STAGES}
+          stages={activeStages}
           servicios={SERVICIOS}
           paises={PAISES}
         />

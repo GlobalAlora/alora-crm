@@ -3,9 +3,10 @@
 import { Search, X, Download } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { usersApi } from '@/lib/api'
-import { PIPELINE_STAGES, FUENTES, PAISES, SERVICIOS, IDIOMAS } from '@/types'
+import { FUENTES, PAISES, SERVICIOS, IDIOMAS } from '@/types'
 import type { LeadFilterState } from '@/hooks/useLeadFilters'
 import type { PipelineStage } from '@/types'
+import { useActivePipelineStages } from '@/hooks/usePipelineStages'
 
 interface LeadFiltersProps {
   filters: LeadFilterState
@@ -22,6 +23,7 @@ export function LeadFilters({ filters, onFilter, onReset, onExport, hasActiveFil
     queryFn: () => usersApi.list(),
     staleTime: 5 * 60_000,
   })
+  const activeStages = useActivePipelineStages()
 
   return (
     <div className="flex flex-wrap items-center gap-3 flex-shrink-0">
@@ -44,7 +46,7 @@ export function LeadFilters({ filters, onFilter, onReset, onExport, hasActiveFil
         className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700"
       >
         <option value="">Todos los estados</option>
-        {PIPELINE_STAGES.map((s) => (
+        {activeStages.map((s) => (
           <option key={s.value} value={s.value}>{s.label}</option>
         ))}
       </select>

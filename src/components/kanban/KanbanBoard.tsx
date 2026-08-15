@@ -20,7 +20,7 @@ import { leadsApi } from '@/lib/api'
 import { midpoint } from '@/lib/utils'
 import { KanbanColumn } from './KanbanColumn'
 import { LeadCard } from './LeadCard'
-import { usePipelineStages } from '@/hooks/usePipelineStages'
+import { useActivePipelineStages } from '@/hooks/usePipelineStages'
 
 interface KanbanBoardProps {
   onLeadClick: (lead: Lead) => void
@@ -46,11 +46,7 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
   const queryClient = useQueryClient()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [overColumnId, setOverColumnId] = useState<PipelineStage | null>(null)
-  const { data: dbStages } = usePipelineStages()
-  // Use DB stages if available, fall back to hardcoded constant
-  const activeStages = dbStages && dbStages.length > 0
-    ? dbStages.map(s => ({ value: s.key as PipelineStage, label: s.label, color: s.color, bgColor: s.bg_color, zone: s.zone }))
-    : PIPELINE_STAGES
+  const activeStages = useActivePipelineStages()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [startX, setStartX] = useState(0)
