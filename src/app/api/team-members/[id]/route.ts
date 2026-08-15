@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 type Params = { params: Promise<{ id: string }> }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
+    const auth = await createClient()
+    const { data: { user } } = await auth.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const { id } = await params
     const body = await req.json()
     const { full_name, role, email } = body as { full_name?: string; role?: string; email?: string | null }
@@ -34,6 +39,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
+    const auth = await createClient()
+    const { data: { user } } = await auth.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const { id } = await params
     const supabase = createAdminClient()
     const { error } = await supabase.from('team_members').delete().eq('id', id)

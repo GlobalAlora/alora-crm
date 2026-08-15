@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function GET() {
   try {
+    const auth = await createClient()
+    const { data: { user } } = await auth.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const supabase = createAdminClient()
     const { data, error } = await supabase
       .from('team_members')
@@ -22,6 +27,10 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await createClient()
+    const { data: { user } } = await auth.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const body = await req.json()
     const { full_name, role, email } = body as { full_name: string; role: string; email?: string }
 
