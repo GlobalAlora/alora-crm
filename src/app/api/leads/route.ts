@@ -133,6 +133,16 @@ export async function POST(req: NextRequest) {
 
   // Determine next kanban position in target stage
   const targetStage = (body.estado_pipeline as PipelineStage | undefined | null) ?? 'lead_entrante'
+
+  const { data: targetStageRow } = await supabase
+    .from('pipeline_stages')
+    .select('key')
+    .eq('key', targetStage)
+    .maybeSingle()
+  if (!targetStageRow) {
+    return NextResponse.json({ error: 'Etapa inválida' }, { status: 400 })
+  }
+
   const { data: maxPos, error: posError } = await supabase
     .from('leads')
     .select('kanban_position')
