@@ -16,7 +16,7 @@ interface KanbanColumnProps {
 
 export function KanbanColumn({ stage, leads, onLeadClick, isOver }: KanbanColumnProps) {
   const stageMap = useStageMap()
-  const config = stageMap[stage] ?? { color: '#64748b', bgColor: '#f1f5f9', label: stage }
+  const config = stageMap[stage] ?? { color: '#64748b', bgColor: '#f1f5f9', label: stage, descripcion: null }
   const { setNodeRef } = useDroppable({ id: stage })
 
   // valor_propuesta_* is kept in sync by propuestas-sync and reflects accepted proposals only.
@@ -49,7 +49,7 @@ export function KanbanColumn({ stage, leads, onLeadClick, isOver }: KanbanColumn
     )}>
       {/* Column header */}
       <div className="px-3 py-3 border-b bg-white rounded-t-xl flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" title={config.descripcion ?? undefined}>
           <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: config.color }} />
           <span className="text-xs font-semibold text-slate-700 leading-tight">{config.label}</span>
         </div>

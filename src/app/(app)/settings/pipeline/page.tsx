@@ -105,7 +105,12 @@ function SortableRow({
       />
 
       {/* Label */}
-      <span className="flex-1 text-sm font-medium text-slate-700">{stage.label}</span>
+      <div className="flex-1 min-w-0">
+        <span className="block text-sm font-medium text-slate-700 truncate">{stage.label}</span>
+        {stage.descripcion && (
+          <span className="block text-xs text-slate-400 truncate">{stage.descripcion}</span>
+        )}
+      </div>
 
       {/* Zone badge */}
       <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wide hidden sm:block">
@@ -166,7 +171,7 @@ function StageForm({
   loading,
 }: {
   initial?: Partial<PipelineStageDB>
-  onSave: (data: { label: string; color: string; bg_color: string; zone: string }) => void
+  onSave: (data: { label: string; color: string; bg_color: string; zone: string; descripcion: string | null }) => void
   onCancel: () => void
   loading: boolean
 }) {
@@ -174,6 +179,7 @@ function StageForm({
   const [color, setBgColor] = useState(initial?.color ?? COLOR_PRESETS[0].color)
   const [bg_color, setBg] = useState(initial?.bg_color ?? COLOR_PRESETS[0].bg)
   const [zone, setZone] = useState(initial?.zone ?? 'gestion')
+  const [descripcion, setDescripcion] = useState(initial?.descripcion ?? '')
 
   const selectPreset = (preset: { color: string; bg: string }) => {
     setBgColor(preset.color)
@@ -221,6 +227,18 @@ function StageForm({
         </span>
       </div>
 
+      {/* Description */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-slate-600">Descripción (opcional)</label>
+        <textarea
+          value={descripcion}
+          onChange={e => setDescripcion(e.target.value)}
+          rows={2}
+          placeholder="Qué significa esta etapa, para que quede claro cuándo usarla..."
+          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-violet-400 resize-none"
+        />
+      </div>
+
       {/* Zone */}
       <div className="space-y-1.5">
         <label className="text-xs font-medium text-slate-600">Zona del pipeline</label>
@@ -246,7 +264,7 @@ function StageForm({
       {/* Actions */}
       <div className="flex gap-2">
         <button
-          onClick={() => onSave({ label, color, bg_color, zone })}
+          onClick={() => onSave({ label, color, bg_color, zone, descripcion: descripcion.trim() || null })}
           disabled={!label.trim() || loading}
           className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 disabled:opacity-50"
         >
@@ -331,7 +349,7 @@ export default function PipelineSettingsPage() {
 
   // ── Add mutation ─────────────────────────────────────────────────────────
   const addMutation = useMutation({
-    mutationFn: async (data: { label: string; color: string; bg_color: string; zone: string }) => {
+    mutationFn: async (data: { label: string; color: string; bg_color: string; zone: string; descripcion: string | null }) => {
       const res = await fetch('/api/pipeline-stages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -352,7 +370,7 @@ export default function PipelineSettingsPage() {
 
   // ── Edit mutation ─────────────────────────────────────────────────────────
   const editMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { label: string; color: string; bg_color: string; zone: string } }) => {
+    mutationFn: async ({ id, data }: { id: string; data: { label: string; color: string; bg_color: string; zone: string; descripcion: string | null } }) => {
       const res = await fetch(`/api/pipeline-stages/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

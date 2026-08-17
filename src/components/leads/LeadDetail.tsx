@@ -151,7 +151,7 @@ function StageSelector({ lead, onStageChange }: { lead: Lead; onStageChange?: (l
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-slate-200 rounded-xl shadow-lg py-1 w-52 max-h-64 overflow-y-auto">
+          <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-slate-200 rounded-xl shadow-lg py-1 w-64 max-h-72 overflow-y-auto">
             {activeStages.map((s) => (
               <button
                 key={s.value}
@@ -164,11 +164,16 @@ function StageSelector({ lead, onStageChange }: { lead: Lead; onStageChange?: (l
                   lead.estado_pipeline === s.value && 'font-semibold'
                 )}
               >
-                <span
-                  className="inline-block w-2 h-2 rounded-full mr-2"
-                  style={{ background: s.color }}
-                />
-                {s.label}
+                <div className="flex items-center">
+                  <span
+                    className="inline-block w-2 h-2 rounded-full mr-2 flex-shrink-0"
+                    style={{ background: s.color }}
+                  />
+                  {s.label}
+                </div>
+                {s.descripcion && (
+                  <p className="text-xs text-slate-400 font-normal mt-0.5 ml-4 leading-snug">{s.descripcion}</p>
+                )}
               </button>
             ))}
           </div>

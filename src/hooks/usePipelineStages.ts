@@ -12,6 +12,7 @@ export interface PipelineStageDB {
   zone: string
   order_position: number
   is_system: boolean
+  descripcion: string | null
   created_at: string
 }
 
@@ -37,6 +38,7 @@ export function usePipelineStages() {
       zone: s.zone,
       order_position: i + 1,
       is_system: true,
+      descripcion: null,
       created_at: '',
     })),
   })
@@ -48,6 +50,7 @@ export interface PipelineStageOption {
   color: string
   bgColor: string
   zone: string
+  descripcion: string | null
 }
 
 // Single source of truth for "which stages can a lead be in" across every
@@ -56,13 +59,14 @@ export interface PipelineStageOption {
 export function useActivePipelineStages(): PipelineStageOption[] {
   const { data } = usePipelineStages()
   return useMemo(() => {
-    if (!data || data.length === 0) return PIPELINE_STAGES
+    if (!data || data.length === 0) return PIPELINE_STAGES.map((s) => ({ ...s, descripcion: null }))
     return data.map((s) => ({
       value: s.key as PipelineStage,
       label: s.label,
       color: s.color,
       bgColor: s.bg_color,
       zone: s.zone,
+      descripcion: s.descripcion,
     }))
   }, [data])
 }

@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   if (me?.role !== 'admin') return NextResponse.json({ error: 'Solo admins' }, { status: 403 })
 
   const body = await req.json()
-  const { label, color = '#64748b', bg_color = '#f1f5f9', zone = 'gestion' } = body
+  const { label, color = '#64748b', bg_color = '#f1f5f9', zone = 'gestion', descripcion = null } = body
 
   if (!label?.trim()) return NextResponse.json({ error: 'El label es requerido' }, { status: 400 })
 
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await admin
     .from('pipeline_stages')
-    .insert({ key, label: label.trim(), color, bg_color, zone, order_position: (maxRow?.order_position ?? 0) + 1, is_system: false })
+    .insert({ key, label: label.trim(), color, bg_color, zone, descripcion, order_position: (maxRow?.order_position ?? 0) + 1, is_system: false })
     .select()
     .single()
 

@@ -14,7 +14,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (me?.role !== 'admin') return NextResponse.json({ error: 'Solo admins' }, { status: 403 })
 
   const body = await req.json()
-  const allowed = ['label', 'color', 'bg_color', 'zone']
+  const allowed = ['label', 'color', 'bg_color', 'zone', 'descripcion']
   const updates: Record<string, unknown> = {}
   for (const key of allowed) {
     if (key in body) updates[key] = body[key]
