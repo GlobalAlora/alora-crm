@@ -66,6 +66,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       fecha_inicio:    body.fecha_inicio    || null,
       fecha_limite:    body.fecha_limite    || null,
       horas_estimadas: body.horas_estimadas ? Number(body.horas_estimadas) : null,
+      attachments:     Array.isArray(body.attachments) ? body.attachments : [],
       position:        (maxRow?.position ?? 0) + 1,
       created_by:      user.id,
     })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, use, useCallback } from 'react'
+import { useState, use, useCallback, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
@@ -13,14 +13,14 @@ import { CSS } from '@dnd-kit/utilities'
 import {
   ArrowLeft, Plus, Circle, CheckCircle2, FolderKanban, ExternalLink,
   GripVertical, LayoutDashboard, List, LayoutGrid, CalendarRange, ChevronRight,
-  ChevronDown, Check, SlidersHorizontal, X, UserPlus, Trash2,
+  ChevronDown, Check, SlidersHorizontal, X, UserPlus, Trash2, ImagePlus,
 } from 'lucide-react'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils'
-import type { Project, TaskSection, ProjectTask, ProjectEstado, User } from '@/types'
+import type { Project, TaskSection, ProjectTask, ProjectEstado, User, TicketAttachment } from '@/types'
 import { TaskPanel, Avatar } from '@/components/projects/TaskPanel'
 import { BoardView } from '@/components/projects/BoardView'
 import { ResumenView } from '@/components/projects/ResumenView'
@@ -118,6 +118,7 @@ async function apiCreateTask(projectId: string, opts: {
   fechaLimite?: string
   prioridad?: string
   parentTaskId?: string | null
+  attachments?: TicketAttachment[]
 }) {
   const r = await fetch(`/api/projects/${projectId}/tasks`, {
     method: 'POST',
@@ -130,6 +131,7 @@ async function apiCreateTask(projectId: string, opts: {
       assignee_id:    opts.assigneeId    || null,
       fecha_limite:   opts.fechaLimite   || null,
       prioridad:      opts.prioridad     || 'media',
+      attachments:    opts.attachments   ?? [],
     }),
   })
   const j = await r.json()
@@ -249,7 +251,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   })
 
   const addTask = useMutation({
-    mutationFn: (opts: { sectionId: string | null; titulo: string; descripcion?: string; assigneeId?: string; fechaLimite?: string; prioridad?: string; parentTaskId?: string | null }) =>
+    mutationFn: (opts: { sectionId: string | null; titulo: string; descripcion?: string; assigneeId?: string; fechaLimite?: string; prioridad?: string; parentTaskId?: string | null; attachments?: TicketAttachment[] }) =>
       apiCreateTask(id, opts),
     onSuccess: (res, variables) => {
       qc.invalidateQueries({ queryKey: ['project', id] })
@@ -844,22 +846,80 @@ function NewTaskModal({
   users: Pick<User, 'id' | 'full_name' | 'avatar_url'>[]
   isPending: boolean
   onClose: () => void
-  onCreate: (opts: { titulo: string; descripcion?: string; assigneeId?: string; fechaLimite?: string; prioridad?: string }) => void
+  onCreate: (opts: { titulo: string; descripcion?: string; assigneeId?: string; fechaLimite?: string; prioridad?: string; attachments?: TicketAttachment[] }) => void
 }) {
   const [titulo,      setTitulo]      = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [assigneeId,  setAssigneeId]  = useState('')
   const [fechaLimite, setFechaLimite] = useState('')
   const [prioridad,   setPrioridad]   = useState('media')
+  const [attachments, setAttachments] = useState<TicketAttachment[]>([])
+  const [uploading,   setUploading]   = useState(false)
+  const [isDragOver,  setIsDragOver]  = useState(false)
+  const dragCounter = useRef(0)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function uploadFiles(files: File[]) {
+    const images = files.filter(f => f.type.startsWith('image/'))
+    if (images.length === 0) return
+    setUploading(true)
+    const results = await Promise.all(images.map(async f => {
+      const fd = new FormData()
+      fd.append('file', f)
+      const res = await fetch('/api/portal/upload', { method: 'POST', body: fd }).then(r => r.json())
+      return res.url ? { url: res.url as string, name: res.name ?? f.name, type: res.type ?? f.type } as TicketAttachment : null
+    }))
+    const valid = results.filter(Boolean) as TicketAttachment[]
+    setAttachments(prev => [...prev, ...valid])
+    setUploading(false)
+  }
+
+  function removeAttachment(url: string) {
+    setAttachments(prev => prev.filter(a => a.url !== url))
+  }
+
+  function onDragEnter(e: React.DragEvent) {
+    e.preventDefault()
+    dragCounter.current += 1
+    if (e.dataTransfer.types.includes('Files')) setIsDragOver(true)
+  }
+  function onDragLeave(e: React.DragEvent) {
+    e.preventDefault()
+    dragCounter.current -= 1
+    if (dragCounter.current === 0) setIsDragOver(false)
+  }
+  function onDragOver(e: React.DragEvent) { e.preventDefault() }
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault()
+    dragCounter.current = 0
+    setIsDragOver(false)
+    uploadFiles(Array.from(e.dataTransfer.files))
+  }
 
   function submit() {
     if (!titulo.trim()) return
-    onCreate({ titulo: titulo.trim(), descripcion: descripcion.trim() || undefined, assigneeId: assigneeId || undefined, fechaLimite: fechaLimite || undefined, prioridad })
+    onCreate({ titulo: titulo.trim(), descripcion: descripcion.trim() || undefined, assigneeId: assigneeId || undefined, fechaLimite: fechaLimite || undefined, prioridad, attachments: attachments.length > 0 ? attachments : undefined })
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+      <div
+        className={cn('bg-white rounded-2xl shadow-2xl w-full max-w-md relative', isDragOver && 'ring-2 ring-inset ring-blue-400')}
+        onClick={e => e.stopPropagation()}
+        onDragEnter={onDragEnter}
+        onDragLeave={onDragLeave}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+      >
+        {isDragOver && (
+          <div className="absolute inset-0 z-10 bg-blue-50/90 rounded-2xl flex items-center justify-center pointer-events-none">
+            <div className="flex flex-col items-center gap-2 text-blue-600">
+              <ImagePlus size={28} />
+              <span className="text-sm font-medium">Soltá la imagen acá</span>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-100">
           <h2 className="text-sm font-semibold text-slate-800">Nueva tarea</h2>
@@ -927,6 +987,44 @@ function NewTaskModal({
                 <option value="urgente">Urgente</option>
               </select>
             </div>
+          </div>
+
+          {/* Attachments */}
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={e => { uploadFiles(Array.from(e.target.files ?? [])); e.target.value = '' }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="w-full flex items-center justify-center gap-2 text-xs text-slate-500 border border-dashed border-slate-300 rounded-lg py-2.5 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50/50 transition-colors disabled:opacity-50"
+            >
+              <ImagePlus size={14} />
+              {uploading ? 'Subiendo...' : 'Arrastrá una imagen o hacé clic para adjuntar'}
+            </button>
+
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {attachments.map((a, i) => (
+                  <div key={i} className="relative group w-14 h-14 rounded-lg overflow-hidden border border-slate-200">
+                    <img src={a.url} alt={a.name} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(a.url)}
+                      className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                    >
+                      <X size={14} className="text-white" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
