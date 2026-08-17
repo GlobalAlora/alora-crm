@@ -124,6 +124,7 @@ interface AnalyticsData {
 
 interface DetalleLead {
   id: string
+  lead_id?: string
   nombre: string
   pais: string | null
   fuente: string | null
@@ -271,7 +272,7 @@ function DetailModal({ title, items, onClose, router }: {
           ) : items.map(l => (
             <button
               key={l.id}
-              onClick={() => router.push(`/leads/${l.id}`)}
+              onClick={() => router.push(`/leads/${l.lead_id ?? l.id}`)}
               className="w-full flex items-center justify-between gap-3 px-5 py-2.5 hover:bg-slate-50 transition-colors text-left"
             >
               <div className="min-w-0">
@@ -481,10 +482,10 @@ export default function DashboardPage() {
               <StatCard label="Tiempo: propuesta enviada → aceptada" value={a?.resumen.tiempo_propuesta_aceptacion != null ? `${a.resumen.tiempo_propuesta_aceptacion} días` : '—'} sub="Cuánto tarda el cliente en decidir tras recibir la propuesta" />
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard label="Propuestas enviadas ARS" value={formatARS(a?.resumen.propuestas_enviadas_ars ?? 0)} sub="Total en período" />
-              <StatCard label="Propuestas enviadas USD" value={formatUSD(a?.resumen.propuestas_enviadas_usd ?? 0)} sub="Total en período" />
-              <StatCard label="Propuestas ganadas ARS" value={formatARS(a?.resumen.propuestas_ganadas_ars ?? 0)} sub="Solo aceptadas" color={(a?.resumen.propuestas_ganadas_ars ?? 0) > 0 ? 'green' : 'slate'} />
-              <StatCard label="Propuestas ganadas USD" value={formatUSD(a?.resumen.propuestas_ganadas_usd ?? 0)} sub="Solo aceptadas" color={(a?.resumen.propuestas_ganadas_usd ?? 0) > 0 ? 'green' : 'slate'} />
+              <StatCard label="Propuestas enviadas ARS" value={formatARS(a?.resumen.propuestas_enviadas_ars ?? 0)} sub="Total en período" onOpenDetail={() => openDetail('propuestas_enviadas_ars', 'Propuestas enviadas ARS')} />
+              <StatCard label="Propuestas enviadas USD" value={formatUSD(a?.resumen.propuestas_enviadas_usd ?? 0)} sub="Total en período" onOpenDetail={() => openDetail('propuestas_enviadas_usd', 'Propuestas enviadas USD')} />
+              <StatCard label="Propuestas ganadas ARS" value={formatARS(a?.resumen.propuestas_ganadas_ars ?? 0)} sub="Solo aceptadas" color={(a?.resumen.propuestas_ganadas_ars ?? 0) > 0 ? 'green' : 'slate'} onOpenDetail={() => openDetail('propuestas_ganadas_ars', 'Propuestas ganadas ARS')} />
+              <StatCard label="Propuestas ganadas USD" value={formatUSD(a?.resumen.propuestas_ganadas_usd ?? 0)} sub="Solo aceptadas" color={(a?.resumen.propuestas_ganadas_usd ?? 0) > 0 ? 'green' : 'slate'} onOpenDetail={() => openDetail('propuestas_ganadas_usd', 'Propuestas ganadas USD')} />
             </div>
           </div>
         )}

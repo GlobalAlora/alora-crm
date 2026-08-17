@@ -194,6 +194,12 @@ export async function GET(req: NextRequest) {
 
     // Flatten all propuestas for the period (leads ingresados)
     const allPropuestas = leads.flatMap(l => l.propuestas ?? [])
+    // Same propuestas, but keeping which lead each one belongs to — needed
+    // for the "Propuestas enviadas/ganadas" drill-down (allPropuestas alone
+    // loses that context).
+    const allPropuestasConLead = leads.flatMap(l =>
+      (l.propuestas ?? []).map(p => ({ ...p, lead_id: l.id, lead_nombre: [l.nombre, l.apellido].filter(Boolean).join(' ') }))
+    )
 
     // ── Calidad de leads ─────────────────────────────────────────────────────
     // Basura = ni siquiera es una consulta real. No cualificado = hubo diálogo
@@ -275,7 +281,10 @@ export async function GET(req: NextRequest) {
 
     // "Ganadas" = propuestas aceptadas de los leads cerrados-ganados en el período
     // Usamos cierresEnPeriodo (por fecha_cierre) para no perder leads que entraron antes del período
-    const propuestasDeGanados = ganados.flatMap(l => (l.propuestas ?? []).filter(p => p.estado === 'aceptada'))
+    const propuestasDeGanados = ganados.flatMap(l =>
+      (l.propuestas ?? []).filter(p => p.estado === 'aceptada')
+        .map(p => ({ ...p, lead_id: l.id, lead_nombre: [l.nombre, l.apellido].filter(Boolean).join(' ') }))
+    )
     const propuestasGanadasARS = propuestasDeGanados.filter(p => p.moneda === 'ARS').reduce((s, p) => s + (p.valor_ars ?? 0), 0)
     const propuestasGanadasUSD = propuestasDeGanados.filter(p => p.moneda === 'USD').reduce((s, p) => s + (p.valor_usd ?? 0), 0)
 
@@ -513,6 +522,18 @@ export async function GET(req: NextRequest) {
       }))
     }
 
+    function trimPropuestas(list: { id: string; lead_id: string; lead_nombre: string; valor_usd: number | null; valor_ars: number | null; moneda: string; estado: string }[]) {
+      return list.map(p => ({
+        id: p.id,
+        lead_id: p.lead_id,
+        nombre: `${p.lead_nombre || 'Sin nombre'} — ${p.moneda} ${(p.moneda === 'ARS' ? p.valor_ars : p.valor_usd) ?? 0}`,
+        pais: null,
+        fuente: null,
+        estado_pipeline: p.estado,
+        fecha_ingreso: null,
+      }))
+    }
+
     const detalle = {
       leads_recibidos: trim(leads),
       cualificados: trim(cualificados),
@@ -523,6 +544,10 @@ export async function GET(req: NextRequest) {
       con_propuesta: trim(cualificadosConPropuesta),
       ganados: trim(ganados),
       perdidos: trim(perdidos),
+      propuestas_enviadas_ars: trimPropuestas(allPropuestasConLead.filter(p => p.moneda === 'ARS')),
+      propuestas_enviadas_usd: trimPropuestas(allPropuestasConLead.filter(p => p.moneda === 'USD')),
+      propuestas_ganadas_ars: trimPropuestas(propuestasDeGanados.filter(p => p.moneda === 'ARS')),
+      propuestas_ganadas_usd: trimPropuestas(propuestasDeGanados.filter(p => p.moneda === 'USD')),
     }
 
     // ── Response ─────────────────────────────────────────────────────────────
