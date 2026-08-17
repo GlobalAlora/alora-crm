@@ -29,17 +29,33 @@ function avg(values: number[]): number | null {
   return Math.round(valid.reduce((a, b) => a + b, 0) / valid.length)
 }
 
+function round1(n: number): number {
+  return Math.round(n * 10) / 10
+}
+
+function pct(part: number, whole: number): number {
+  return whole > 0 ? round1((part / whole) * 100) : 0
+}
+
 // ── Stage → funnel mapping ────────────────────────────────────────────────────
 
-// Which funnel stage a "perdido" lead was at (based on date fields)
-function perdidoEnEtapa(lead: LeadRow): 'ingreso' | 'contactado' | 'reunion' | 'propuesta' {
-  if (lead.fecha_propuesta || (lead.propuestas ?? []).length > 0) return 'propuesta'
-  if (lead.fecha_reunion) return 'reunion'
-  if (lead.fecha_contacto) return 'contactado'
+// Which funnel stage a "perdido" lead was at (based on real signals — a
+// real propuestas row, not the fecha_propuesta stamp, which can be set by
+// a card passing through the "Propuesta enviada" column without an actual
+// proposal ever being sent — confirmed 2026-08-17, see memory:
+// project_alora_crm_lead_quality_definitions)
+// Keys match the funnel stages below exactly, so "perdidos por etapa" can
+// look up its count directly by funnel stage key without a mismatch.
+function perdidoEnEtapa(lead: LeadRow): 'ingreso' | 'reunion_agendada' | 'propuesta' {
+  if ((lead.propuestas ?? []).length > 0) return 'propuesta'
+  if (lead.fecha_reunion) return 'reunion_agendada'
   return 'ingreso'
 }
 
-// Risk thresholds in days per stage
+// Risk thresholds in days per stage. Includes the custom stages added via
+// Configuración → Pipeline (ghosting, no_asistio_a_reunion__follow_up) —
+// previously missing here entirely, so those leads never triggered a "en
+// riesgo" alert no matter how long they sat stale (found 2026-08-17).
 const RISK_THRESHOLDS: Record<string, number> = {
   lead_entrante:       3,
   lead_contactado:     7,
@@ -49,6 +65,8 @@ const RISK_THRESHOLDS: Record<string, number> = {
   propuesta_en_armado: 5,
   propuesta_enviada:   14,
   follow_up:           14,
+  ghosting:            7,
+  no_asistio_a_reunion__follow_up: 3,
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -74,6 +92,7 @@ type LeadRow = {
   created_at: string
   fecha_contacto: string | null
   fecha_reunion: string | null
+  reunion_asistencia: string | null
   fecha_propuesta: string | null
   fecha_cierre: string | null
   stage_updated_at: string
@@ -113,10 +132,14 @@ export async function GET(req: NextRequest) {
 
     // .not().in() silently returns 0 rows in this Supabase version — filter stages in JS.
     // fecha_ingreso can be null (e.g. TidyCal leads) — fall back to created_at for those.
-    const EXCLUDED = new Set(['no_cualificado', 'consulta_cliente', 'testing'])
+    // Only truly-not-a-lead stages are excluded from the base count. 'no_cualificado'
+    // and 'basura' ARE real leads — they're broken out as their own metrics below,
+    // not hidden. See memory: project_alora_crm_lead_quality_definitions (2026-08-17).
+    const EXCLUDED = new Set(['consulta_cliente', 'testing'])
     const ACTIVE_STAGES_OR = [
       'lead_entrante', 'lead_contactado', 'sin_respuesta', 'reunion_reservada',
       'reunion_realizada', 'propuesta_en_armado', 'propuesta_enviada', 'follow_up',
+      'ghosting', 'no_asistio_a_reunion__follow_up',
     ].map(s => `estado_pipeline.eq.${s}`).join(',')
 
     // ── Main query: leads in period ─────────────────────────────────────────
@@ -125,7 +148,7 @@ export async function GET(req: NextRequest) {
       .from('leads')
       .select(`
         id, nombre, apellido, pais, fuente, estado_pipeline,
-        fecha_ingreso, fecha_contacto, fecha_reunion, fecha_propuesta, fecha_cierre,
+        fecha_ingreso, fecha_contacto, fecha_reunion, reunion_asistencia, fecha_propuesta, fecha_cierre,
         stage_updated_at, last_activity_at, created_at,
         propuestas(id, valor_usd, valor_ars, moneda, estado, created_at, updated_at)
       `)
@@ -142,7 +165,7 @@ export async function GET(req: NextRequest) {
       .from('leads')
       .select(`
         id, nombre, apellido, pais, fuente, estado_pipeline,
-        fecha_ingreso, fecha_contacto, fecha_reunion, fecha_propuesta, fecha_cierre,
+        fecha_ingreso, fecha_contacto, fecha_reunion, reunion_asistencia, fecha_propuesta, fecha_cierre,
         stage_updated_at, last_activity_at, created_at,
         propuestas(id, valor_usd, valor_ars, moneda, estado, created_at, updated_at)
       `)
@@ -172,25 +195,53 @@ export async function GET(req: NextRequest) {
     // Flatten all propuestas for the period (leads ingresados)
     const allPropuestas = leads.flatMap(l => l.propuestas ?? [])
 
+    // ── Calidad de leads ─────────────────────────────────────────────────────
+    // Basura = ni siquiera es una consulta real. No cualificado = hubo diálogo
+    // real pero no es algo que ALORA pueda/deba resolver. Cualificado = todo
+    // lo demás — la consulta original era atendible, independientemente de si
+    // convirtió (incluye Sin respuesta, Ghosting, Ganado y Perdido).
+    // Ver memoria: project_alora_crm_lead_quality_definitions (2026-08-17).
+    const basuraLeads = leads.filter(l => l.estado_pipeline === 'basura')
+    const noCualificadoLeads = leads.filter(l => l.estado_pipeline === 'no_cualificado')
+    const cualificados = leads.filter(l => l.estado_pipeline !== 'basura' && l.estado_pipeline !== 'no_cualificado')
+
     // ── Section 1: Resumen Ejecutivo ─────────────────────────────────────────
 
     const totalLeads = leads.length
+    const cualificadoCount = cualificados.length
 
     // Cierres: uses fecha_cierre filter so leads closed this period are counted
     // regardless of when they entered the pipeline
     const ganados  = cierresEnPeriodo.filter(l => l.estado_pipeline === 'cliente_ganado')
     const perdidos = cierresEnPeriodo.filter(l => l.estado_pipeline === 'cliente_perdido')
 
-    // tasa de cierre = cierres ganados en período / leads ingresados en período
-    const tasaCierreGanado = totalLeads > 0
-      ? Math.round((ganados.length / totalLeads) * 100 * 10) / 10
-      : 0
+    // tasa de cierre = cierres ganados en período / leads CUALIFICADOS en período
+    // (basura/no_cualificado nunca iban a cerrar — contarlos en el denominador
+    // diluye artificialmente la tasa real)
+    const tasaCierreGanado = pct(ganados.length, cualificadoCount)
 
     const propuestasEnviadas = allPropuestas
     const propuestasAceptadas = allPropuestas.filter(p => p.estado === 'aceptada')
-    const tasaConversionPropuesta = propuestasEnviadas.length > 0
-      ? Math.round((propuestasAceptadas.length / propuestasEnviadas.length) * 100 * 10) / 10
-      : 0
+    const tasaConversionPropuesta = pct(propuestasAceptadas.length, propuestasEnviadas.length)
+
+    // ── Reuniones: agendada (se cargó fecha/hora/link) vs realizada
+    // (confirmado manualmente en la ficha que se presentó). Ambas se miden
+    // por separado para poder ver el show-up rate. reunion_asistencia solo
+    // es confiable desde 2026-08-17 — antes hubo una carga masiva vía
+    // TidyCal con datos históricos ruidosos.
+    const reunionesAgendadas = cualificados.filter(l => !!l.fecha_reunion)
+    const reunionesRealizadas = cualificados.filter(l => l.reunion_asistencia === 'se_presento')
+    const showUpRate = pct(reunionesRealizadas.length, reunionesAgendadas.length)
+
+    // Leads cualificados con al menos una propuesta real (tabla propuestas,
+    // no fecha_propuesta — esa se autocompleta al mover la tarjeta de
+    // columna y puede quedar seteada sin que se haya mandado nada real)
+    const cualificadosConPropuesta = cualificados.filter(l => (l.propuestas ?? []).length > 0)
+
+    // Conversiones del embudo, sobre la base de leads cualificados
+    const conversionLeadReunion   = pct(reunionesAgendadas.length, cualificadoCount)
+    const conversionLeadPropuesta = pct(cualificadosConPropuesta.length, cualificadoCount)
+    const conversionReunionPropuesta = pct(cualificadosConPropuesta.length, reunionesRealizadas.length)
 
     // Ciclo de venta promedio (ingreso → cierre ganado)
     const cicloVentaDays = ganados
@@ -229,21 +280,22 @@ export async function GET(req: NextRequest) {
     const propuestasGanadasUSD = propuestasDeGanados.filter(p => p.moneda === 'USD').reduce((s, p) => s + (p.valor_usd ?? 0), 0)
 
     // ── Section 2: Funnel ────────────────────────────────────────────────────
-    // Funnel uses fecha_ingreso cohort for conversion tracking
-    const ganadosCohort  = leads.filter(l => l.estado_pipeline === 'cliente_ganado')
-    const perdidosCohort = leads.filter(l => l.estado_pipeline === 'cliente_perdido')
+    // Funnel se calcula sobre leads CUALIFICADOS únicamente — basura/no
+    // cualificado nunca iban a avanzar, incluirlos solo diluye las tasas.
+    const ganadosCohort  = cualificados.filter(l => l.estado_pipeline === 'cliente_ganado')
+    const perdidosCohort = cualificados.filter(l => l.estado_pipeline === 'cliente_perdido')
 
     const funnelStages = [
-      { key: 'ingreso',    label: 'Ingreso de lead',      count: leads.length },
-      { key: 'contactado', label: 'Contactado',           count: leads.filter(l => !!l.fecha_contacto).length },
-      { key: 'reunion',    label: 'Reunión realizada',    count: leads.filter(l => !!l.fecha_reunion).length },
-      { key: 'propuesta',  label: 'Propuesta enviada',    count: leads.filter(l => !!l.fecha_propuesta || (l.propuestas ?? []).length > 0).length },
-      { key: 'ganado',     label: 'Cierre ganado',        count: ganadosCohort.length },
+      { key: 'ingreso',           label: 'Leads cualificados',  count: cualificados.length },
+      { key: 'reunion_agendada',  label: 'Reunión agendada',    count: reunionesAgendadas.length },
+      { key: 'reunion_realizada', label: 'Reunión realizada',   count: reunionesRealizadas.length },
+      { key: 'propuesta',         label: 'Propuesta enviada',   count: cualificadosConPropuesta.length },
+      { key: 'ganado',            label: 'Cierre ganado',       count: ganadosCohort.length },
     ]
 
     // Perdidos por etapa (cohort)
     const perdidosPorEtapa: Record<string, number> = {
-      ingreso: 0, contactado: 0, reunion: 0, propuesta: 0,
+      ingreso: 0, reunion_agendada: 0, propuesta: 0,
     }
     for (const l of perdidosCohort) {
       perdidosPorEtapa[perdidoEnEtapa(l)]++
@@ -255,27 +307,28 @@ export async function GET(req: NextRequest) {
       cantidad: stage.count,
       tasa_vs_anterior: idx === 0 || funnelStages[idx - 1].count === 0
         ? null
-        : Math.round((stage.count / funnelStages[idx - 1].count) * 100 * 10) / 10,
-      tasa_acumulada: leads.length === 0 ? 0
-        : Math.round((stage.count / leads.length) * 100 * 10) / 10,
+        : pct(stage.count, funnelStages[idx - 1].count),
+      tasa_acumulada: pct(stage.count, cualificados.length),
       perdidos: perdidosPorEtapa[stage.key] ?? 0,
     }))
 
     // ── Section 3: Tiempos entre etapas ─────────────────────────────────────
+    // Sobre leads cualificados — el timing de basura/no cualificado no es
+    // dato de ciclo de venta real.
 
     const tiempos = {
       ingreso_contacto: avg(
-        leads.filter(l => l.fecha_contacto)
+        cualificados.filter(l => l.fecha_contacto)
           .map(l => daysDiff(l.fecha_ingreso, l.fecha_contacto))
           .filter((d): d is number => d !== null && d >= 0)
       ),
       contacto_reunion: avg(
-        leads.filter(l => l.fecha_contacto && l.fecha_reunion)
+        cualificados.filter(l => l.fecha_contacto && l.fecha_reunion)
           .map(l => daysDiff(l.fecha_contacto, l.fecha_reunion))
           .filter((d): d is number => d !== null && d >= 0)
       ),
       reunion_propuesta: avg(
-        leads.filter(l => l.fecha_reunion && l.fecha_propuesta)
+        cualificados.filter(l => l.fecha_reunion && l.fecha_propuesta)
           .map(l => daysDiff(l.fecha_reunion, l.fecha_propuesta))
           .filter((d): d is number => d !== null && d >= 0)
       ),
@@ -324,7 +377,7 @@ export async function GET(req: NextRequest) {
     // ── Section 5: Por país ──────────────────────────────────────────────────
 
     const paisMap = new Map<string, LeadRow[]>()
-    for (const l of leads) {
+    for (const l of cualificados) {
       const pais = l.pais ?? 'Sin país'
       if (!paisMap.has(pais)) paisMap.set(pais, [])
       paisMap.get(pais)!.push(l)
@@ -352,7 +405,7 @@ export async function GET(req: NextRequest) {
         perdidaCount[e] = (perdidaCount[e] ?? 0) + 1
       }
       const etapaPerdidaMap: Record<string, string> = {
-        ingreso: 'Ingreso', contactado: 'Contactado', reunion: 'Reunión', propuesta: 'Propuesta',
+        ingreso: 'Ingreso', reunion_agendada: 'Reunión agendada', propuesta: 'Propuesta',
       }
       const etapaMasComun = Object.entries(perdidaCount).sort((a, b) => b[1] - a[1])[0]
 
@@ -375,7 +428,7 @@ export async function GET(req: NextRequest) {
     // ── Section 6: Por fuente ────────────────────────────────────────────────
 
     const fuenteMap = new Map<string, LeadRow[]>()
-    for (const l of leads) {
+    for (const l of cualificados) {
       const fuente = l.fuente ?? 'Sin fuente'
       if (!fuenteMap.has(fuente)) fuenteMap.set(fuente, [])
       fuenteMap.get(fuente)!.push(l)
@@ -391,7 +444,7 @@ export async function GET(req: NextRequest) {
       const fPerdidos = fLeads.filter(l => l.estado_pipeline === 'cliente_perdido')
       const fProps = fLeads.flatMap(l => l.propuestas ?? [])
       const fPropsAcept = fProps.filter(p => p.estado === 'aceptada')
-      const fConPropuesta = fLeads.filter(l => l.fecha_propuesta || (l.propuestas ?? []).length > 0)
+      const fConPropuesta = fLeads.filter(l => (l.propuestas ?? []).length > 0)
 
       const ciclo = avg(
         fGanados.filter(l => l.fecha_cierre)
@@ -464,6 +517,41 @@ export async function GET(req: NextRequest) {
         propuestas_ganadas_usd: Math.round(propuestasGanadasUSD),
         propuestas_count: propuestasEnviadas.length,
         propuestas_aceptadas_count: propuestasAceptadas.length,
+      },
+      calidad: {
+        total: totalLeads,
+        basura_count: basuraLeads.length,
+        basura_pct: pct(basuraLeads.length, totalLeads),
+        no_cualificado_count: noCualificadoLeads.length,
+        no_cualificado_pct: pct(noCualificadoLeads.length, totalLeads),
+        cualificado_count: cualificadoCount,
+        cualificado_pct: pct(cualificadoCount, totalLeads),
+      },
+      reuniones: {
+        agendadas: reunionesAgendadas.length,
+        realizadas: reunionesRealizadas.length,
+        show_up_rate: showUpRate,
+      },
+      conversiones: {
+        lead_a_reunion: conversionLeadReunion,
+        lead_a_propuesta: conversionLeadPropuesta,
+        reunion_a_propuesta: conversionReunionPropuesta,
+      },
+      // Texto para los tooltips ⓘ del frontend — una sola fuente de verdad,
+      // así la definición nunca queda desincronizada del cálculo real.
+      definiciones: {
+        total_leads: 'Todas las consultas recibidas en el período, incluyendo Basura y No cualificado. Excluye Consulta de cliente existente y Testing (no son leads nuevos).',
+        cualificado_pct: 'Leads cuya consulta original era algo que ALORA puede resolver — independiente de si convirtieron. Incluye Sin respuesta, Ghosting, Ganado y Perdido. Solo excluye Basura y No cualificado.',
+        no_cualificado_pct: 'Hubo respuesta/diálogo real, pero se evaluó que ALORA no puede o no debe resolver esa necesidad.',
+        basura_pct: 'Ni siquiera era una consulta real (spam, número equivocado, algo no relacionado con ALORA). No cuenta como lead.',
+        reuniones_agendadas: 'Leads con fecha, hora y link de reunión cargados — sin importar el origen (TidyCal, bot de WhatsApp, carga manual). Mide agenda, no asistencia.',
+        reuniones_realizadas: 'De las agendadas, las que se confirmaron manualmente en la ficha del lead como "se presentó". Antes del 17/08/2026 este dato es poco confiable por una carga masiva histórica vía TidyCal.',
+        show_up_rate: 'Reuniones realizadas ÷ reuniones agendadas. Cuántas de las reuniones que se agendan realmente se concretan.',
+        tasa_cierre_ganado: 'Cierres ganados ÷ leads cualificados del período (no se cuentan Basura ni No cualificado en la base, porque nunca iban a cerrar).',
+        lead_a_reunion: 'Reuniones agendadas ÷ leads cualificados.',
+        lead_a_propuesta: 'Leads cualificados con al menos una propuesta real cargada (tabla de propuestas, no el simple movimiento de la tarjeta) ÷ leads cualificados.',
+        reunion_a_propuesta: 'Leads con propuesta real ÷ reuniones realizadas (confirmadas).',
+        propuestas_count: 'Propuestas reales cargadas en el sistema (con monto), no tarjetas que pasaron por la columna "Propuesta enviada" sin una propuesta real detrás.',
       },
       funnel,
       tiempos,

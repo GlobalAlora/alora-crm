@@ -7,7 +7,7 @@ import {
   Users, DollarSign, Target, Clock, BarChart3, Globe,
   TrendingUp, AlertTriangle, Zap, Activity, ArrowRight,
   ArrowDown, ChevronRight, FileText, Phone, Mail, Calendar,
-  CheckSquare, FolderKanban, Plus, MessageSquare, ListTodo,
+  CheckSquare, FolderKanban, Plus, MessageSquare, ListTodo, Info,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatUSD, formatARS } from '@/lib/utils'
@@ -38,6 +38,26 @@ interface AnalyticsData {
     propuestas_count: number
     propuestas_aceptadas_count: number
   }
+  calidad: {
+    total: number
+    basura_count: number
+    basura_pct: number
+    no_cualificado_count: number
+    no_cualificado_pct: number
+    cualificado_count: number
+    cualificado_pct: number
+  }
+  reuniones: {
+    agendadas: number
+    realizadas: number
+    show_up_rate: number
+  }
+  conversiones: {
+    lead_a_reunion: number
+    lead_a_propuesta: number
+    reunion_a_propuesta: number
+  }
+  definiciones: Record<string, string>
   funnel: {
     key: string
     label: string
@@ -163,15 +183,23 @@ function SectionHeader({ icon: Icon, title, subtitle }: { icon: React.ElementTyp
   )
 }
 
-function StatCard({ label, value, sub, color = 'slate', large = false }: {
+function StatCard({ label, value, sub, color = 'slate', large = false, info }: {
   label: string; value: React.ReactNode; sub?: React.ReactNode
   color?: 'slate' | 'green' | 'blue' | 'amber' | 'red' | 'purple'; large?: boolean
+  info?: string
 }) {
   const bg = { slate: 'bg-white border-slate-200', green: 'bg-emerald-50 border-emerald-200', blue: 'bg-blue-50 border-blue-200', amber: 'bg-amber-50 border-amber-200', red: 'bg-red-50 border-red-200', purple: 'bg-violet-50 border-violet-200' }
   const tx = { slate: 'text-slate-900', green: 'text-emerald-800', blue: 'text-blue-800', amber: 'text-amber-800', red: 'text-red-800', purple: 'text-violet-800' }
   return (
     <div className={cn('rounded-xl border p-4 space-y-1', bg[color])}>
-      <p className="text-xs text-slate-500 font-medium">{label}</p>
+      <p className="text-xs text-slate-500 font-medium flex items-center gap-1">
+        {label}
+        {info && (
+          <span title={info} className="inline-flex flex-shrink-0">
+            <Info size={11} className="text-slate-300 hover:text-slate-500 cursor-help" />
+          </span>
+        )}
+      </p>
       <p className={cn('font-bold leading-tight', large ? 'text-2xl' : 'text-xl', tx[color])}>{value}</p>
       {sub && <p className="text-xs text-slate-500 pt-0.5">{sub}</p>}
     </div>
@@ -303,25 +331,60 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{[...Array(8)].map((_, i) => <Skel key={i} />)}</div>
         ) : (
           <div className="space-y-4">
+            {/* Calidad de leads */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard label="Leads ingresados" value={a?.resumen.total_leads ?? 0} sub={`${a?.resumen.cierres_ganados ?? 0} cerrados ganados · ${a?.resumen.cierres_perdidos ?? 0} perdidos`} color="blue" large />
+              <StatCard label="Leads recibidos" value={a?.calidad.total ?? 0} sub="Todas las consultas del período" color="blue" large info={a?.definiciones.total_leads} />
+              <StatCard
+                label="Cualificados"
+                value={`${a?.calidad.cualificado_pct ?? 0}%`}
+                sub={`${a?.calidad.cualificado_count ?? 0} leads`}
+                color="green"
+                large
+                info={a?.definiciones.cualificado_pct}
+              />
+              <StatCard
+                label="No cualificados"
+                value={`${a?.calidad.no_cualificado_pct ?? 0}%`}
+                sub={`${a?.calidad.no_cualificado_count ?? 0} leads`}
+                color="amber"
+                large
+                info={a?.definiciones.no_cualificado_pct}
+              />
+              <StatCard
+                label="Basura"
+                value={`${a?.calidad.basura_pct ?? 0}%`}
+                sub={`${a?.calidad.basura_count ?? 0} leads`}
+                color="slate"
+                large
+                info={a?.definiciones.basura_pct}
+              />
+            </div>
+
+            {/* Reuniones y conversiones — sobre leads cualificados */}
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              <StatCard label="Reuniones agendadas" value={a?.reuniones.agendadas ?? 0} sub="Fecha, hora y link cargados" info={a?.definiciones.reuniones_agendadas} />
+              <StatCard label="Reuniones realizadas" value={a?.reuniones.realizadas ?? 0} sub={`Show-up rate: ${a?.reuniones.show_up_rate ?? 0}%`} info={a?.definiciones.reuniones_realizadas} />
+              <StatCard label="Conv. Lead → Reunión" value={`${a?.conversiones.lead_a_reunion ?? 0}%`} sub="Sobre leads cualificados" info={a?.definiciones.lead_a_reunion} />
+              <StatCard label="Conv. Lead → Propuesta" value={`${a?.conversiones.lead_a_propuesta ?? 0}%`} sub="Sobre leads cualificados" info={a?.definiciones.lead_a_propuesta} />
+              <StatCard label="Conv. Reunión → Propuesta" value={`${a?.conversiones.reunion_a_propuesta ?? 0}%`} sub="Sobre reuniones realizadas" info={a?.definiciones.reunion_a_propuesta} />
               <StatCard
                 label="Tasa de cierre ganado"
                 value={`${a?.resumen.tasa_cierre_ganado ?? 0}%`}
-                sub="Leads ganados / leads ingresados"
+                sub="Sobre leads cualificados"
                 color={(a?.resumen.tasa_cierre_ganado ?? 0) >= 20 ? 'green' : (a?.resumen.tasa_cierre_ganado ?? 0) >= 10 ? 'amber' : 'red'}
-                large
+                info={a?.definiciones.tasa_cierre_ganado}
               />
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard
                 label="Conversión de propuesta"
                 value={`${a?.resumen.tasa_conversion_propuesta ?? 0}%`}
                 sub={`${a?.resumen.propuestas_aceptadas_count ?? 0} / ${a?.resumen.propuestas_count ?? 0} propuestas`}
                 color={(a?.resumen.tasa_conversion_propuesta ?? 0) >= 50 ? 'green' : (a?.resumen.tasa_conversion_propuesta ?? 0) >= 30 ? 'amber' : 'slate'}
-                large
+                info={a?.definiciones.propuestas_count}
               />
-              <StatCard label="Ciclo de venta promedio" value={a?.resumen.ciclo_venta_promedio != null ? `${a.resumen.ciclo_venta_promedio}d` : '—'} sub="Ingreso → cierre ganado" color="purple" large />
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <StatCard label="Ciclo de venta promedio" value={a?.resumen.ciclo_venta_promedio != null ? `${a.resumen.ciclo_venta_promedio}d` : '—'} sub="Ingreso → cierre ganado" color="purple" />
               <StatCard label="Tiempo: ingreso → propuesta aceptada" value={a?.resumen.tiempo_ingreso_propuesta_aceptada != null ? `${a.resumen.tiempo_ingreso_propuesta_aceptada} días` : '—'} sub="Duración total del proceso comercial completo" />
               <StatCard label="Tiempo: propuesta enviada → aceptada" value={a?.resumen.tiempo_propuesta_aceptacion != null ? `${a.resumen.tiempo_propuesta_aceptacion} días` : '—'} sub="Cuánto tarda el cliente en decidir tras recibir la propuesta" />
             </div>
