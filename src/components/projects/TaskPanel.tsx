@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { X, AlignLeft, CheckCircle2, Circle, Plus, ChevronRight, Paperclip, Trash2, MessageSquare, Send } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { cn } from '@/lib/utils'
+import { cn, getDaysUntil } from '@/lib/utils'
 import type { ProjectTask, PmPriority, ProjectTaskEstado, TaskSection, User, TicketAttachment } from '@/types'
 
 const PRIORITY_OPTS: { value: PmPriority; label: string }[] = [
@@ -58,10 +58,12 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
   const [commentError,  setCommentError] = useState<string | null>(null)
   const [commentFiles,  setCommentFiles] = useState<TicketAttachment[]>([])
   const [uploadingComment, setUploadingComment] = useState(false)
+  const [isCommentDragOver, setIsCommentDragOver] = useState(false)
   const fileInputRef        = useRef<HTMLInputElement>(null)
   const commentFileInputRef = useRef<HTMLInputElement>(null)
   const commentRef          = useRef<HTMLTextAreaElement>(null)
   const dragCounter    = useRef(0)
+  const commentDragCounter  = useRef(0)
 
   useEffect(() => {
     fetch(`/api/project-tasks/${task.id}/comments`)
@@ -149,14 +151,41 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
     uploadFiles(files)
   }
 
+  // Scoped drag-and-drop for the comment box — stops propagation so a drop
+  // here doesn't also fall through to the panel-wide handler above, which
+  // would attach the image to the task's general Archivos instead of to
+  // this specific comment.
+  function onCommentDragEnter(e: React.DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    commentDragCounter.current += 1
+    if (e.dataTransfer.types.includes('Files')) setIsCommentDragOver(true)
+  }
+  function onCommentDragLeave(e: React.DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    commentDragCounter.current -= 1
+    if (commentDragCounter.current === 0) setIsCommentDragOver(false)
+  }
+  function onCommentDragOver(e: React.DragEvent) { e.preventDefault(); e.stopPropagation() }
+  function onCommentDrop(e: React.DragEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    commentDragCounter.current = 0
+    setIsCommentDragOver(false)
+    uploadCommentFiles(Array.from(e.dataTransfer.files))
+  }
+
   useEffect(() => {
     setTitulo(task.titulo)
     setDescripcion(task.descripcion ?? '')
   }, [task.id])
 
-  const isDone    = task.estado === 'finalizada'
-  const isOverdue = task.fecha_limite && !isDone && new Date(task.fecha_limite) < new Date()
-  const assignee  = users.find(u => u.id === task.assignee_id) ?? null
+  const isDone      = task.estado === 'finalizada'
+  const daysUntil   = task.fecha_limite ? getDaysUntil(task.fecha_limite) : null
+  const isOverdue   = !isDone && daysUntil !== null && daysUntil < 0
+  const isDueToday  = !isDone && daysUntil === 0
+  const assignee    = users.find(u => u.id === task.assignee_id) ?? null
   const subtasks  = allTasks.filter(t => t.parent_task_id === task.id && !t.deleted_at)
 
   function blurTitle() {
@@ -271,16 +300,13 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
             </select>
           </PropRow>
 
-          {/* Section */}
-          <PropRow label="Sección">
-            <select
-              value={task.section_id ?? ''}
-              onChange={e => onUpdate({ section_id: e.target.value || null })}
-              className="text-xs border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
-            >
-              <option value="">Sin sección</option>
-              {sections.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-            </select>
+          {/* Etapa — read-only, follows wherever the card sits on the Tablero.
+              Not editable here: dragging it on the board is the only way to
+              move it, so this can't drift out of sync or duplicate that control. */}
+          <PropRow label="Etapa">
+            <span className="text-xs text-slate-500">
+              {sections.find(s => s.id === task.section_id)?.nombre ?? 'Sin etapa'}
+            </span>
           </PropRow>
 
           {/* Due date */}
@@ -292,10 +318,11 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
                 onChange={e => onUpdate({ fecha_limite: e.target.value || null })}
                 className={cn(
                   'text-xs border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500',
-                  isOverdue ? 'border-red-300 text-red-600' : 'border-slate-200'
+                  isOverdue ? 'border-red-300 text-red-600' : isDueToday ? 'border-amber-300 text-amber-700' : 'border-slate-200'
                 )}
               />
               {isOverdue && <span className="text-xs text-red-500 font-medium">Vencida</span>}
+              {isDueToday && <span className="text-xs text-amber-600 font-medium">Vence hoy</span>}
             </div>
           </PropRow>
 
@@ -522,7 +549,21 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
           )}
 
           <div className="flex gap-2">
-            <div className="flex-1 border border-slate-200 rounded-md focus-within:ring-1 focus-within:ring-blue-500 overflow-hidden">
+            <div
+              className={cn(
+                'flex-1 border rounded-md focus-within:ring-1 focus-within:ring-blue-500 overflow-hidden relative transition-colors',
+                isCommentDragOver ? 'border-blue-400 bg-blue-50/50' : 'border-slate-200'
+              )}
+              onDragEnter={onCommentDragEnter}
+              onDragLeave={onCommentDragLeave}
+              onDragOver={onCommentDragOver}
+              onDrop={onCommentDrop}
+            >
+              {isCommentDragOver && (
+                <div className="absolute inset-0 z-10 bg-blue-50/90 flex items-center justify-center pointer-events-none">
+                  <span className="text-xs font-medium text-blue-600">Soltar para adjuntar al comentario</span>
+                </div>
+              )}
               <textarea
                 ref={commentRef}
                 value={newComment}

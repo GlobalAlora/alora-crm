@@ -93,11 +93,18 @@ export function hoursSince(dateString: string): number {
 }
 
 /** Days from today to a future date (negative = past) */
+// Parses a date-only string (YYYY-MM-DD) as local midnight, not UTC —
+// `new Date(isoDate)` parses date-only strings as UTC per spec, which
+// shifts the effective local day back by one for any timezone west of
+// UTC (e.g. Argentina), making "due today" look overdue.
+export function parseLocalDate(isoDate: string): Date {
+  return new Date(isoDate.slice(0, 10) + 'T00:00:00')
+}
+
 export function getDaysUntil(isoDate: string): number {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const target = new Date(isoDate)
-  target.setHours(0, 0, 0, 0)
+  const target = parseLocalDate(isoDate)
   return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 }
 

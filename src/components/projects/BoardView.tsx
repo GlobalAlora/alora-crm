@@ -6,7 +6,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { Plus, CheckCircle2, Circle } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { cn } from '@/lib/utils'
+import { cn, getDaysUntil } from '@/lib/utils'
 import type { TaskSection, ProjectTask, User } from '@/types'
 import { Avatar } from './TaskPanel'
 
@@ -124,9 +124,11 @@ function BoardCard({
     opacity: isDragging ? 0.3 : 1,
   }
 
-  const isDone    = task.estado === 'finalizada'
-  const isOverdue = task.fecha_limite && !isDone && new Date(task.fecha_limite) < new Date()
-  const assignee  = task.assignee_id ? users.find(u => u.id === task.assignee_id) : null
+  const isDone     = task.estado === 'finalizada'
+  const daysUntil  = task.fecha_limite ? getDaysUntil(task.fecha_limite) : null
+  const isOverdue  = !isDone && daysUntil !== null && daysUntil < 0
+  const isDueToday = !isDone && daysUntil === 0
+  const assignee   = task.assignee_id ? users.find(u => u.id === task.assignee_id) : null
 
   const priorityColor =
     task.prioridad === 'urgente' ? 'border-l-red-500' :
@@ -160,8 +162,8 @@ function BoardCard({
 
       <div className="flex items-center justify-between">
         {task.fecha_limite ? (
-          <span className={cn('text-[10px]', isOverdue ? 'text-red-500 font-medium' : 'text-slate-400')}>
-            {format(new Date(task.fecha_limite), 'd MMM', { locale: es })}
+          <span className={cn('text-[10px]', isOverdue ? 'text-red-500 font-medium' : isDueToday ? 'text-amber-600 font-medium' : 'text-slate-400')}>
+            {isDueToday ? 'vence hoy' : format(new Date(task.fecha_limite + 'T00:00:00'), 'd MMM', { locale: es })}
           </span>
         ) : <span />}
         {assignee && (

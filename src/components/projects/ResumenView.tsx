@@ -1,6 +1,6 @@
 'use client'
 
-import { cn } from '@/lib/utils'
+import { cn, getDaysUntil, parseLocalDate } from '@/lib/utils'
 import type { Project, TaskSection, ProjectTask, User } from '@/types'
 import { Avatar } from './TaskPanel'
 import { differenceInDays } from 'date-fns'
@@ -28,7 +28,7 @@ export function ResumenView({ project, users }: Props) {
 
   const total     = allTasks.length
   const done      = allTasks.filter(t => t.estado === 'finalizada').length
-  const overdue   = allTasks.filter(t => t.fecha_limite && t.estado !== 'finalizada' && new Date(t.fecha_limite) < new Date()).length
+  const overdue   = allTasks.filter(t => t.fecha_limite && t.estado !== 'finalizada' && getDaysUntil(t.fecha_limite) < 0).length
   const unassigned = allTasks.filter(t => !t.assignee_id).length
   const pct       = total > 0 ? Math.round(done / total * 100) : 0
 
@@ -187,7 +187,7 @@ export function ResumenView({ project, users }: Props) {
             </h3>
             <div className="space-y-2">
               {allTasks
-                .filter(t => t.fecha_limite && t.estado !== 'finalizada' && new Date(t.fecha_limite) < new Date())
+                .filter(t => t.fecha_limite && t.estado !== 'finalizada' && getDaysUntil(t.fecha_limite) < 0)
                 .slice(0, 5)
                 .map(t => {
                   const assignee = t.assignee_id ? users.find(u => u.id === t.assignee_id) : null
@@ -196,7 +196,7 @@ export function ResumenView({ project, users }: Props) {
                       <span className="text-xs text-red-600 flex-1 min-w-0 truncate">{t.titulo}</span>
                       {assignee && <Avatar name={assignee.full_name} url={assignee.avatar_url} size={18} />}
                       <span className="text-xs text-red-500 whitespace-nowrap">
-                        {new Date(t.fecha_limite!).toLocaleDateString('es', { day: 'numeric', month: 'short' })}
+                        {parseLocalDate(t.fecha_limite!).toLocaleDateString('es', { day: 'numeric', month: 'short' })}
                       </span>
                     </div>
                   )
