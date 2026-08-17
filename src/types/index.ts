@@ -463,7 +463,7 @@ export interface DashboardMetrics {
 
 // ── Billing / Facturación ──────────────────────────────────
 
-export type InvoiceEstado = 'borrador' | 'enviada' | 'parcialmente_pagada' | 'pagada' | 'vencida' | 'cancelada'
+export type InvoiceEstado = 'pendiente' | 'parcial' | 'cobrado' | 'vencido' | 'cancelada'
 export type PaymentMetodo = 'transferencia' | 'efectivo' | 'mercadopago' | 'paypal' | 'otro'
 
 export interface InvoiceItem {
@@ -484,7 +484,9 @@ export interface Payment {
   fecha_vencimiento: string | null
   fecha_pago: string | null
   metodo_pago: PaymentMetodo | null
-  comprobante_url: string | null
+  numero_factura: string | null
+  factura_enviada_at: string | null
+  attachments: TicketAttachment[]
   notas: string | null
   alerta_enviada_at: string | null
   created_at: string

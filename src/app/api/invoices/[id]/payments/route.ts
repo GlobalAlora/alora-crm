@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireBillingAccess } from '@/lib/billing-auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getArgentinaDate } from '@/lib/timezone'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -27,7 +28,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id } = await params
   const body = await req.json()
-  const { descripcion = 'Pago', monto, fecha_vencimiento, fecha_pago, metodo_pago, notas } = body
+  const {
+    descripcion = 'Pago', monto, fecha_vencimiento, fecha_pago, metodo_pago, notas,
+    numero_factura, factura_enviada_at, attachments = [],
+  } = body
 
   if (!monto || isNaN(Number(monto))) {
     return NextResponse.json({ error: 'monto es requerido' }, { status: 400 })
@@ -46,6 +50,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       fecha_vencimiento: fecha_vencimiento ?? null,
       fecha_pago:       fecha_pago ?? null,
       metodo_pago:      metodo_pago ?? null,
+      numero_factura:   numero_factura ?? null,
+      factura_enviada_at: factura_enviada_at ?? null,
+      attachments,
       notas:            notas ?? null,
     })
     .select()
@@ -58,21 +65,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   return NextResponse.json({ data }, { status: 201 })
 }
 
-async function recalcEstado(admin: AdminClient, invoiceId: string) {
-  const [{ data: payments }, { data: items }] = await Promise.all([
-    admin.from('payments').select('monto, fecha_pago').eq('invoice_id', invoiceId),
+export async function recalcEstado(admin: AdminClient, invoiceId: string) {
+  const [{ data: payments }, { data: items }, { data: inv }] = await Promise.all([
+    admin.from('payments').select('monto, fecha_pago, fecha_vencimiento').eq('invoice_id', invoiceId),
     admin.from('invoice_items').select('cantidad, precio_unitario').eq('invoice_id', invoiceId),
+    admin.from('invoices').select('estado').eq('id', invoiceId).maybeSingle(),
   ])
+
+  if (!inv || inv.estado === 'cancelada') return
 
   const total  = (items ?? []).reduce((s, it) => s + it.cantidad * it.precio_unitario, 0)
   const pagado = (payments ?? []).filter(p => p.fecha_pago).reduce((s, p) => s + p.monto, 0)
 
   if (total <= 0) return
 
+  const today = getArgentinaDate().toISOString().slice(0, 10)
+  const hasOverdue = (payments ?? []).some(p => !p.fecha_pago && p.fecha_vencimiento && p.fecha_vencimiento < today)
+
   let estado: string
-  if (pagado >= total)   estado = 'pagada'
-  else if (pagado > 0)   estado = 'parcialmente_pagada'
-  else return
+  if (pagado >= total)   estado = 'cobrado'
+  else if (hasOverdue)   estado = 'vencido'
+  else if (pagado > 0)   estado = 'parcial'
+  else                   estado = 'pendiente'
 
   await admin.from('invoices').update({ estado }).eq('id', invoiceId)
 }

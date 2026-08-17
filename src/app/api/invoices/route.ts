@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const {
     project_id, cliente_nombre, cliente_email, descripcion,
-    moneda = 'USD', estado = 'borrador',
+    moneda = 'USD', estado = 'pendiente',
     fecha_emision, fecha_vencimiento, notas,
     alertas_activas = true, dias_alerta = 3,
     items = [], payments = [],

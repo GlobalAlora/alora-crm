@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireBillingAccess } from '@/lib/billing-auth'
-import { createAdminClient } from '@/lib/supabase/admin'
-
-type AdminClient = ReturnType<typeof createAdminClient>
+import { recalcEstado } from '@/app/api/invoices/[id]/payments/route'
 
 // PATCH /api/payments/[id]
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -12,7 +10,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params
   const body = await req.json()
 
-  const allowed = ['descripcion', 'monto', 'fecha_vencimiento', 'fecha_pago', 'metodo_pago', 'notas', 'comprobante_url', 'alerta_enviada_at']
+  const allowed = [
+    'descripcion', 'monto', 'fecha_vencimiento', 'fecha_pago', 'metodo_pago', 'notas', 'alerta_enviada_at',
+    'numero_factura', 'factura_enviada_at', 'attachments',
+  ]
   const updates: Record<string, unknown> = {}
   for (const key of allowed) {
     if (key in body) updates[key] = body[key]
@@ -52,27 +53,4 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (payment?.invoice_id) await recalcEstado(admin, payment.invoice_id)
 
   return NextResponse.json({ ok: true })
-}
-
-async function recalcEstado(admin: AdminClient, invoiceId: string) {
-  const [{ data: payments }, { data: items }, { data: inv }] = await Promise.all([
-    admin.from('payments').select('monto, fecha_pago').eq('invoice_id', invoiceId),
-    admin.from('invoice_items').select('cantidad, precio_unitario').eq('invoice_id', invoiceId),
-    admin.from('invoices').select('estado').eq('id', invoiceId).maybeSingle(),
-  ])
-
-  if (!inv || inv.estado === 'cancelada') return
-
-  const total  = (items ?? []).reduce((s, it) => s + it.cantidad * it.precio_unitario, 0)
-  const pagado = (payments ?? []).filter(p => p.fecha_pago).reduce((s, p) => s + p.monto, 0)
-
-  if (total <= 0) return
-
-  let estado: string
-  if (pagado >= total) estado = 'pagada'
-  else if (pagado > 0) estado = 'parcialmente_pagada'
-  else if (['pagada', 'parcialmente_pagada'].includes(inv.estado)) estado = 'enviada'
-  else return
-
-  await admin.from('invoices').update({ estado }).eq('id', invoiceId)
 }

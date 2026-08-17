@@ -15,21 +15,20 @@ import type { Invoice, InvoiceEstado } from '@/types'
 
 // ─── helpers ──────────────────────────────────────────────
 const ESTADO_CFG: Record<InvoiceEstado, { label: string; color: string; dot: string }> = {
-  borrador:             { label: 'Borrador',          color: 'bg-slate-100 text-slate-600',   dot: 'bg-slate-400'   },
-  enviada:              { label: 'Enviada',            color: 'bg-blue-100 text-blue-700',     dot: 'bg-blue-500'    },
-  parcialmente_pagada:  { label: 'Parcial',            color: 'bg-amber-100 text-amber-700',   dot: 'bg-amber-500'   },
-  pagada:               { label: 'Pagada',             color: 'bg-green-100 text-green-700',   dot: 'bg-green-500'   },
-  vencida:              { label: 'Vencida',            color: 'bg-red-100 text-red-700',       dot: 'bg-red-500'     },
-  cancelada:            { label: 'Cancelada',          color: 'bg-slate-100 text-slate-400',   dot: 'bg-slate-300'   },
+  pendiente:  { label: 'Pendiente', color: 'bg-slate-100 text-slate-600',   dot: 'bg-slate-400' },
+  parcial:    { label: 'Parcial',   color: 'bg-amber-100 text-amber-700',  dot: 'bg-amber-500' },
+  cobrado:    { label: 'Cobrado',   color: 'bg-green-100 text-green-700',  dot: 'bg-green-500' },
+  vencido:    { label: 'Vencido',   color: 'bg-red-100 text-red-700',      dot: 'bg-red-500'   },
+  cancelada:  { label: 'Cancelada', color: 'bg-slate-100 text-slate-400',  dot: 'bg-slate-300' },
 }
 
 const TABS: { value: string; label: string }[] = [
-  { value: 'all',                label: 'Todas'     },
-  { value: 'enviada',            label: 'Enviadas'  },
-  { value: 'parcialmente_pagada',label: 'Parcial'   },
-  { value: 'pagada',             label: 'Pagadas'   },
-  { value: 'vencida',            label: 'Vencidas'  },
-  { value: 'borrador',           label: 'Borradores'},
+  { value: 'all',       label: 'Todos'     },
+  { value: 'pendiente', label: 'Pendiente' },
+  { value: 'parcial',   label: 'Parcial'   },
+  { value: 'cobrado',   label: 'Cobrado'   },
+  { value: 'vencido',   label: 'Vencido'   },
+  { value: 'cancelada', label: 'Cancelada' },
 ]
 
 function fmt(amount: number, currency: string) {
@@ -103,9 +102,9 @@ export default function BillingPage() {
 
   function statsFor(list: Invoice[]) {
     return {
-      facturado: list.filter(i => i.estado === 'pagada').reduce((s, i) => s + (i.total ?? 0), 0),
-      pendiente: list.filter(i => ['enviada','parcialmente_pagada'].includes(i.estado)).reduce((s, i) => s + ((i.total ?? 0) - (i.total_pagado ?? 0)), 0),
-      vencido:   list.filter(i => i.estado === 'vencida').reduce((s, i) => s + ((i.total ?? 0) - (i.total_pagado ?? 0)), 0),
+      facturado: list.filter(i => i.estado === 'cobrado').reduce((s, i) => s + (i.total ?? 0), 0),
+      pendiente: list.filter(i => ['pendiente','parcial'].includes(i.estado)).reduce((s, i) => s + ((i.total ?? 0) - (i.total_pagado ?? 0)), 0),
+      vencido:   list.filter(i => i.estado === 'vencido').reduce((s, i) => s + ((i.total ?? 0) - (i.total_pagado ?? 0)), 0),
     }
   }
 
@@ -115,7 +114,7 @@ export default function BillingPage() {
   const create = useMutation({
     mutationFn: createInvoice,
     onSuccess: (res) => {
-      toast.success(`Factura ${res.data.numero} creada`)
+      toast.success(`Cliente ${res.data.cliente_nombre} creado`)
       qc.invalidateQueries({ queryKey: ['invoices'] })
       setShowModal(false)
       router.push(`/billing/${res.data.id}`)
@@ -130,8 +129,8 @@ export default function BillingPage() {
         <div className="flex items-center gap-3">
           <Receipt size={20} className="text-blue-600" />
           <div>
-            <h1 className="text-lg font-semibold text-slate-900">Facturación</h1>
-            <p className="text-sm text-slate-500">{invoices.length} factura{invoices.length !== 1 ? 's' : ''}</p>
+            <h1 className="text-lg font-semibold text-slate-900">Cobranza</h1>
+            <p className="text-sm text-slate-500">{invoices.length} cliente{invoices.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
         <button
@@ -139,7 +138,7 @@ export default function BillingPage() {
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
           <Plus size={15} />
-          Nueva factura
+          Nuevo cliente
         </button>
       </div>
 
@@ -198,12 +197,12 @@ export default function BillingPage() {
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 gap-2">
             <FileText size={32} className="text-slate-200" />
-            <p className="text-slate-400 text-sm">No hay facturas</p>
+            <p className="text-slate-400 text-sm">No hay clientes</p>
             <button
               onClick={() => setShowModal(true)}
               className="text-sm text-blue-600 hover:underline"
             >
-              Crear primera factura
+              Agregar primer cliente
             </button>
           </div>
         ) : (
@@ -211,7 +210,6 @@ export default function BillingPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
-                  <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3">Número</th>
                   <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3">Cliente</th>
                   <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3">Proyecto</th>
                   <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3">Emisión</th>
@@ -234,7 +232,6 @@ export default function BillingPage() {
                       onClick={() => router.push(`/billing/${inv.id}`)}
                       className="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer"
                     >
-                      <td className="px-4 py-3 font-mono text-slate-700 font-medium">{inv.numero}</td>
                       <td className="px-4 py-3">
                         <p className="font-medium text-slate-800 leading-tight">{inv.cliente_nombre}</p>
                         {inv.cliente_email && <p className="text-xs text-slate-400">{inv.cliente_email}</p>}
@@ -394,7 +391,7 @@ function NewInvoiceModal({
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         <div className="px-6 py-4 border-b flex-shrink-0">
-          <h2 className="text-base font-semibold text-slate-900">Nueva factura</h2>
+          <h2 className="text-base font-semibold text-slate-900">Nuevo cliente</h2>
         </div>
 
         <form onSubmit={submit} className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
@@ -586,7 +583,7 @@ function NewInvoiceModal({
             className="flex-1 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-            Crear factura
+            Crear cliente
           </button>
         </div>
       </div>

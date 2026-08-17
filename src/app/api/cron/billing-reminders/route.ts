@@ -8,6 +8,8 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendGmail } from '@/lib/google-gmail'
 import { buildInternalAlertHtml } from '@/lib/billing-emails'
+import { getArgentinaDate } from '@/lib/timezone'
+import { parseLocalDate } from '@/lib/utils'
 
 const INTERNAL_EMAIL = 'somosglobalalora@gmail.com'
 
@@ -18,14 +20,15 @@ export async function GET(req: Request) {
   }
 
   const admin = createAdminClient()
-  const today = new Date()
+  const today = getArgentinaDate()
+  today.setHours(0, 0, 0, 0)
 
   const { data: invoices, error } = await admin
     .from('invoices')
     .select('*')
     .is('deleted_at', null)
     .eq('alertas_activas', true)
-    .in('estado', ['enviada', 'parcialmente_pagada', 'vencida'])
+    .in('estado', ['pendiente', 'parcial', 'vencido'])
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!invoices?.length) return NextResponse.json({ ok: true, processed: 0 })
@@ -46,7 +49,7 @@ export async function GET(req: Request) {
     const inv  = invoiceMap[p.invoice_id]
     if (!inv) return false
 
-    const due  = new Date(p.fecha_vencimiento!)
+    const due  = parseLocalDate(p.fecha_vencimiento!)
     const diff = Math.floor((due.getTime() - today.getTime()) / 86_400_000)
 
     if (diff > (inv.dias_alerta ?? 3)) return false // todavía no es el momento

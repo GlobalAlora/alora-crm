@@ -4,16 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { X, AlignLeft, CheckCircle2, Circle, Plus, ChevronRight, Paperclip, Trash2, MessageSquare, Send, Download } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { cn, getDaysUntil, parseLocalDate } from '@/lib/utils'
+import { cn, getDaysUntil, parseLocalDate, downloadHref } from '@/lib/utils'
 import type { ProjectTask, PmPriority, ProjectTaskEstado, TaskSection, User, TicketAttachment } from '@/types'
-
-// Supabase Storage public URLs serve inline by default (browser opens/previews
-// the file); appending ?download forces a Content-Disposition: attachment
-// response so the browser saves it instead.
-function downloadHref(url: string, name: string): string {
-  const separator = url.includes('?') ? '&' : '?'
-  return `${url}${separator}download=${encodeURIComponent(name)}`
-}
 
 const PRIORITY_OPTS: { value: PmPriority; label: string }[] = [
   { value: 'baja',    label: 'Baja'    },

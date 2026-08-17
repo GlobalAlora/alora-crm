@@ -8,6 +8,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// Supabase Storage public URLs serve inline by default (browser opens/previews
+// the file); appending ?download forces a Content-Disposition: attachment
+// response so the browser saves it instead.
+export function downloadHref(url: string, name: string): string {
+  const separator = url.includes('?') ? '&' : '?'
+  return `${url}${separator}download=${encodeURIComponent(name)}`
+}
+
 export function formatUSD(amount: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',

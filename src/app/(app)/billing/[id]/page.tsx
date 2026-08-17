@@ -1,29 +1,28 @@
 'use client'
 
-import { useState, use } from 'react'
+import { useState, useRef, use } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import {
-  ArrowLeft, Printer, Check, Plus, Trash2, Loader2,
+  ArrowLeft, Check, Plus, Trash2, Loader2, X,
   Calendar, DollarSign, FileText, ChevronDown, Bell, BellOff,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { cn, parseLocalDate, getDaysUntil } from '@/lib/utils'
+import { cn, parseLocalDate, getDaysUntil, downloadHref } from '@/lib/utils'
 import toast from 'react-hot-toast'
-import type { Invoice, Payment, InvoiceEstado, PaymentMetodo } from '@/types'
+import type { Invoice, Payment, InvoiceEstado, PaymentMetodo, TicketAttachment } from '@/types'
 
 // ─── helpers ──────────────────────────────────────────────
 const ESTADO_CFG: Record<InvoiceEstado, { label: string; color: string }> = {
-  borrador:             { label: 'Borrador',    color: 'bg-slate-100 text-slate-600 border-slate-200'   },
-  enviada:              { label: 'Enviada',      color: 'bg-blue-100 text-blue-700 border-blue-200'     },
-  parcialmente_pagada:  { label: 'Pago parcial', color: 'bg-amber-100 text-amber-700 border-amber-200'  },
-  pagada:               { label: 'Pagada',       color: 'bg-green-100 text-green-700 border-green-200'  },
-  vencida:              { label: 'Vencida',      color: 'bg-red-100 text-red-700 border-red-200'        },
-  cancelada:            { label: 'Cancelada',    color: 'bg-slate-100 text-slate-400 border-slate-200'  },
+  pendiente:  { label: 'Pendiente', color: 'bg-slate-100 text-slate-600 border-slate-200'  },
+  parcial:    { label: 'Parcial',   color: 'bg-amber-100 text-amber-700 border-amber-200'  },
+  cobrado:    { label: 'Cobrado',   color: 'bg-green-100 text-green-700 border-green-200'  },
+  vencido:    { label: 'Vencido',   color: 'bg-red-100 text-red-700 border-red-200'        },
+  cancelada:  { label: 'Cancelada', color: 'bg-slate-100 text-slate-400 border-slate-200'  },
 }
 
-const ESTADOS: InvoiceEstado[] = ['borrador', 'enviada', 'pagada', 'parcialmente_pagada', 'vencida', 'cancelada']
+const ESTADOS: InvoiceEstado[] = ['pendiente', 'parcial', 'cobrado', 'vencido', 'cancelada']
 
 const METODOS: { value: PaymentMetodo; label: string }[] = [
   { value: 'transferencia', label: 'Transferencia' },
@@ -40,7 +39,7 @@ function fmt(amount: number, currency: string) {
 // ─── API ──────────────────────────────────────────────────
 async function fetchInvoice(id: string): Promise<{ data: Invoice }> {
   const r = await fetch(`/api/invoices/${id}`)
-  if (!r.ok) throw new Error('Factura no encontrada')
+  if (!r.ok) throw new Error('Cliente no encontrado')
   return r.json()
 }
 
@@ -120,7 +119,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteInvoice(id),
-    onSuccess: () => { toast.success('Factura eliminada'); router.push('/billing') },
+    onSuccess: () => { toast.success('Cliente eliminado'); router.push('/billing') },
     onError:   (e: Error) => toast.error(e.message),
   })
 
@@ -161,7 +160,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   if (error || !inv) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-2">
-        <p className="text-slate-500">Factura no encontrada</p>
+        <p className="text-slate-500">Cliente no encontrado</p>
         <button onClick={() => router.push('/billing')} className="text-blue-600 text-sm hover:underline">
           Volver al listado
         </button>
@@ -189,8 +188,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             <ArrowLeft size={16} />
           </button>
           <div>
-            <h1 className="text-lg font-semibold text-slate-900 font-mono">{inv.numero}</h1>
-            <p className="text-sm text-slate-500">{inv.cliente_nombre}</p>
+            <h1 className="text-lg font-semibold text-slate-900">{inv.cliente_nombre}</h1>
+            {inv.cliente_email && <p className="text-sm text-slate-500">{inv.cliente_email}</p>}
           </div>
         </div>
 
@@ -241,24 +240,13 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             <span className="hidden sm:inline">{inv.alertas_activas ? 'Alertas ON' : 'Alertas OFF'}</span>
           </button>
 
-          {/* Print */}
-          <a
-            href={`/billing/${id}/print`}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-800 px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-          >
-            <Printer size={14} />
-            PDF
-          </a>
-
           {/* Delete */}
           <button
             onClick={() => {
-              if (confirm('¿Eliminar esta factura? No se puede deshacer.')) deleteMutation.mutate()
+              if (confirm('¿Eliminar este cliente? No se puede deshacer.')) deleteMutation.mutate()
             }}
             className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-            title="Eliminar factura"
+            title="Eliminar cliente"
           >
             <Trash2 size={15} />
           </button>
@@ -438,6 +426,10 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                           </span>
                         )}
                         {isOverdue && <span className="text-red-500 font-medium">Vencido</span>}
+                        {p.numero_factura && <span>Factura {p.numero_factura}</span>}
+                        {p.factura_enviada_at && (
+                          <span className="text-blue-500">Enviada {format(new Date(p.factura_enviada_at), 'd MMM', { locale: es })}</span>
+                        )}
                         {p.notas && <span className="italic">{p.notas}</span>}
                       </div>
                     </div>
@@ -448,6 +440,11 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
 
                     {/* Actions */}
                     <div className="flex items-center gap-1">
+                      <PaymentDocsButton
+                        payment={p}
+                        onSave={(body) => patchPaymentMutation.mutate({ pid: p.id, body })}
+                        isLoading={patchPaymentMutation.isPending}
+                      />
                       {!isPaid && (
                         <MarkPaidButton
                           payment={p}
@@ -677,6 +674,140 @@ function MarkPaidButton({
             </button>
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Payment Docs Button (N° factura, envío, documentos) ──
+function PaymentDocsButton({
+  payment, onSave, isLoading,
+}: {
+  payment: Payment
+  onSave: (body: Partial<Payment>) => void
+  isLoading: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const [numeroFactura, setNumeroFactura] = useState(payment.numero_factura ?? '')
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function uploadFiles(files: File[]) {
+    if (!files.length) return
+    setUploading(true)
+    const results = await Promise.all(files.map(async (f) => {
+      const fd = new FormData()
+      fd.append('file', f)
+      const res = await fetch('/api/portal/upload', { method: 'POST', body: fd }).then(r => r.json())
+      return res.url ? { url: res.url as string, name: res.name ?? f.name, type: res.type ?? f.type } as TicketAttachment : null
+    }))
+    const valid = results.filter(Boolean) as TicketAttachment[]
+    if (valid.length) onSave({ attachments: [...(payment.attachments ?? []), ...valid] })
+    setUploading(false)
+  }
+
+  function removeDoc(url: string) {
+    onSave({ attachments: (payment.attachments ?? []).filter(a => a.url !== url) })
+  }
+
+  function saveNumero() {
+    if (numeroFactura !== (payment.numero_factura ?? '')) {
+      onSave({ numero_factura: numeroFactura.trim() || null })
+    }
+  }
+
+  const docCount = payment.attachments?.length ?? 0
+  const hasInfo  = !!payment.numero_factura || !!payment.factura_enviada_at || docCount > 0
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        title="Factura y documentos"
+        className={cn(
+          'flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors',
+          hasInfo ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' : 'text-slate-400 hover:text-blue-600 hover:bg-blue-50'
+        )}
+      >
+        <FileText size={11} />
+        {docCount > 0 && <span>{docCount}</span>}
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => { saveNumero(); setOpen(false) }} />
+          <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-3 space-y-3 w-64" onClick={e => e.stopPropagation()}>
+            <div>
+              <label className="text-xs text-slate-500">N° de factura</label>
+              <input
+                type="text"
+                value={numeroFactura}
+                onChange={e => setNumeroFactura(e.target.value)}
+                onBlur={saveNumero}
+                placeholder="Ej: A-0001-00001234"
+                className="w-full text-xs border border-slate-200 rounded px-2 py-1 mt-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-slate-500">
+                {payment.factura_enviada_at
+                  ? `Enviada ${format(new Date(payment.factura_enviada_at), 'd MMM', { locale: es })}`
+                  : 'Factura no enviada'}
+              </span>
+              <button
+                onClick={() => onSave({ factura_enviada_at: payment.factura_enviada_at ? null : new Date().toISOString() })}
+                disabled={isLoading}
+                className={cn(
+                  'text-xs px-2 py-1 rounded transition-colors flex-shrink-0',
+                  payment.factura_enviada_at ? 'text-slate-500 hover:bg-slate-100' : 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                )}
+              >
+                {payment.factura_enviada_at ? 'Desmarcar' : 'Marcar enviada'}
+              </button>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-slate-500">Documentos</label>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="text-xs text-blue-600 hover:underline disabled:opacity-50"
+                >
+                  {uploading ? 'Subiendo...' : '+ Adjuntar'}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,application/pdf"
+                  className="hidden"
+                  onChange={e => { uploadFiles(Array.from(e.target.files ?? [])); e.target.value = '' }}
+                />
+              </div>
+              {docCount > 0 ? (
+                <div className="space-y-1">
+                  {payment.attachments!.map((a, i) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <a
+                        href={downloadHref(a.url, a.name)}
+                        className="flex-1 min-w-0 text-xs text-slate-600 hover:text-blue-600 truncate"
+                      >
+                        {a.name}
+                      </a>
+                      <button onClick={() => removeDoc(a.url)} className="text-slate-300 hover:text-red-400 flex-shrink-0">
+                        <X size={11} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-300">Sin documentos</p>
+              )}
+            </div>
+          </div>
+        </>
       )}
     </div>
   )
