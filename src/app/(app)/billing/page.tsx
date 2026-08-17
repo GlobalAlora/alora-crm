@@ -7,7 +7,10 @@ import {
   Plus, Receipt, TrendingUp, Clock, AlertTriangle, FileText,
   Loader2, ChevronRight, ChevronLeft, CalendarRange,
 } from 'lucide-react'
-import { format, addMonths, subMonths, getDaysInMonth, startOfMonth, isSameMonth } from 'date-fns'
+import {
+  format, addMonths, subMonths, addQuarters, subQuarters, addYears, subYears,
+  getDaysInMonth, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear,
+} from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn, parseLocalDate } from '@/lib/utils'
 import toast from 'react-hot-toast'
@@ -105,7 +108,39 @@ export default function BillingPage() {
   const qc     = useQueryClient()
   const [tab, setTab]         = useState('all')
   const [showModal, setShowModal] = useState(false)
-  const [statsMonth, setStatsMonth] = useState(() => startOfMonth(new Date()))
+  const [periodType, setPeriodType] = useState<'mes' | 'trimestre' | 'año' | 'rango'>('mes')
+  const [anchor, setAnchor]   = useState(() => new Date())
+  const [rangeFrom, setRangeFrom] = useState('')
+  const [rangeTo, setRangeTo]     = useState('')
+
+  const periodStart = periodType === 'rango' ? rangeFrom
+    : format(
+        periodType === 'trimestre' ? startOfQuarter(anchor) : periodType === 'año' ? startOfYear(anchor) : startOfMonth(anchor),
+        'yyyy-MM-dd'
+      )
+  const periodEnd = periodType === 'rango' ? rangeTo
+    : format(
+        periodType === 'trimestre' ? endOfQuarter(anchor) : periodType === 'año' ? endOfYear(anchor) : endOfMonth(anchor),
+        'yyyy-MM-dd'
+      )
+  const periodLabel = periodType === 'rango'
+    ? (rangeFrom && rangeTo ? `${format(parseLocalDate(rangeFrom), 'd MMM yy', { locale: es })} → ${format(parseLocalDate(rangeTo), 'd MMM yy', { locale: es })}` : 'Elegí un rango')
+    : periodType === 'trimestre' ? `T${Math.floor(anchor.getMonth() / 3) + 1} ${anchor.getFullYear()}`
+    : periodType === 'año' ? String(anchor.getFullYear())
+    : format(anchor, 'MMMM yyyy', { locale: es })
+  const isCurrentPeriod = periodType !== 'rango' && (
+    periodType === 'mes' ? isSameMonthYear(anchor, new Date())
+    : periodType === 'trimestre' ? Math.floor(anchor.getMonth() / 3) === Math.floor(new Date().getMonth() / 3) && anchor.getFullYear() === new Date().getFullYear()
+    : anchor.getFullYear() === new Date().getFullYear()
+  )
+  function isSameMonthYear(a: Date, b: Date) { return a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear() }
+  function shiftPeriod(dir: 1 | -1) {
+    setAnchor(a =>
+      periodType === 'trimestre' ? (dir === 1 ? addQuarters(a, 1) : subQuarters(a, 1))
+      : periodType === 'año' ? (dir === 1 ? addYears(a, 1) : subYears(a, 1))
+      : (dir === 1 ? addMonths(a, 1) : subMonths(a, 1))
+    )
+  }
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['invoices'],
@@ -128,16 +163,17 @@ export default function BillingPage() {
   const usdInvoices = invoices.filter(i => i.moneda === 'USD' && i.estado !== 'cancelada')
   const arsInvoices = invoices.filter(i => i.moneda === 'ARS' && i.estado !== 'cancelada')
 
-  // Month-scoped, not lifetime totals — "Cobrado" without a period
+  // Period-scoped, not lifetime totals — "Cobrado" without a period
   // attached doesn't mean anything (cobrado when? this month? ever?).
   const todayStr = new Date().toISOString().slice(0, 10)
   function statsFor(list: Invoice[]) {
     const payments = list.flatMap(i => i.payments ?? [])
     let cobrado = 0, pendiente = 0, vencido = 0
+    if (!periodStart || !periodEnd) return { facturado: 0, pendiente: 0, vencido: 0 }
     for (const p of payments) {
       if (p.fecha_pago) {
-        if (isSameMonth(parseLocalDate(p.fecha_pago), statsMonth)) cobrado += p.monto
-      } else if (p.fecha_vencimiento && isSameMonth(parseLocalDate(p.fecha_vencimiento), statsMonth)) {
+        if (p.fecha_pago >= periodStart && p.fecha_pago <= periodEnd) cobrado += p.monto
+      } else if (p.fecha_vencimiento && p.fecha_vencimiento >= periodStart && p.fecha_vencimiento <= periodEnd) {
         if (p.fecha_vencimiento < todayStr) vencido += p.monto
         else pendiente += p.monto
       }
@@ -190,29 +226,61 @@ export default function BillingPage() {
 
       {/* Stats */}
       <div className="px-6 py-4 border-b bg-slate-50 flex-shrink-0">
-        <div className="flex items-center gap-2 mb-3">
-          <button
-            onClick={() => setStatsMonth(m => subMonths(m, 1))}
-            className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-md transition-colors"
-          >
-            <ChevronLeft size={14} />
-          </button>
-          <span className="text-xs font-semibold text-slate-600 capitalize w-28 text-center">
-            {format(statsMonth, 'MMMM yyyy', { locale: es })}
-          </span>
-          <button
-            onClick={() => setStatsMonth(m => addMonths(m, 1))}
-            className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-md transition-colors"
-          >
-            <ChevronRight size={14} />
-          </button>
-          {!isSameMonth(statsMonth, new Date()) && (
-            <button
-              onClick={() => setStatsMonth(startOfMonth(new Date()))}
-              className="text-xs text-blue-600 hover:underline"
-            >
-              Volver a este mes
-            </button>
+        <div className="flex items-center gap-3 mb-3 flex-wrap">
+          <div className="flex gap-1 bg-slate-200/60 rounded-lg p-0.5">
+            {(['mes', 'trimestre', 'año', 'rango'] as const).map(pt => (
+              <button
+                key={pt}
+                onClick={() => setPeriodType(pt)}
+                className={cn(
+                  'text-xs px-2.5 py-1 rounded-md transition-colors capitalize',
+                  periodType === pt ? 'bg-white text-slate-800 shadow-sm font-medium' : 'text-slate-500'
+                )}
+              >
+                {pt}
+              </button>
+            ))}
+          </div>
+
+          {periodType === 'rango' ? (
+            <div className="flex items-center gap-1.5">
+              <input
+                type="date"
+                value={rangeFrom}
+                onChange={e => setRangeFrom(e.target.value)}
+                className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <span className="text-slate-400 text-xs">→</span>
+              <input
+                type="date"
+                value={rangeTo}
+                onChange={e => setRangeTo(e.target.value)}
+                className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => shiftPeriod(-1)}
+                className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-md transition-colors"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <span className="text-xs font-semibold text-slate-600 capitalize w-24 text-center">
+                {periodLabel}
+              </span>
+              <button
+                onClick={() => shiftPeriod(1)}
+                className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-md transition-colors"
+              >
+                <ChevronRight size={14} />
+              </button>
+              {!isCurrentPeriod && (
+                <button onClick={() => setAnchor(new Date())} className="text-xs text-blue-600 hover:underline">
+                  Volver a hoy
+                </button>
+              )}
+            </div>
           )}
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
