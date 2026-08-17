@@ -7,7 +7,7 @@ import {
   Users, DollarSign, Target, Clock, BarChart3, Globe,
   TrendingUp, AlertTriangle, Zap, Activity, ArrowRight,
   ArrowDown, ChevronRight, FileText, Phone, Mail, Calendar,
-  CheckSquare, FolderKanban, Plus, MessageSquare, ListTodo, Info,
+  CheckSquare, FolderKanban, Plus, MessageSquare, ListTodo, Info, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatUSD, formatARS } from '@/lib/utils'
@@ -119,6 +119,16 @@ interface AnalyticsData {
     ultima_actividad: string | null
     umbral: number
   }[]
+  detalle: Record<string, DetalleLead[]>
+}
+
+interface DetalleLead {
+  id: string
+  nombre: string
+  pais: string | null
+  fuente: string | null
+  estado_pipeline: string
+  fecha_ingreso: string | null
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -183,25 +193,96 @@ function SectionHeader({ icon: Icon, title, subtitle }: { icon: React.ElementTyp
   )
 }
 
-function StatCard({ label, value, sub, color = 'slate', large = false, info }: {
+function InfoPopover({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="relative inline-flex flex-shrink-0">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen(o => !o) }}
+        className="text-slate-300 hover:text-slate-500 transition-colors"
+      >
+        <Info size={11} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpen(false) }} />
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="absolute left-0 top-5 z-50 w-64 bg-slate-800 text-white text-xs rounded-lg shadow-xl p-3 leading-relaxed"
+          >
+            {text}
+          </div>
+        </>
+      )}
+    </span>
+  )
+}
+
+function StatCard({ label, value, sub, color = 'slate', large = false, info, onOpenDetail }: {
   label: string; value: React.ReactNode; sub?: React.ReactNode
   color?: 'slate' | 'green' | 'blue' | 'amber' | 'red' | 'purple'; large?: boolean
   info?: string
+  onOpenDetail?: () => void
 }) {
   const bg = { slate: 'bg-white border-slate-200', green: 'bg-emerald-50 border-emerald-200', blue: 'bg-blue-50 border-blue-200', amber: 'bg-amber-50 border-amber-200', red: 'bg-red-50 border-red-200', purple: 'bg-violet-50 border-violet-200' }
   const tx = { slate: 'text-slate-900', green: 'text-emerald-800', blue: 'text-blue-800', amber: 'text-amber-800', red: 'text-red-800', purple: 'text-violet-800' }
   return (
-    <div className={cn('rounded-xl border p-4 space-y-1', bg[color])}>
+    <div
+      onClick={onOpenDetail}
+      className={cn(
+        'rounded-xl border p-4 space-y-1',
+        bg[color],
+        onOpenDetail && 'cursor-pointer hover:ring-2 hover:ring-slate-300 transition-shadow'
+      )}
+    >
       <p className="text-xs text-slate-500 font-medium flex items-center gap-1">
         {label}
-        {info && (
-          <span title={info} className="inline-flex flex-shrink-0">
-            <Info size={11} className="text-slate-300 hover:text-slate-500 cursor-help" />
-          </span>
-        )}
+        {info && <InfoPopover text={info} />}
       </p>
       <p className={cn('font-bold leading-tight', large ? 'text-2xl' : 'text-xl', tx[color])}>{value}</p>
       {sub && <p className="text-xs text-slate-500 pt-0.5">{sub}</p>}
+      {onOpenDetail && <p className="text-[10px] text-slate-400 pt-1">Ver detalle →</p>}
+    </div>
+  )
+}
+
+function DetailModal({ title, items, onClose, router }: {
+  title: string
+  items: DetalleLead[]
+  onClose: () => void
+  router: ReturnType<typeof useRouter>
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
+            <p className="text-xs text-slate-400 mt-0.5">{items.length} lead{items.length !== 1 ? 's' : ''}</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
+          {items.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-10">Sin leads en esta categoría</p>
+          ) : items.map(l => (
+            <button
+              key={l.id}
+              onClick={() => router.push(`/leads/${l.id}`)}
+              className="w-full flex items-center justify-between gap-3 px-5 py-2.5 hover:bg-slate-50 transition-colors text-left"
+            >
+              <div className="min-w-0">
+                <p className="text-sm text-slate-800 truncate">{l.nombre || 'Sin nombre'}</p>
+                <p className="text-xs text-slate-400 truncate">{[l.pais, l.fuente].filter(Boolean).join(' · ') || '—'}</p>
+              </div>
+              <span className="text-xs text-slate-400 whitespace-nowrap flex-shrink-0">{l.estado_pipeline}</span>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -222,6 +303,7 @@ export default function DashboardPage() {
   const [pais, setPais] = useState('')
   const [fuente, setFuente] = useState('')
   const [responsableId, setResponsableId] = useState('')
+  const [detailModal, setDetailModal] = useState<{ title: string; items: DetalleLead[] } | null>(null)
 
   const analyticsParams = useMemo(() => {
     const p: Record<string, string> = { fecha_desde: fechaDesde, fecha_hasta: fechaHasta }
@@ -255,6 +337,11 @@ export default function DashboardPage() {
 
   const a = analytics
   const d = dash
+
+  function openDetail(key: keyof AnalyticsData['detalle'], title: string) {
+    if (!a) return
+    setDetailModal({ title, items: a.detalle[key] ?? [] })
+  }
 
   return (
     <div className="space-y-8 pb-16">
@@ -333,7 +420,7 @@ export default function DashboardPage() {
           <div className="space-y-4">
             {/* Calidad de leads */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard label="Leads recibidos" value={a?.calidad.total ?? 0} sub="Todas las consultas del período" color="blue" large info={a?.definiciones.total_leads} />
+              <StatCard label="Leads recibidos" value={a?.calidad.total ?? 0} sub="Todas las consultas del período" color="blue" large info={a?.definiciones.total_leads} onOpenDetail={() => openDetail('leads_recibidos', 'Leads recibidos')} />
               <StatCard
                 label="Cualificados"
                 value={`${a?.calidad.cualificado_pct ?? 0}%`}
@@ -341,6 +428,7 @@ export default function DashboardPage() {
                 color="green"
                 large
                 info={a?.definiciones.cualificado_pct}
+                onOpenDetail={() => openDetail('cualificados', 'Leads cualificados')}
               />
               <StatCard
                 label="No cualificados"
@@ -349,6 +437,7 @@ export default function DashboardPage() {
                 color="amber"
                 large
                 info={a?.definiciones.no_cualificado_pct}
+                onOpenDetail={() => openDetail('no_cualificados', 'Leads no cualificados')}
               />
               <StatCard
                 label="Basura"
@@ -357,15 +446,16 @@ export default function DashboardPage() {
                 color="slate"
                 large
                 info={a?.definiciones.basura_pct}
+                onOpenDetail={() => openDetail('basura', 'Basura')}
               />
             </div>
 
             {/* Reuniones y conversiones — sobre leads cualificados */}
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-              <StatCard label="Reuniones agendadas" value={a?.reuniones.agendadas ?? 0} sub="Fecha, hora y link cargados" info={a?.definiciones.reuniones_agendadas} />
-              <StatCard label="Reuniones realizadas" value={a?.reuniones.realizadas ?? 0} sub={`Show-up rate: ${a?.reuniones.show_up_rate ?? 0}%`} info={a?.definiciones.reuniones_realizadas} />
+              <StatCard label="Reuniones agendadas" value={a?.reuniones.agendadas ?? 0} sub="Fecha, hora y link cargados" info={a?.definiciones.reuniones_agendadas} onOpenDetail={() => openDetail('reuniones_agendadas', 'Reuniones agendadas')} />
+              <StatCard label="Reuniones realizadas" value={a?.reuniones.realizadas ?? 0} sub={`Show-up rate: ${a?.reuniones.show_up_rate ?? 0}%`} info={a?.definiciones.reuniones_realizadas} onOpenDetail={() => openDetail('reuniones_realizadas', 'Reuniones realizadas')} />
               <StatCard label="Conv. Lead → Reunión" value={`${a?.conversiones.lead_a_reunion ?? 0}%`} sub="Sobre leads cualificados" info={a?.definiciones.lead_a_reunion} />
-              <StatCard label="Conv. Lead → Propuesta" value={`${a?.conversiones.lead_a_propuesta ?? 0}%`} sub="Sobre leads cualificados" info={a?.definiciones.lead_a_propuesta} />
+              <StatCard label="Conv. Lead → Propuesta" value={`${a?.conversiones.lead_a_propuesta ?? 0}%`} sub="Sobre leads cualificados" info={a?.definiciones.lead_a_propuesta} onOpenDetail={() => openDetail('con_propuesta', 'Leads con propuesta')} />
               <StatCard label="Conv. Reunión → Propuesta" value={`${a?.conversiones.reunion_a_propuesta ?? 0}%`} sub="Sobre reuniones realizadas" info={a?.definiciones.reunion_a_propuesta} />
               <StatCard
                 label="Tasa de cierre ganado"
@@ -373,6 +463,7 @@ export default function DashboardPage() {
                 sub="Sobre leads cualificados"
                 color={(a?.resumen.tasa_cierre_ganado ?? 0) >= 20 ? 'green' : (a?.resumen.tasa_cierre_ganado ?? 0) >= 10 ? 'amber' : 'red'}
                 info={a?.definiciones.tasa_cierre_ganado}
+                onOpenDetail={() => openDetail('ganados', 'Cierres ganados')}
               />
             </div>
 
@@ -383,6 +474,7 @@ export default function DashboardPage() {
                 sub={`${a?.resumen.propuestas_aceptadas_count ?? 0} / ${a?.resumen.propuestas_count ?? 0} propuestas`}
                 color={(a?.resumen.tasa_conversion_propuesta ?? 0) >= 50 ? 'green' : (a?.resumen.tasa_conversion_propuesta ?? 0) >= 30 ? 'amber' : 'slate'}
                 info={a?.definiciones.propuestas_count}
+                onOpenDetail={() => openDetail('con_propuesta', 'Leads con propuesta enviada')}
               />
               <StatCard label="Ciclo de venta promedio" value={a?.resumen.ciclo_venta_promedio != null ? `${a.resumen.ciclo_venta_promedio}d` : '—'} sub="Ingreso → cierre ganado" color="purple" />
               <StatCard label="Tiempo: ingreso → propuesta aceptada" value={a?.resumen.tiempo_ingreso_propuesta_aceptada != null ? `${a.resumen.tiempo_ingreso_propuesta_aceptada} días` : '—'} sub="Duración total del proceso comercial completo" />
@@ -793,6 +885,15 @@ export default function DashboardPage() {
 
       {/* Evolución mensual */}
       <MonthlyEvolutionChart responsableId={responsableId} months={6} />
+
+      {detailModal && (
+        <DetailModal
+          title={detailModal.title}
+          items={detailModal.items}
+          onClose={() => setDetailModal(null)}
+          router={router}
+        />
+      )}
 
     </div>
   )

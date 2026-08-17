@@ -499,6 +499,32 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b!.dias_en_etapa - a!.dias_en_etapa)
       .slice(0, 30) // max 30
 
+    // ── Detalle (drill-down) ─────────────────────────────────────────────────
+    // Listas reales detrás de cada número del resumen, para que se pueda
+    // hacer clic en una métrica y ver exactamente qué leads la componen.
+    function trim(list: LeadRow[]) {
+      return list.map(l => ({
+        id: l.id,
+        nombre: [l.nombre, l.apellido].filter(Boolean).join(' '),
+        pais: l.pais,
+        fuente: l.fuente,
+        estado_pipeline: l.estado_pipeline,
+        fecha_ingreso: l.fecha_ingreso ?? l.created_at,
+      }))
+    }
+
+    const detalle = {
+      leads_recibidos: trim(leads),
+      cualificados: trim(cualificados),
+      no_cualificados: trim(noCualificadoLeads),
+      basura: trim(basuraLeads),
+      reuniones_agendadas: trim(reunionesAgendadas),
+      reuniones_realizadas: trim(reunionesRealizadas),
+      con_propuesta: trim(cualificadosConPropuesta),
+      ganados: trim(ganados),
+      perdidos: trim(perdidos),
+    }
+
     // ── Response ─────────────────────────────────────────────────────────────
 
     return NextResponse.json({
@@ -559,6 +585,7 @@ export async function GET(req: NextRequest) {
       por_pais: porPais,
       por_fuente: porFuente,
       leads_en_riesgo: leadsEnRiesgo,
+      detalle,
     })
   } catch (error) {
     console.error('[analytics] Error:', error)
