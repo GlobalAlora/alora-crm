@@ -5,9 +5,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import {
   Plus, Receipt, TrendingUp, Clock, AlertTriangle, FileText,
-  Loader2, ChevronRight, CalendarRange,
+  Loader2, ChevronRight, ChevronLeft, CalendarRange,
 } from 'lucide-react'
-import { format, addMonths, getDaysInMonth } from 'date-fns'
+import { format, addMonths, subMonths, getDaysInMonth, startOfMonth, isSameMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn, parseLocalDate } from '@/lib/utils'
 import toast from 'react-hot-toast'
@@ -105,6 +105,7 @@ export default function BillingPage() {
   const qc     = useQueryClient()
   const [tab, setTab]         = useState('all')
   const [showModal, setShowModal] = useState(false)
+  const [statsMonth, setStatsMonth] = useState(() => startOfMonth(new Date()))
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['invoices'],
@@ -127,15 +128,21 @@ export default function BillingPage() {
   const usdInvoices = invoices.filter(i => i.moneda === 'USD' && i.estado !== 'cancelada')
   const arsInvoices = invoices.filter(i => i.moneda === 'ARS' && i.estado !== 'cancelada')
 
+  // Month-scoped, not lifetime totals — "Cobrado" without a period
+  // attached doesn't mean anything (cobrado when? this month? ever?).
+  const todayStr = new Date().toISOString().slice(0, 10)
   function statsFor(list: Invoice[]) {
-    return {
-      // Total actually collected across every client, regardless of that
-      // client's overall estado — a 'parcial' or 'recurrente' client can
-      // still have real money collected that needs to show up here.
-      facturado: list.reduce((s, i) => s + (i.total_pagado ?? 0), 0),
-      pendiente: list.filter(i => i.tipo_cobranza !== 'recurrente' && ['pendiente','parcial'].includes(i.estado)).reduce((s, i) => s + ((i.total ?? 0) - (i.total_pagado ?? 0)), 0),
-      vencido:   list.filter(i => i.estado === 'vencido').reduce((s, i) => s + ((i.total ?? 0) - (i.total_pagado ?? 0)), 0),
+    const payments = list.flatMap(i => i.payments ?? [])
+    let cobrado = 0, pendiente = 0, vencido = 0
+    for (const p of payments) {
+      if (p.fecha_pago) {
+        if (isSameMonth(parseLocalDate(p.fecha_pago), statsMonth)) cobrado += p.monto
+      } else if (p.fecha_vencimiento && isSameMonth(parseLocalDate(p.fecha_vencimiento), statsMonth)) {
+        if (p.fecha_vencimiento < todayStr) vencido += p.monto
+        else pendiente += p.monto
+      }
     }
+    return { facturado: cobrado, pendiente, vencido }
   }
 
   const usdStats = statsFor(usdInvoices)
@@ -183,6 +190,31 @@ export default function BillingPage() {
 
       {/* Stats */}
       <div className="px-6 py-4 border-b bg-slate-50 flex-shrink-0">
+        <div className="flex items-center gap-2 mb-3">
+          <button
+            onClick={() => setStatsMonth(m => subMonths(m, 1))}
+            className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-md transition-colors"
+          >
+            <ChevronLeft size={14} />
+          </button>
+          <span className="text-xs font-semibold text-slate-600 capitalize w-28 text-center">
+            {format(statsMonth, 'MMMM yyyy', { locale: es })}
+          </span>
+          <button
+            onClick={() => setStatsMonth(m => addMonths(m, 1))}
+            className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-md transition-colors"
+          >
+            <ChevronRight size={14} />
+          </button>
+          {!isSameMonth(statsMonth, new Date()) && (
+            <button
+              onClick={() => setStatsMonth(startOfMonth(new Date()))}
+              className="text-xs text-blue-600 hover:underline"
+            >
+              Volver a este mes
+            </button>
+          )}
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {/* USD */}
           <StatCard icon={TrendingUp} label="Cobrado USD"  value={fmt(usdStats.facturado, 'USD')} color="text-green-600"  />
