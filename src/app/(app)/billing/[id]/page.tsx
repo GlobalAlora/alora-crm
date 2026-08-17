@@ -235,6 +235,26 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             )}
           </div>
 
+          {/* Maintenance pause/resume */}
+          {inv.tipo_cobranza === 'recurrente' && (
+            <button
+              onClick={() => {
+                if (inv.mantenimiento_activo && !confirm('¿Pausar el mantenimiento? No se van a generar más cuotas futuras hasta que lo reactives.')) return
+                patchMutation.mutate({ mantenimiento_activo: !inv.mantenimiento_activo })
+              }}
+              title={inv.mantenimiento_activo ? 'Mantenimiento activo — genera cuotas automáticamente' : 'Mantenimiento pausado — no genera cuotas nuevas'}
+              className={cn(
+                'flex items-center gap-1.5 text-sm px-3 py-1.5 border rounded-lg transition-colors',
+                inv.mantenimiento_activo
+                  ? 'text-green-700 bg-green-50 border-green-200 hover:bg-green-100'
+                  : 'text-slate-400 border-slate-200 hover:bg-slate-50'
+              )}
+            >
+              <span className="hidden sm:inline">{inv.mantenimiento_activo ? 'Mantenimiento activo' : 'Mantenimiento pausado'}</span>
+              <span className="sm:hidden">{inv.mantenimiento_activo ? 'Activo' : 'Pausado'}</span>
+            </button>
+          )}
+
           {/* Alert toggle */}
           <button
             onClick={() => patchMutation.mutate({ alertas_activas: !inv.alertas_activas })}
@@ -305,6 +325,16 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           <div className="bg-white border border-slate-200 rounded-xl p-5">
             <h3 className="text-sm font-semibold text-slate-700 mb-3">Cliente</h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-xs text-slate-500 mb-0.5">Tipo</p>
+                {inv.tipo_cobranza === 'recurrente' ? (
+                  <p className="text-slate-800 font-medium">
+                    Mantenimiento — {fmt(inv.monto_recurrente ?? 0, inv.moneda)}/mes, día {inv.dia_cobro}
+                  </p>
+                ) : (
+                  <p className="text-slate-800 font-medium">Proyecto</p>
+                )}
+              </div>
               {inv.lead && (
                 <div>
                   <p className="text-xs text-slate-500 mb-0.5">Lead asociado</p>
@@ -450,7 +480,15 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                     </div>
 
                     <div className="text-right">
-                      <p className="font-mono font-semibold text-slate-800">{fmt(p.monto, inv.moneda)}</p>
+                      {isPaid ? (
+                        <p className="font-mono font-semibold text-slate-800">{fmt(p.monto, inv.moneda)}</p>
+                      ) : (
+                        <EditableMonto
+                          value={p.monto}
+                          moneda={inv.moneda}
+                          onSave={(monto) => patchPaymentMutation.mutate({ pid: p.id, body: { monto } })}
+                        />
+                      )}
                     </div>
 
                     {/* Actions */}
@@ -825,5 +863,53 @@ function PaymentDocsButton({
         </>
       )}
     </div>
+  )
+}
+
+// ─── Editable Monto (click to edit an unpaid cuota's amount) ──
+function EditableMonto({
+  value, moneda, onSave,
+}: {
+  value: number
+  moneda: string
+  onSave: (monto: number) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(String(value))
+
+  function save() {
+    const n = parseFloat(draft)
+    setEditing(false)
+    if (!isNaN(n) && n > 0 && n !== value) onSave(n)
+    else setDraft(String(value))
+  }
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        type="number"
+        min="0"
+        step="0.01"
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={save}
+        onKeyDown={e => {
+          if (e.key === 'Enter') e.currentTarget.blur()
+          if (e.key === 'Escape') { setDraft(String(value)); setEditing(false) }
+        }}
+        className="w-28 text-right font-mono font-semibold text-slate-800 border border-blue-300 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      />
+    )
+  }
+
+  return (
+    <button
+      onClick={() => { setDraft(String(value)); setEditing(true) }}
+      title="Editar monto"
+      className="font-mono font-semibold text-slate-800 hover:text-blue-600 hover:underline decoration-dashed underline-offset-2 transition-colors"
+    >
+      {fmt(value, moneda)}
+    </button>
   )
 }

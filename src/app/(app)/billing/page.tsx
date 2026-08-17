@@ -7,11 +7,30 @@ import {
   Plus, Receipt, TrendingUp, Clock, AlertTriangle, FileText,
   Loader2, ChevronRight, CalendarRange,
 } from 'lucide-react'
-import { format } from 'date-fns'
+import { format, addMonths, getDaysInMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn, parseLocalDate } from '@/lib/utils'
 import toast from 'react-hot-toast'
-import type { Invoice, InvoiceEstado, CondicionIva } from '@/types'
+import type { Invoice, InvoiceEstado, CondicionIva, TipoCobranza } from '@/types'
+
+const MESES_ADELANTADOS_MANTENIMIENTO = 12
+
+function generateMonthlyPayments(startMonth: Date, diaCobro: number, monto: number, count: number) {
+  const payments: { descripcion: string; monto: number; fecha_vencimiento: string; metodo_pago: string }[] = []
+  for (let i = 0; i < count; i++) {
+    const monthDate = addMonths(startMonth, i)
+    const day = Math.min(diaCobro, getDaysInMonth(monthDate))
+    const due = new Date(monthDate.getFullYear(), monthDate.getMonth(), day)
+    const label = format(due, 'MMMM yyyy', { locale: es })
+    payments.push({
+      descripcion: `Mantenimiento ${label.charAt(0).toUpperCase()}${label.slice(1)}`,
+      monto,
+      fecha_vencimiento: due.toISOString().slice(0, 10),
+      metodo_pago: '',
+    })
+  }
+  return payments
+}
 
 // ─── helpers ──────────────────────────────────────────────
 const ESTADO_CFG: Record<InvoiceEstado, { label: string; color: string; dot: string }> = {
@@ -56,6 +75,9 @@ interface NewInvoiceForm {
   fecha_emision: string
   descripcion: string
   notas: string
+  tipo_cobranza: TipoCobranza
+  dia_cobro: string
+  monto_recurrente: string
   payments: { descripcion: string; monto: number; fecha_vencimiento: string; metodo_pago: string }[]
 }
 
@@ -65,7 +87,7 @@ async function fetchProjects(): Promise<{ data: { id: string; nombre: string }[]
   return r.json()
 }
 
-async function createInvoice(body: Partial<NewInvoiceForm>) {
+async function createInvoice(body: Record<string, unknown>) {
   const r = await fetch('/api/invoices', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -246,7 +268,17 @@ export default function BillingPage() {
                       className="border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer"
                     >
                       <td className="px-4 py-3">
-                        <p className="font-medium text-slate-800 leading-tight">{inv.cliente_nombre}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium text-slate-800 leading-tight">{inv.cliente_nombre}</p>
+                          {inv.tipo_cobranza === 'recurrente' && (
+                            <span className={cn(
+                              'text-[10px] font-medium px-1.5 py-0.5 rounded-full',
+                              inv.mantenimiento_activo ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'
+                            )}>
+                              Mantenimiento{!inv.mantenimiento_activo && ' (pausado)'}
+                            </span>
+                          )}
+                        </div>
                         {inv.cliente_email && <p className="text-xs text-slate-400">{inv.cliente_email}</p>}
                       </td>
                       <td className="px-4 py-3 text-slate-500 text-xs">
@@ -349,7 +381,7 @@ function NewInvoiceModal({
   onClose, onSubmit, isLoading,
 }: {
   onClose: () => void
-  onSubmit: (data: Partial<NewInvoiceForm>) => void
+  onSubmit: (data: Record<string, unknown>) => void
   isLoading: boolean
 }) {
   const today = new Date().toISOString().slice(0, 10)
@@ -367,6 +399,9 @@ function NewInvoiceModal({
     fecha_emision:         today,
     descripcion:           '',
     notas:                 '',
+    tipo_cobranza:         'proyecto',
+    dia_cobro:             '',
+    monto_recurrente:      '',
     payments: [{ descripcion: 'Pago único', monto: 0, fecha_vencimiento: '', metodo_pago: '' }],
   })
   const [tipoPago, setTipoPago] = useState<'unico' | 'cuotas'>('unico')
@@ -440,6 +475,20 @@ function NewInvoiceModal({
   function submit(e?: React.SyntheticEvent) {
     e?.preventDefault()
     if (!form.cliente_nombre.trim()) return
+
+    const isRecurrente = form.tipo_cobranza === 'recurrente'
+    const diaCobro = parseInt(form.dia_cobro, 10)
+    const montoRecurrente = parseFloat(form.monto_recurrente)
+
+    if (isRecurrente && (!diaCobro || diaCobro < 1 || diaCobro > 31 || !montoRecurrente || montoRecurrente <= 0)) {
+      toast.error('Completá el monto mensual y el día de cobro (1-31)')
+      return
+    }
+
+    const payments = isRecurrente
+      ? generateMonthlyPayments(new Date(form.fecha_emision + 'T00:00:00'), diaCobro, montoRecurrente, MESES_ADELANTADOS_MANTENIMIENTO)
+      : form.payments.filter(p => p.monto > 0)
+
     onSubmit({
       ...form,
       lead_id:               form.lead_id || undefined,
@@ -452,7 +501,9 @@ function NewInvoiceModal({
       cliente_domicilio:     form.cliente_domicilio || undefined,
       descripcion:           form.descripcion || undefined,
       notas:                 form.notas || undefined,
-      payments: form.payments.filter(p => p.monto > 0),
+      dia_cobro:             isRecurrente ? diaCobro : undefined,
+      monto_recurrente:      isRecurrente ? montoRecurrente : undefined,
+      payments,
     })
   }
 
@@ -599,19 +650,75 @@ function NewInvoiceModal({
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Moneda</label>
-            <select
-              value={form.moneda}
-              onChange={e => setForm(f => ({ ...f, moneda: e.target.value as 'USD' | 'ARS' }))}
-              className="w-32 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="USD">USD</option>
-              <option value="ARS">ARS</option>
-            </select>
+          <div className="flex items-center gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Moneda</label>
+              <select
+                value={form.moneda}
+                onChange={e => setForm(f => ({ ...f, moneda: e.target.value as 'USD' | 'ARS' }))}
+                className="w-32 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="USD">USD</option>
+                <option value="ARS">ARS</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Tipo de cobranza</label>
+              <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, tipo_cobranza: 'proyecto' }))}
+                  className={cn('text-xs px-3 py-2 rounded-md transition-colors', form.tipo_cobranza === 'proyecto' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500')}
+                >
+                  Proyecto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, tipo_cobranza: 'recurrente' }))}
+                  className={cn('text-xs px-3 py-2 rounded-md transition-colors', form.tipo_cobranza === 'recurrente' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500')}
+                >
+                  Mantenimiento
+                </button>
+              </div>
+            </div>
           </div>
 
-          {/* Payment schedule */}
+          {form.tipo_cobranza === 'recurrente' ? (
+            /* Recurring maintenance */
+            <div className="border border-slate-100 rounded-lg p-3 space-y-3 bg-slate-50/50">
+              <p className="text-xs font-semibold text-slate-600">Mantenimiento recurrente</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Monto mensual</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.monto_recurrente}
+                    onChange={e => setForm(f => ({ ...f, monto_recurrente: e.target.value }))}
+                    placeholder="0"
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Día de cobro (1-31)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={form.dia_cobro}
+                    onChange={e => setForm(f => ({ ...f, dia_cobro: e.target.value }))}
+                    placeholder="Ej: 10"
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Se generan automáticamente las cuotas de los próximos {MESES_ADELANTADOS_MANTENIMIENTO} meses, y el sistema sigue generando más a medida que pasa el tiempo. Podés editar el monto de cuotas futuras si aumenta el precio, o pausar el mantenimiento en cualquier momento.
+              </p>
+            </div>
+          ) : (
+          /* Payment schedule (proyecto) */
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-medium text-slate-700">Pagos</label>
@@ -693,6 +800,7 @@ function NewInvoiceModal({
               </span>
             </div>
           </div>
+          )}
 
           {/* Notes */}
           <div>

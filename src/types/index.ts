@@ -493,6 +493,7 @@ export interface Payment {
 }
 
 export type CondicionIva = 'responsable_inscripto' | 'monotributo' | 'exento' | 'consumidor_final'
+export type TipoCobranza = 'proyecto' | 'recurrente'
 
 export interface Invoice {
   id: string
@@ -509,6 +510,10 @@ export interface Invoice {
   descripcion: string | null
   moneda: 'USD' | 'ARS'
   estado: InvoiceEstado
+  tipo_cobranza: TipoCobranza
+  dia_cobro: number | null
+  monto_recurrente: number | null
+  mantenimiento_activo: boolean
   fecha_emision: string
   fecha_vencimiento: string | null
   notas: string | null
