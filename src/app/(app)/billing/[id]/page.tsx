@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { cn } from '@/lib/utils'
+import { cn, parseLocalDate, getDaysUntil } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import type { Invoice, Payment, InvoiceEstado, PaymentMetodo } from '@/types'
 
@@ -273,7 +273,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             <SummaryCard
               label="Total"
               value={fmt(total, inv.moneda)}
-              sub={`Emitida ${format(new Date(inv.fecha_emision), 'd MMM yyyy', { locale: es })}`}
+              sub={`Emitida ${format(parseLocalDate(inv.fecha_emision), 'd MMM yyyy', { locale: es })}`}
               icon={FileText}
               color="text-slate-600"
             />
@@ -296,7 +296,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               label="Pendiente"
               value={fmt(totalPendiente, inv.moneda)}
               sub={inv.fecha_vencimiento
-                ? `Vence ${format(new Date(inv.fecha_vencimiento), 'd MMM yyyy', { locale: es })}`
+                ? `Vence ${format(parseLocalDate(inv.fecha_vencimiento), 'd MMM yyyy', { locale: es })}`
                 : 'Sin fecha de vencimiento'}
               icon={Calendar}
               color={totalPendiente > 0 ? 'text-amber-600' : 'text-slate-400'}
@@ -408,7 +408,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             <div className="divide-y divide-slate-50">
               {payments.map(p => {
                 const isPaid    = !!p.fecha_pago
-                const isOverdue = !isPaid && p.fecha_vencimiento && new Date(p.fecha_vencimiento) < new Date()
+                const isOverdue = !isPaid && !!p.fecha_vencimiento && getDaysUntil(p.fecha_vencimiento) < 0
                 return (
                   <div
                     key={p.id}
@@ -429,11 +429,11 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                       <p className="text-sm font-medium text-slate-800">{p.descripcion}</p>
                       <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-400">
                         {p.fecha_vencimiento && (
-                          <span>Vence {format(new Date(p.fecha_vencimiento), 'd MMM yyyy', { locale: es })}</span>
+                          <span>Vence {format(parseLocalDate(p.fecha_vencimiento), 'd MMM yyyy', { locale: es })}</span>
                         )}
                         {isPaid && p.fecha_pago && (
                           <span className="text-green-600">
-                            Pagado {format(new Date(p.fecha_pago), 'd MMM yyyy', { locale: es })}
+                            Pagado {format(parseLocalDate(p.fecha_pago), 'd MMM yyyy', { locale: es })}
                             {p.metodo_pago && ` · ${METODOS.find(m => m.value === p.metodo_pago)?.label}`}
                           </span>
                         )}

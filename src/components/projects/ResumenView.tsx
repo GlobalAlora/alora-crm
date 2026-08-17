@@ -33,7 +33,7 @@ export function ResumenView({ project, users }: Props) {
   const pct       = total > 0 ? Math.round(done / total * 100) : 0
 
   const daysLeft = project.fecha_fin
-    ? differenceInDays(new Date(project.fecha_fin), new Date())
+    ? differenceInDays(parseLocalDate(project.fecha_fin), new Date())
     : null
 
   const byStatus = STATUS_OPTS.map(s => ({

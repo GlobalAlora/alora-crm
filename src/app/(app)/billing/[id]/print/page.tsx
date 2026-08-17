@@ -6,6 +6,7 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Loader2, Printer } from 'lucide-react'
 import type { Invoice, InvoiceEstado } from '@/types'
+import { parseLocalDate } from '@/lib/utils'
 
 const ESTADO_LABELS: Record<InvoiceEstado, string> = {
   borrador:             'Borrador',
@@ -142,7 +143,7 @@ export default function PrintPage({ params }: { params: Promise<{ id: string }> 
                     Fecha de emisión
                   </p>
                   <p style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', margin: 0 }}>
-                    {format(new Date(inv.fecha_emision), "d 'de' MMMM, yyyy", { locale: es })}
+                    {format(parseLocalDate(inv.fecha_emision), "d 'de' MMMM, yyyy", { locale: es })}
                   </p>
                 </div>
                 {inv.fecha_vencimiento && (
@@ -151,7 +152,7 @@ export default function PrintPage({ params }: { params: Promise<{ id: string }> 
                       Vencimiento
                     </p>
                     <p style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', margin: 0 }}>
-                      {format(new Date(inv.fecha_vencimiento), "d 'de' MMMM, yyyy", { locale: es })}
+                      {format(parseLocalDate(inv.fecha_vencimiento), "d 'de' MMMM, yyyy", { locale: es })}
                     </p>
                   </div>
                 )}
@@ -255,12 +256,12 @@ export default function PrintPage({ params }: { params: Promise<{ id: string }> 
                         <span style={{ fontSize: 13, color: '#1e293b', fontWeight: 500 }}>{p.descripcion}</span>
                         {p.fecha_vencimiento && (
                           <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 8 }}>
-                            Vence {format(new Date(p.fecha_vencimiento), "d MMM yyyy", { locale: es })}
+                            Vence {format(parseLocalDate(p.fecha_vencimiento), "d MMM yyyy", { locale: es })}
                           </span>
                         )}
                         {p.fecha_pago && (
                           <span style={{ fontSize: 11, color: '#22c55e', marginLeft: 8 }}>
-                            Pagado {format(new Date(p.fecha_pago), "d MMM yyyy", { locale: es })}
+                            Pagado {format(parseLocalDate(p.fecha_pago), "d MMM yyyy", { locale: es })}
                             {p.metodo_pago && ` · ${METODO_LABELS[p.metodo_pago] ?? p.metodo_pago}`}
                           </span>
                         )}

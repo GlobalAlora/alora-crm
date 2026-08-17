@@ -1,12 +1,13 @@
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { parseLocalDate, getDaysUntil } from './utils'
 
 function fmt(amount: number, currency: string) {
   return `${currency} ${amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
 }
 
 function fmtDate(d: string) {
-  return format(new Date(d), "d 'de' MMMM 'de' yyyy", { locale: es })
+  return format(parseLocalDate(d), "d 'de' MMMM 'de' yyyy", { locale: es })
 }
 
 // ─── Client-facing reminder ────────────────────────────────
@@ -119,7 +120,7 @@ export function buildInternalAlertHtml({
 }): string {
   const rows = invoices.flatMap(({ invoice, payments }) =>
     payments.map(p => {
-      const isOverdue = p.fecha_vencimiento && !p.fecha_pago && new Date(p.fecha_vencimiento) < new Date()
+      const isOverdue = !!p.fecha_vencimiento && !p.fecha_pago && getDaysUntil(p.fecha_vencimiento) < 0
       const color     = isOverdue ? '#ef4444' : '#f59e0b'
       const label     = isOverdue ? 'VENCIDA' : 'PRÓXIMA'
       return `

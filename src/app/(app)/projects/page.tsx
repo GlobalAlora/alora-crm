@@ -11,7 +11,7 @@ import Link from 'next/link'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
-import { cn } from '@/lib/utils'
+import { cn, parseLocalDate } from '@/lib/utils'
 import type { Project, ProjectEstado, PmPriority } from '@/types'
 
 const ESTADO_CONFIG: Record<ProjectEstado, { label: string; color: string; dot: string }> = {
@@ -586,7 +586,7 @@ function ProjectRow({
         {project.fecha_fin && (
           <div className="flex items-center gap-1 text-xs text-slate-400 whitespace-nowrap hidden md:flex">
             <Calendar size={12} />
-            {format(new Date(project.fecha_fin), 'd MMM yyyy', { locale: es })}
+            {format(parseLocalDate(project.fecha_fin), 'd MMM yyyy', { locale: es })}
           </div>
         )}
         <ChevronRight size={14} className="text-slate-300 group-hover:text-slate-500 transition-colors flex-shrink-0" />

@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendGmail } from '@/lib/google-gmail'
+import { parseLocalDate } from '@/lib/utils'
 
 const FOOTER = `<p style="font-size:13px;color:#94a3b8;border-top:1px solid #f1f5f9;padding-top:16px;margin:24px 0 0">
   Alora Digital · <a href="https://globalalora.com" style="color:#3b82f6">globalalora.com</a>
@@ -76,7 +77,7 @@ export function buildTaskAssignedHtml(opts: {
   const prioLabel = PRIORITY_LABEL[opts.prioridad] ?? opts.prioridad
 
   const fechaHtml = opts.fechaLimite
-    ? `<tr><td style="color:#64748b;font-size:13px;padding:4px 0;width:110px">Fecha límite</td><td style="font-size:13px;padding:4px 0">${new Date(opts.fechaLimite).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}</td></tr>`
+    ? `<tr><td style="color:#64748b;font-size:13px;padding:4px 0;width:110px">Fecha límite</td><td style="font-size:13px;padding:4px 0">${parseLocalDate(opts.fechaLimite).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}</td></tr>`
     : ''
 
   const descHtml = opts.descripcion

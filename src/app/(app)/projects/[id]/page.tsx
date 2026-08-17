@@ -19,7 +19,7 @@ import Link from 'next/link'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
-import { cn, getDaysUntil } from '@/lib/utils'
+import { cn, getDaysUntil, parseLocalDate } from '@/lib/utils'
 import type { Project, TaskSection, ProjectTask, ProjectEstado, User, TicketAttachment } from '@/types'
 import { TaskPanel, Avatar } from '@/components/projects/TaskPanel'
 import { BoardView } from '@/components/projects/BoardView'
@@ -1275,7 +1275,7 @@ function SortableTaskRow({
         <span className="text-xs whitespace-nowrap hidden sm:block text-green-600 font-medium">
           ✓ {format(new Date(task.fecha_finalizacion + 'T00:00:00'), 'd MMM', { locale: es })}
           {task.fecha_limite && (() => {
-            const diff = Math.round((new Date(task.fecha_finalizacion).getTime() - new Date(task.fecha_limite).getTime()) / 86_400_000)
+            const diff = Math.round((parseLocalDate(task.fecha_finalizacion).getTime() - parseLocalDate(task.fecha_limite).getTime()) / 86_400_000)
             if (diff === 0) return null
             return <span className={diff < 0 ? 'text-green-500' : 'text-red-400'}> {diff < 0 ? `↑${Math.abs(diff)}d` : `↓${diff}d`}</span>
           })()}

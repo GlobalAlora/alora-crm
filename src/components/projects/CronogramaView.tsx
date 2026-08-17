@@ -6,7 +6,7 @@ import {
   eachWeekOfInterval, format,
 } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { cn } from '@/lib/utils'
+import { cn, parseLocalDate, getDaysUntil } from '@/lib/utils'
 import type { TaskSection, ProjectTask, User } from '@/types'
 import { Avatar } from './TaskPanel'
 
@@ -34,8 +34,8 @@ export function CronogramaView({ sections, users, onSelectTask, selectedTaskId }
   const { rangeStart, rangeEnd, weeks, totalDays } = useMemo(() => {
     const today = new Date()
     const dates = allTasks.flatMap(t => [
-      t.fecha_inicio  ? new Date(t.fecha_inicio)  : null,
-      t.fecha_limite  ? new Date(t.fecha_limite)  : null,
+      t.fecha_inicio  ? parseLocalDate(t.fecha_inicio)  : null,
+      t.fecha_limite  ? parseLocalDate(t.fecha_limite)  : null,
     ].filter(Boolean) as Date[])
 
     const minDate = dates.length > 0
@@ -65,13 +65,13 @@ export function CronogramaView({ sections, users, onSelectTask, selectedTaskId }
   }
 
   function bar(task: ProjectTask) {
-    const s = task.fecha_inicio ? new Date(task.fecha_inicio) : task.fecha_limite ? new Date(task.fecha_limite) : null
-    const e = task.fecha_limite ? new Date(task.fecha_limite) : task.fecha_inicio ? new Date(task.fecha_inicio) : null
+    const s = task.fecha_inicio ? parseLocalDate(task.fecha_inicio) : task.fecha_limite ? parseLocalDate(task.fecha_limite) : null
+    const e = task.fecha_limite ? parseLocalDate(task.fecha_limite) : task.fecha_inicio ? parseLocalDate(task.fecha_inicio) : null
     if (!s || !e) return null
     const left  = differenceInDays(s, rangeStart)
     const days  = Math.max(1, differenceInDays(e, s) + 1)
     const isDone    = task.estado === 'finalizada'
-    const isOverdue = !isDone && task.fecha_limite && new Date(task.fecha_limite) < new Date()
+    const isOverdue = !isDone && !!task.fecha_limite && getDaysUntil(task.fecha_limite) < 0
     return { left, days, isDone, isOverdue }
   }
 

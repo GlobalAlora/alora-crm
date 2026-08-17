@@ -1,11 +1,19 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, AlignLeft, CheckCircle2, Circle, Plus, ChevronRight, Paperclip, Trash2, MessageSquare, Send } from 'lucide-react'
+import { X, AlignLeft, CheckCircle2, Circle, Plus, ChevronRight, Paperclip, Trash2, MessageSquare, Send, Download } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { cn, getDaysUntil } from '@/lib/utils'
+import { cn, getDaysUntil, parseLocalDate } from '@/lib/utils'
 import type { ProjectTask, PmPriority, ProjectTaskEstado, TaskSection, User, TicketAttachment } from '@/types'
+
+// Supabase Storage public URLs serve inline by default (browser opens/previews
+// the file); appending ?download forces a Content-Disposition: attachment
+// response so the browser saves it instead.
+function downloadHref(url: string, name: string): string {
+  const separator = url.includes('?') ? '&' : '?'
+  return `${url}${separator}download=${encodeURIComponent(name)}`
+}
 
 const PRIORITY_OPTS: { value: PmPriority; label: string }[] = [
   { value: 'baja',    label: 'Baja'    },
@@ -51,7 +59,7 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
   const [showSubModal, setShowSubModal] = useState(false)
   const [isDragOver,   setIsDragOver]  = useState(false)
   const [uploading,    setUploading]   = useState(false)
-  const [lightboxUrl,  setLightboxUrl] = useState<string | null>(null)
+  const [lightbox,     setLightbox]    = useState<TicketAttachment | null>(null)
   const [comments,      setComments]     = useState<TaskComment[]>([])
   const [newComment,    setNewComment]   = useState('')
   const [sending,       setSending]      = useState(false)
@@ -216,12 +224,21 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
       <input ref={commentFileInputRef} type="file" multiple className="hidden" onChange={e => { uploadCommentFiles(Array.from(e.target.files ?? [])); e.target.value = '' }} />
 
       {/* Lightbox */}
-      {lightboxUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setLightboxUrl(null)}>
-          <button onClick={() => setLightboxUrl(null)} className="absolute top-4 right-4 text-white/80 hover:text-white bg-black/40 rounded-full p-1.5">
-            <X size={20} />
-          </button>
-          <img src={lightboxUrl} alt="" className="max-w-full max-h-full rounded-xl shadow-2xl object-contain" onClick={e => e.stopPropagation()} />
+      {lightbox && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setLightbox(null)}>
+          <div className="absolute top-4 right-4 flex items-center gap-2">
+            <a
+              href={downloadHref(lightbox.url, lightbox.name)}
+              onClick={e => e.stopPropagation()}
+              className="flex items-center gap-1.5 text-white/80 hover:text-white bg-black/40 hover:bg-black/60 rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
+            >
+              <Download size={14} /> Descargar
+            </a>
+            <button onClick={() => setLightbox(null)} className="text-white/80 hover:text-white bg-black/40 hover:bg-black/60 rounded-full p-1.5 transition-colors">
+              <X size={20} />
+            </button>
+          </div>
+          <img src={lightbox.url} alt="" className="max-w-full max-h-full rounded-xl shadow-2xl object-contain" onClick={e => e.stopPropagation()} />
         </div>
       )}
 
@@ -337,8 +354,8 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
               />
               {(() => {
                 if (!task.fecha_finalizacion || !task.fecha_limite) return null
-                const fin  = new Date(task.fecha_finalizacion)
-                const lim  = new Date(task.fecha_limite)
+                const fin  = parseLocalDate(task.fecha_finalizacion)
+                const lim  = parseLocalDate(task.fecha_limite)
                 const diff = Math.round((fin.getTime() - lim.getTime()) / 86_400_000)
                 if (diff === 0) return <span className="text-xs text-green-600 font-medium">En fecha</span>
                 if (diff < 0)  return <span className="text-xs text-green-600 font-medium">↑ {Math.abs(diff)}d antes</span>
@@ -400,7 +417,7 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
               {task.attachments!.map((a, i) => (
                 a.type?.startsWith('image/') ? (
                   <div key={i} className="relative group">
-                    <button onClick={() => setLightboxUrl(a.url)} className="cursor-zoom-in">
+                    <button onClick={() => setLightbox(a)} className="cursor-zoom-in">
                       <img src={a.url} alt={a.name} className="h-16 w-16 object-cover rounded-lg border border-slate-200 hover:opacity-90 transition-opacity" />
                     </button>
                     <button
@@ -412,7 +429,7 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
                   </div>
                 ) : (
                   <div key={i} className="relative group flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg max-w-full">
-                    <a href={a.url} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-600 hover:text-blue-600 truncate max-w-[120px]">
+                    <a href={downloadHref(a.url, a.name)} className="text-xs text-slate-600 hover:text-blue-600 truncate max-w-[120px]">
                       {a.name}
                     </a>
                     <button onClick={() => removeAttachment(a.url)} className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
@@ -503,11 +520,11 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
                       <div className="flex flex-wrap gap-1.5 mt-1.5">
                         {c.attachments.map((a, i) => (
                           a.type?.startsWith('image/') ? (
-                            <button key={i} onClick={() => setLightboxUrl(a.url)} className="cursor-zoom-in">
+                            <button key={i} onClick={() => setLightbox(a)} className="cursor-zoom-in">
                               <img src={a.url} alt={a.name} className="h-14 w-14 object-cover rounded-lg border border-slate-200 hover:opacity-90 transition-opacity" />
                             </button>
                           ) : (
-                            <a key={i} href={a.url} target="_blank" rel="noopener noreferrer"
+                            <a key={i} href={downloadHref(a.url, a.name)}
                               className="flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-md text-[11px] text-slate-600 hover:text-blue-600 max-w-[160px] truncate transition-colors">
                               <Paperclip size={10} className="flex-shrink-0" />
                               <span className="truncate">{a.name}</span>
@@ -608,7 +625,7 @@ export function TaskPanel({ task, sections, allTasks, users, projectId, onClose,
           </p>
           {task.fecha_finalizacion && (
             <p className="text-xs text-green-600 font-medium">
-              Finalizada {format(new Date(task.fecha_finalizacion), "d 'de' MMM yyyy", { locale: es })}
+              Finalizada {format(parseLocalDate(task.fecha_finalizacion), "d 'de' MMM yyyy", { locale: es })}
             </p>
           )}
         </div>
