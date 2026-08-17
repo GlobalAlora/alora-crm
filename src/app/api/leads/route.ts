@@ -61,10 +61,10 @@ export async function GET(req: NextRequest) {
     query = query.contains('servicios_interesados', servicios)
   }
   if (fechaDesde) {
-    query = query.gte('created_at', fechaDesde)
+    query = query.gte('fecha_ingreso', fechaDesde)
   }
   if (fechaHasta) {
-    query = query.lte('created_at', fechaHasta)
+    query = query.lte('fecha_ingreso', fechaHasta)
   }
   if (buscar) {
     query = query.or(
