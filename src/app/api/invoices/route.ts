@@ -118,15 +118,25 @@ export async function POST(req: NextRequest) {
   }
 
   if (payments.length > 0) {
-    await admin.from('payments').insert(
+    const { error: paymentsError } = await admin.from('payments').insert(
       payments.map((p: { descripcion: string; monto: number; fecha_vencimiento?: string; metodo_pago?: string }) => ({
         invoice_id:       invoice.id,
         descripcion:      p.descripcion,
         monto:            p.monto,
         fecha_vencimiento: p.fecha_vencimiento ?? null,
-        metodo_pago:      p.metodo_pago ?? null,
+        // '' fails the metodo_pago CHECK constraint (only NULL or one of
+        // the enumerated values passes) — || instead of ?? catches that.
+        metodo_pago:      p.metodo_pago || null,
       }))
     )
+
+    if (paymentsError) {
+      console.error('[POST /api/invoices] payments insert failed:', paymentsError.message)
+      return NextResponse.json({
+        data: invoice,
+        error: `Cliente creado, pero las cuotas no se pudieron guardar: ${paymentsError.message}`,
+      }, { status: 207 })
+    }
   }
 
   return NextResponse.json({ data: invoice }, { status: 201 })

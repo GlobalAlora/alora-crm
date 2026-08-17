@@ -49,7 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       monto:            Number(monto),
       fecha_vencimiento: fecha_vencimiento ?? null,
       fecha_pago:       fecha_pago ?? null,
-      metodo_pago:      metodo_pago ?? null,
+      metodo_pago:      metodo_pago || null,
       numero_factura:   numero_factura ?? null,
       factura_enviada_at: factura_enviada_at ?? null,
       attachments,

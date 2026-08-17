@@ -16,7 +16,7 @@ import type { Invoice, InvoiceEstado, CondicionIva, TipoCobranza } from '@/types
 const MESES_ADELANTADOS_MANTENIMIENTO = 12
 
 function generateMonthlyPayments(startMonth: Date, diaCobro: number, monto: number, count: number) {
-  const payments: { descripcion: string; monto: number; fecha_vencimiento: string; metodo_pago: string }[] = []
+  const payments: { descripcion: string; monto: number; fecha_vencimiento: string; metodo_pago: null }[] = []
   for (let i = 0; i < count; i++) {
     const monthDate = addMonths(startMonth, i)
     const day = Math.min(diaCobro, getDaysInMonth(monthDate))
@@ -26,7 +26,7 @@ function generateMonthlyPayments(startMonth: Date, diaCobro: number, monto: numb
       descripcion: `Mantenimiento ${label.charAt(0).toUpperCase()}${label.slice(1)}`,
       monto,
       fecha_vencimiento: due.toISOString().slice(0, 10),
-      metodo_pago: '',
+      metodo_pago: null,
     })
   }
   return payments
@@ -78,6 +78,7 @@ interface NewInvoiceForm {
   tipo_cobranza: TipoCobranza
   dia_cobro: string
   monto_recurrente: string
+  mantenimiento_desde: string
   payments: { descripcion: string; monto: number; fecha_vencimiento: string; metodo_pago: string }[]
 }
 
@@ -402,6 +403,7 @@ function NewInvoiceModal({
     tipo_cobranza:         'proyecto',
     dia_cobro:             '',
     monto_recurrente:      '',
+    mantenimiento_desde:   today.slice(0, 7),
     payments: [{ descripcion: 'Pago único', monto: 0, fecha_vencimiento: '', metodo_pago: '' }],
   })
   const [tipoPago, setTipoPago] = useState<'unico' | 'cuotas'>('unico')
@@ -486,7 +488,7 @@ function NewInvoiceModal({
     }
 
     const payments = isRecurrente
-      ? generateMonthlyPayments(new Date(form.fecha_emision + 'T00:00:00'), diaCobro, montoRecurrente, MESES_ADELANTADOS_MANTENIMIENTO)
+      ? generateMonthlyPayments(new Date(form.mantenimiento_desde + '-01T00:00:00'), diaCobro, montoRecurrente, MESES_ADELANTADOS_MANTENIMIENTO)
       : form.payments.filter(p => p.monto > 0)
 
     onSubmit({
@@ -712,9 +714,21 @@ function NewInvoiceModal({
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Primera cuota a generar (mes)</label>
+                  <input
+                    type="month"
+                    value={form.mantenimiento_desde}
+                    onChange={e => setForm(f => ({ ...f, mantenimiento_desde: e.target.value }))}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Por defecto es este mes. Si el cliente ya tenía cuotas atrasadas de meses anteriores, elegí ese mes acá.
+                  </p>
+                </div>
               </div>
               <p className="text-[11px] text-slate-400">
-                Se generan automáticamente las cuotas de los próximos {MESES_ADELANTADOS_MANTENIMIENTO} meses, y el sistema sigue generando más a medida que pasa el tiempo. Podés editar el monto de cuotas futuras si aumenta el precio, o pausar el mantenimiento en cualquier momento.
+                Se generan automáticamente las cuotas de los próximos {MESES_ADELANTADOS_MANTENIMIENTO} meses desde ahí, y el sistema sigue generando más a medida que pasa el tiempo. Podés editar el monto de cuotas futuras si aumenta el precio, o pausar el mantenimiento en cualquier momento.
               </p>
             </div>
           ) : (
