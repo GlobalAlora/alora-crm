@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft, Check, Plus, Trash2, Loader2, X,
-  Calendar, DollarSign, FileText, ChevronDown, Bell, BellOff,
+  Calendar, DollarSign, FileText, ChevronDown, Bell, BellOff, Pencil,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -106,6 +106,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
 
   const [showEstadoDropdown, setShowEstadoDropdown] = useState(false)
   const [showAddPayment, setShowAddPayment]         = useState(false)
+  const [showEditClient, setShowEditClient]         = useState(false)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['invoice', id],
@@ -121,7 +122,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
 
   const patchMutation = useMutation({
     mutationFn: (body: Partial<Invoice>) => patchInvoice(id, body),
-    onSuccess: () => { toast.success('Actualizado'); invalidate(); setShowEstadoDropdown(false) },
+    onSuccess: () => { toast.success('Actualizado'); invalidate(); setShowEstadoDropdown(false); setShowEditClient(false) },
     onError:   (e: Error) => toast.error(e.message),
   })
 
@@ -176,11 +177,13 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     )
   }
 
+  const isRecurrente = inv.tipo_cobranza === 'recurrente'
   const total        = inv.total ?? 0
   const totalPagado  = inv.total_pagado ?? 0
   const totalPendiente = total - totalPagado
   const pct          = total > 0 ? Math.min(100, Math.round((totalPagado / total) * 100)) : 0
   const estadoCfg    = ESTADO_CFG[inv.estado]
+  const estadoLabel  = isRecurrente && inv.estado === 'cobrado' ? 'Al día' : estadoCfg.label
   const payments     = inv.payments ?? []
   const nextDue      = payments
     .filter(p => !p.fecha_pago && p.fecha_vencimiento)
@@ -213,7 +216,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                 estadoCfg.color
               )}
             >
-              {estadoCfg.label}
+              {estadoLabel}
               <ChevronDown size={12} />
             </button>
             {showEstadoDropdown && (
@@ -288,42 +291,72 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
 
           {/* Summary cards */}
           <div className="grid grid-cols-3 gap-4">
-            <SummaryCard
-              label="Total"
-              value={fmt(total, inv.moneda)}
-              sub={`Emitida ${format(parseLocalDate(inv.fecha_emision), 'd MMM yyyy', { locale: es })}`}
-              icon={FileText}
-              color="text-slate-600"
-            />
+            {isRecurrente ? (
+              <SummaryCard
+                label="Mantenimiento"
+                value={`${fmt(inv.monto_recurrente ?? 0, inv.moneda)}/mes`}
+                sub={`Vence el día ${inv.dia_cobro} de cada mes`}
+                icon={FileText}
+                color="text-slate-600"
+              />
+            ) : (
+              <SummaryCard
+                label="Total"
+                value={fmt(total, inv.moneda)}
+                sub={`Emitida ${format(parseLocalDate(inv.fecha_emision), 'd MMM yyyy', { locale: es })}`}
+                icon={FileText}
+                color="text-slate-600"
+              />
+            )}
             <SummaryCard
               label="Cobrado"
               value={fmt(totalPagado, inv.moneda)}
-              sub={`${pct}% del total`}
+              sub={isRecurrente ? 'Total histórico cobrado' : `${pct}% del total`}
               icon={Check}
               color="text-green-600"
-              extra={
+              extra={!isRecurrente && (
                 <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mt-2">
                   <div
                     className={cn('h-full rounded-full', pct >= 100 ? 'bg-green-500' : 'bg-amber-400')}
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-              }
+              )}
             />
-            <SummaryCard
-              label="Pendiente"
-              value={fmt(totalPendiente, inv.moneda)}
-              sub={nextDue
-                ? `Próximo vencimiento ${format(parseLocalDate(nextDue), 'd MMM yyyy', { locale: es })}`
-                : 'Sin pagos pendientes'}
-              icon={Calendar}
-              color={totalPendiente > 0 ? 'text-amber-600' : 'text-slate-400'}
-            />
+            {isRecurrente ? (
+              <SummaryCard
+                label="Próxima cuota"
+                value={nextDue ? fmt(inv.monto_recurrente ?? 0, inv.moneda) : '—'}
+                sub={nextDue
+                  ? `Vence ${format(parseLocalDate(nextDue), 'd MMM yyyy', { locale: es })}`
+                  : 'Sin cuotas pendientes'}
+                icon={Calendar}
+                color={nextDue ? 'text-amber-600' : 'text-slate-400'}
+              />
+            ) : (
+              <SummaryCard
+                label="Pendiente"
+                value={fmt(totalPendiente, inv.moneda)}
+                sub={nextDue
+                  ? `Próximo vencimiento ${format(parseLocalDate(nextDue), 'd MMM yyyy', { locale: es })}`
+                  : 'Sin pagos pendientes'}
+                icon={Calendar}
+                color={totalPendiente > 0 ? 'text-amber-600' : 'text-slate-400'}
+              />
+            )}
           </div>
 
           {/* Details + project + lead */}
           <div className="bg-white border border-slate-200 rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Cliente</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-slate-700">Cliente</h3>
+              <button
+                onClick={() => setShowEditClient(true)}
+                className="flex items-center gap-1 text-xs text-slate-500 hover:text-blue-600 transition-colors"
+              >
+                <Pencil size={12} /> Editar
+              </button>
+            </div>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="text-xs text-slate-500 mb-0.5">Tipo</p>
@@ -573,6 +606,15 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
 
         </div>
       </div>
+
+      {showEditClient && (
+        <EditClientModal
+          invoice={inv}
+          onClose={() => setShowEditClient(false)}
+          onSubmit={(body) => patchMutation.mutate(body)}
+          isLoading={patchMutation.isPending}
+        />
+      )}
     </div>
   )
 }
@@ -591,6 +633,114 @@ function SummaryCard({ label, value, sub, icon: Icon, color, extra }: {
       <p className="text-xl font-bold text-slate-900 font-mono leading-tight">{value}</p>
       <p className="text-xs text-slate-400 mt-0.5">{sub}</p>
       {extra}
+    </div>
+  )
+}
+
+// ─── Edit Client Modal ────────────────────────────────────
+function EditClientModal({
+  invoice, onClose, onSubmit, isLoading,
+}: {
+  invoice: Invoice
+  onClose: () => void
+  onSubmit: (body: Partial<Invoice>) => void
+  isLoading: boolean
+}) {
+  const [form, setForm] = useState({
+    cliente_nombre:        invoice.cliente_nombre,
+    cliente_email:         invoice.cliente_email ?? '',
+    cliente_telefono:      invoice.cliente_telefono ?? '',
+    cliente_razon_social:  invoice.cliente_razon_social ?? '',
+    cliente_cuit:          invoice.cliente_cuit ?? '',
+    cliente_condicion_iva: invoice.cliente_condicion_iva ?? '',
+    cliente_domicilio:     invoice.cliente_domicilio ?? '',
+  })
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.cliente_nombre.trim()) return
+    onSubmit({
+      cliente_nombre:        form.cliente_nombre.trim(),
+      cliente_email:         form.cliente_email || null,
+      cliente_telefono:      form.cliente_telefono || null,
+      cliente_razon_social:  form.cliente_razon_social || null,
+      cliente_cuit:          form.cliente_cuit || null,
+      cliente_condicion_iva: (form.cliente_condicion_iva || null) as CondicionIva | null,
+      cliente_domicilio:     form.cliente_domicilio || null,
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b flex-shrink-0">
+          <h2 className="text-base font-semibold text-slate-900">Editar cliente</h2>
+        </div>
+        <form onSubmit={submit} className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Cliente *</label>
+              <input required value={form.cliente_nombre} onChange={e => setForm(f => ({ ...f, cliente_nombre: e.target.value }))}
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Email</label>
+              <input type="email" value={form.cliente_email} onChange={e => setForm(f => ({ ...f, cliente_email: e.target.value }))}
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Teléfono</label>
+              <input value={form.cliente_telefono} onChange={e => setForm(f => ({ ...f, cliente_telefono: e.target.value }))}
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </div>
+
+          <div className="border border-slate-100 rounded-lg p-3 space-y-3 bg-slate-50/50">
+            <p className="text-xs font-semibold text-slate-600">Datos de facturación</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Razón social</label>
+                <input value={form.cliente_razon_social} onChange={e => setForm(f => ({ ...f, cliente_razon_social: e.target.value }))}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">CUIT</label>
+                <input value={form.cliente_cuit} onChange={e => setForm(f => ({ ...f, cliente_cuit: e.target.value }))} placeholder="20-12345678-9"
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Condición frente al IVA</label>
+                <select value={form.cliente_condicion_iva} onChange={e => setForm(f => ({ ...f, cliente_condicion_iva: e.target.value }))}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">Sin especificar</option>
+                  <option value="responsable_inscripto">Responsable Inscripto</option>
+                  <option value="monotributo">Monotributo</option>
+                  <option value="exento">Exento</option>
+                  <option value="consumidor_final">Consumidor Final</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Domicilio fiscal</label>
+                <input value={form.cliente_domicilio} onChange={e => setForm(f => ({ ...f, cliente_domicilio: e.target.value }))}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+          </div>
+        </form>
+        <div className="px-6 py-4 border-t flex gap-3 flex-shrink-0">
+          <button type="button" onClick={onClose} className="flex-1 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+            Cancelar
+          </button>
+          <button
+            onClick={(e) => submit(e)}
+            disabled={isLoading || !form.cliente_nombre.trim()}
+            className="flex-1 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+            Guardar
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

@@ -129,8 +129,11 @@ export default function BillingPage() {
 
   function statsFor(list: Invoice[]) {
     return {
-      facturado: list.filter(i => i.estado === 'cobrado').reduce((s, i) => s + (i.total ?? 0), 0),
-      pendiente: list.filter(i => ['pendiente','parcial'].includes(i.estado)).reduce((s, i) => s + ((i.total ?? 0) - (i.total_pagado ?? 0)), 0),
+      // Total actually collected across every client, regardless of that
+      // client's overall estado — a 'parcial' or 'recurrente' client can
+      // still have real money collected that needs to show up here.
+      facturado: list.reduce((s, i) => s + (i.total_pagado ?? 0), 0),
+      pendiente: list.filter(i => i.tipo_cobranza !== 'recurrente' && ['pendiente','parcial'].includes(i.estado)).reduce((s, i) => s + ((i.total ?? 0) - (i.total_pagado ?? 0)), 0),
       vencido:   list.filter(i => i.estado === 'vencido').reduce((s, i) => s + ((i.total ?? 0) - (i.total_pagado ?? 0)), 0),
     }
   }
@@ -258,7 +261,9 @@ export default function BillingPage() {
               </thead>
               <tbody>
                 {filtered.map(inv => {
+                  const isRecurrente = inv.tipo_cobranza === 'recurrente'
                   const cfg    = ESTADO_CFG[inv.estado]
+                  const cfgLabel = isRecurrente && inv.estado === 'cobrado' ? 'Al día' : cfg.label
                   const total  = inv.total ?? 0
                   const cobrado = inv.total_pagado ?? 0
                   const pct    = total > 0 ? Math.round((cobrado / total) * 100) : 0
@@ -299,25 +304,31 @@ export default function BillingPage() {
                           : '—'}
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-slate-800 font-medium whitespace-nowrap">
-                        {fmt(total, inv.moneda)}
+                        {isRecurrente
+                          ? `${fmt(inv.monto_recurrente ?? 0, inv.moneda)}/mes`
+                          : fmt(total, inv.moneda)}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex flex-col items-end gap-1">
+                        {isRecurrente ? (
                           <span className="font-mono text-xs text-slate-600">{fmt(cobrado, inv.moneda)}</span>
-                          <div className="w-16 h-1 bg-slate-100 rounded-full overflow-hidden">
-                            <div
-                              className={cn('h-full rounded-full transition-all',
-                                pct >= 100 ? 'bg-green-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-200'
-                              )}
-                              style={{ width: `${pct}%` }}
-                            />
+                        ) : (
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="font-mono text-xs text-slate-600">{fmt(cobrado, inv.moneda)}</span>
+                            <div className="w-16 h-1 bg-slate-100 rounded-full overflow-hidden">
+                              <div
+                                className={cn('h-full rounded-full transition-all',
+                                  pct >= 100 ? 'bg-green-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-200'
+                                )}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <span className={cn('inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full', cfg.color)}>
                           <span className={cn('w-1.5 h-1.5 rounded-full', cfg.dot)} />
-                          {cfg.label}
+                          {cfgLabel}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">

@@ -68,24 +68,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 export async function recalcEstado(admin: AdminClient, invoiceId: string) {
   const [{ data: payments }, { data: inv }] = await Promise.all([
     admin.from('payments').select('monto, fecha_pago, fecha_vencimiento').eq('invoice_id', invoiceId),
-    admin.from('invoices').select('estado').eq('id', invoiceId).maybeSingle(),
+    admin.from('invoices').select('estado, tipo_cobranza').eq('id', invoiceId).maybeSingle(),
   ])
 
   if (!inv || inv.estado === 'cancelada') return
-
-  const total  = (payments ?? []).reduce((s, p) => s + p.monto, 0)
-  const pagado = (payments ?? []).filter(p => p.fecha_pago).reduce((s, p) => s + p.monto, 0)
-
-  if (total <= 0) return
 
   const today = getArgentinaDate().toISOString().slice(0, 10)
   const hasOverdue = (payments ?? []).some(p => !p.fecha_pago && p.fecha_vencimiento && p.fecha_vencimiento < today)
 
   let estado: string
-  if (pagado >= total)   estado = 'cobrado'
-  else if (hasOverdue)   estado = 'vencido'
-  else if (pagado > 0)   estado = 'parcial'
-  else                   estado = 'pendiente'
+
+  if (inv.tipo_cobranza === 'recurrente') {
+    // Recurring maintenance has no fixed "total" to complete — the
+    // 12-month lookahead is just a rolling forecast. What matters is
+    // whether the client is up to date (no overdue cuota) or not.
+    // 'parcial' doesn't apply here; 'cobrado' is reused to mean "al día".
+    estado = hasOverdue ? 'vencido' : 'cobrado'
+  } else {
+    const total  = (payments ?? []).reduce((s, p) => s + p.monto, 0)
+    const pagado = (payments ?? []).filter(p => p.fecha_pago).reduce((s, p) => s + p.monto, 0)
+
+    if (total <= 0) return
+
+    if (pagado >= total)   estado = 'cobrado'
+    else if (hasOverdue)   estado = 'vencido'
+    else if (pagado > 0)   estado = 'parcial'
+    else                   estado = 'pendiente'
+  }
 
   await admin.from('invoices').update({ estado }).eq('id', invoiceId)
 }
