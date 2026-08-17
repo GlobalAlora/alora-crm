@@ -15,9 +15,8 @@ import { cn } from '@/lib/utils'
 import type { Project, ProjectEstado, PmPriority } from '@/types'
 
 const ESTADO_CONFIG: Record<ProjectEstado, { label: string; color: string; dot: string }> = {
-  pendiente:     { label: 'Pendiente',     color: 'text-slate-600 bg-slate-100',  dot: 'bg-slate-400' },
+  pendiente:     { label: 'Por comenzar',  color: 'text-slate-600 bg-slate-100',  dot: 'bg-slate-400' },
   en_desarrollo: { label: 'En desarrollo', color: 'text-blue-700  bg-blue-50',    dot: 'bg-blue-500'  },
-  en_revision:   { label: 'En revisión',   color: 'text-amber-700 bg-amber-50',   dot: 'bg-amber-500' },
   en_pausa:      { label: 'En pausa',      color: 'text-red-700   bg-red-50',     dot: 'bg-red-500'   },
   finalizado:    { label: 'Finalizado',    color: 'text-green-700 bg-green-50',   dot: 'bg-green-500' },
 }
@@ -32,8 +31,7 @@ const PRIORIDAD_CONFIG: Record<PmPriority, { label: string; color: string }> = {
 const FILTER_TABS: { value: ProjectEstado | '' | 'archivados'; label: string }[] = [
   { value: '',              label: 'Todos'         },
   { value: 'en_desarrollo', label: 'En desarrollo' },
-  { value: 'en_revision',   label: 'En revisión'   },
-  { value: 'pendiente',     label: 'Pendiente'     },
+  { value: 'pendiente',     label: 'Por comenzar'  },
   { value: 'en_pausa',      label: 'En pausa'      },
   { value: 'finalizado',    label: 'Finalizado'    },
   { value: 'archivados',    label: 'Archivados'    },
@@ -114,7 +112,7 @@ const EMPTY_FORM: NewProjectForm = {
 }
 
 export default function ProjectsPage() {
-  const [filtro, setFiltro] = useState<ProjectEstado | '' | 'archivados'>('')
+  const [filtro, setFiltro] = useState<ProjectEstado | '' | 'archivados'>('en_desarrollo')
   const [buscar, setBuscar] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -549,7 +547,6 @@ function ProjectRow({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const estado = ESTADO_CONFIG[project.estado]
-  const prio   = PRIORIDAD_CONFIG[project.prioridad]
   const client = project.lead?.empresa || [project.lead?.nombre, project.lead?.apellido].filter(Boolean).join(' ')
 
   useEffect(() => {
@@ -585,9 +582,6 @@ function ProjectRow({
         </div>
         <span className={cn('px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap', estado.color)}>
           {estado.label}
-        </span>
-        <span className={cn('text-xs font-medium whitespace-nowrap hidden sm:block', prio.color)}>
-          {prio.label}
         </span>
         {project.fecha_fin && (
           <div className="flex items-center gap-1 text-xs text-slate-400 whitespace-nowrap hidden md:flex">

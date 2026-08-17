@@ -48,9 +48,8 @@ const VIEWS: { id: ViewMode; label: string; icon: React.ElementType }[] = [
 ]
 
 const ESTADO_CONFIG: Record<string, { label: string; color: string }> = {
-  pendiente:     { label: 'Pendiente',     color: 'text-slate-600 bg-slate-100 hover:bg-slate-200' },
+  pendiente:     { label: 'Por comenzar',  color: 'text-slate-600 bg-slate-100 hover:bg-slate-200' },
   en_desarrollo: { label: 'En desarrollo', color: 'text-blue-700  bg-blue-50   hover:bg-blue-100'  },
-  en_revision:   { label: 'En revisión',   color: 'text-amber-700 bg-amber-50  hover:bg-amber-100' },
   en_pausa:      { label: 'En pausa',      color: 'text-orange-700 bg-orange-50 hover:bg-orange-100' },
   finalizado:    { label: 'Finalizado',    color: 'text-green-700 bg-green-50  hover:bg-green-100' },
 }

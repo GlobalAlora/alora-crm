@@ -179,7 +179,7 @@ export interface Task {
 
 // ── Project Management Module ─────────────────────────────
 
-export type ProjectEstado = 'pendiente' | 'en_desarrollo' | 'en_revision' | 'en_pausa' | 'finalizado'
+export type ProjectEstado = 'pendiente' | 'en_desarrollo' | 'en_pausa' | 'finalizado'
 export type PmPriority    = 'baja' | 'media' | 'alta' | 'urgente'
 export type ProjectTaskEstado = 'pendiente' | 'en_progreso' | 'bloqueada' | 'en_revision' | 'finalizada' | 'cancelada'
 
