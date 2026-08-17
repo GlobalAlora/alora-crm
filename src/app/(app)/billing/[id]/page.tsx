@@ -3,6 +3,7 @@
 import { useState, useRef, use } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import {
   ArrowLeft, Check, Plus, Trash2, Loader2, X,
   Calendar, DollarSign, FileText, ChevronDown, Bell, BellOff,
@@ -11,7 +12,14 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn, parseLocalDate, getDaysUntil, downloadHref } from '@/lib/utils'
 import toast from 'react-hot-toast'
-import type { Invoice, Payment, InvoiceEstado, PaymentMetodo, TicketAttachment } from '@/types'
+import type { Invoice, Payment, InvoiceEstado, PaymentMetodo, TicketAttachment, CondicionIva } from '@/types'
+
+const CONDICION_IVA_LABELS: Record<CondicionIva, string> = {
+  responsable_inscripto: 'Responsable Inscripto',
+  monotributo:           'Monotributo',
+  exento:                'Exento',
+  consumidor_final:      'Consumidor Final',
+}
 
 // ─── helpers ──────────────────────────────────────────────
 const ESTADO_CFG: Record<InvoiceEstado, { label: string; color: string }> = {
@@ -174,7 +182,9 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const pct          = total > 0 ? Math.min(100, Math.round((totalPagado / total) * 100)) : 0
   const estadoCfg    = ESTADO_CFG[inv.estado]
   const payments     = inv.payments ?? []
-  const items        = inv.items ?? []
+  const nextDue      = payments
+    .filter(p => !p.fecha_pago && p.fecha_vencimiento)
+    .sort((a, b) => (a.fecha_vencimiento! < b.fecha_vencimiento! ? -1 : 1))[0]?.fecha_vencimiento ?? null
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -283,88 +293,93 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             <SummaryCard
               label="Pendiente"
               value={fmt(totalPendiente, inv.moneda)}
-              sub={inv.fecha_vencimiento
-                ? `Vence ${format(parseLocalDate(inv.fecha_vencimiento), 'd MMM yyyy', { locale: es })}`
-                : 'Sin fecha de vencimiento'}
+              sub={nextDue
+                ? `Próximo vencimiento ${format(parseLocalDate(nextDue), 'd MMM yyyy', { locale: es })}`
+                : 'Sin pagos pendientes'}
               icon={Calendar}
               color={totalPendiente > 0 ? 'text-amber-600' : 'text-slate-400'}
             />
           </div>
 
-          {/* Details + project */}
-          {(inv.descripcion || inv.project || inv.notas) && (
-            <div className="bg-white border border-slate-200 rounded-xl p-5">
-              <h3 className="text-sm font-semibold text-slate-700 mb-3">Detalles</h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                {inv.project && (
-                  <div>
-                    <p className="text-xs text-slate-500 mb-0.5">Proyecto</p>
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: inv.project.color }} />
-                      <span className="text-slate-800 font-medium">{inv.project.nombre}</span>
-                    </div>
+          {/* Details + project + lead */}
+          <div className="bg-white border border-slate-200 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">Cliente</h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              {inv.lead && (
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">Lead asociado</p>
+                  <Link href={`/leads/${inv.lead.id}`} className="text-blue-600 hover:underline font-medium">
+                    {[inv.lead.nombre, inv.lead.apellido].filter(Boolean).join(' ')}
+                    {inv.lead.empresa && ` · ${inv.lead.empresa}`}
+                  </Link>
+                </div>
+              )}
+              {inv.project && (
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">Proyecto</p>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: inv.project.color }} />
+                    <span className="text-slate-800 font-medium">{inv.project.nombre}</span>
                   </div>
-                )}
-                {inv.cliente_email && (
-                  <div>
-                    <p className="text-xs text-slate-500 mb-0.5">Email cliente</p>
-                    <p className="text-slate-800">{inv.cliente_email}</p>
-                  </div>
-                )}
-                {inv.descripcion && (
-                  <div className="col-span-2">
-                    <p className="text-xs text-slate-500 mb-0.5">Descripción</p>
-                    <p className="text-slate-700">{inv.descripcion}</p>
-                  </div>
-                )}
-                {inv.notas && (
-                  <div className="col-span-2">
-                    <p className="text-xs text-slate-500 mb-0.5">Notas internas</p>
-                    <p className="text-slate-500 italic text-xs">{inv.notas}</p>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
+              {inv.cliente_email && (
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">Email</p>
+                  <p className="text-slate-800">{inv.cliente_email}</p>
+                </div>
+              )}
+              {inv.cliente_telefono && (
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">Teléfono</p>
+                  <p className="text-slate-800">{inv.cliente_telefono}</p>
+                </div>
+              )}
+              {inv.descripcion && (
+                <div className="col-span-2">
+                  <p className="text-xs text-slate-500 mb-0.5">Descripción</p>
+                  <p className="text-slate-700">{inv.descripcion}</p>
+                </div>
+              )}
+              {inv.notas && (
+                <div className="col-span-2">
+                  <p className="text-xs text-slate-500 mb-0.5">Notas internas</p>
+                  <p className="text-slate-500 italic text-xs">{inv.notas}</p>
+                </div>
+              )}
             </div>
-          )}
 
-          {/* Items table */}
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <div className="px-5 py-3 border-b bg-slate-50">
-              <h3 className="text-sm font-semibold text-slate-700">Ítems</h3>
-            </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left px-5 py-2 text-xs font-semibold text-slate-500">Descripción</th>
-                  <th className="text-center px-3 py-2 text-xs font-semibold text-slate-500">Cant.</th>
-                  <th className="text-right px-3 py-2 text-xs font-semibold text-slate-500">Precio unit.</th>
-                  <th className="text-right px-5 py-2 text-xs font-semibold text-slate-500">Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map(it => (
-                  <tr key={it.id} className="border-b border-slate-50">
-                    <td className="px-5 py-3 text-slate-800">{it.descripcion}</td>
-                    <td className="px-3 py-3 text-center text-slate-600 font-mono">{it.cantidad}</td>
-                    <td className="px-3 py-3 text-right text-slate-600 font-mono">{fmt(it.precio_unitario, inv.moneda)}</td>
-                    <td className="px-5 py-3 text-right font-semibold text-slate-800 font-mono">
-                      {fmt(it.cantidad * it.precio_unitario, inv.moneda)}
-                    </td>
-                  </tr>
-                ))}
-                {items.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-5 py-6 text-center text-slate-400 text-xs">Sin ítems</td>
-                  </tr>
-                )}
-              </tbody>
-              <tfoot>
-                <tr className="bg-slate-50">
-                  <td colSpan={3} className="px-5 py-3 text-right text-sm font-semibold text-slate-700">Total</td>
-                  <td className="px-5 py-3 text-right text-base font-bold text-slate-900 font-mono">{fmt(total, inv.moneda)}</td>
-                </tr>
-              </tfoot>
-            </table>
+            {(inv.cliente_razon_social || inv.cliente_cuit || inv.cliente_condicion_iva || inv.cliente_domicilio) && (
+              <div className="mt-4 pt-4 border-t border-slate-100">
+                <p className="text-xs font-semibold text-slate-500 mb-2">Datos de facturación</p>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  {inv.cliente_razon_social && (
+                    <div>
+                      <p className="text-xs text-slate-500 mb-0.5">Razón social</p>
+                      <p className="text-slate-800">{inv.cliente_razon_social}</p>
+                    </div>
+                  )}
+                  {inv.cliente_cuit && (
+                    <div>
+                      <p className="text-xs text-slate-500 mb-0.5">CUIT</p>
+                      <p className="text-slate-800 font-mono">{inv.cliente_cuit}</p>
+                    </div>
+                  )}
+                  {inv.cliente_condicion_iva && (
+                    <div>
+                      <p className="text-xs text-slate-500 mb-0.5">Condición IVA</p>
+                      <p className="text-slate-800">{CONDICION_IVA_LABELS[inv.cliente_condicion_iva]}</p>
+                    </div>
+                  )}
+                  {inv.cliente_domicilio && (
+                    <div>
+                      <p className="text-xs text-slate-500 mb-0.5">Domicilio fiscal</p>
+                      <p className="text-slate-800">{inv.cliente_domicilio}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Payments / Cuotas */}

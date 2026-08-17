@@ -492,12 +492,20 @@ export interface Payment {
   created_at: string
 }
 
+export type CondicionIva = 'responsable_inscripto' | 'monotributo' | 'exento' | 'consumidor_final'
+
 export interface Invoice {
   id: string
   project_id: string | null
+  lead_id: string | null
   numero: string
   cliente_nombre: string
   cliente_email: string | null
+  cliente_telefono: string | null
+  cliente_razon_social: string | null
+  cliente_cuit: string | null
+  cliente_condicion_iva: CondicionIva | null
+  cliente_domicilio: string | null
   descripcion: string | null
   moneda: 'USD' | 'ARS'
   estado: InvoiceEstado
@@ -514,6 +522,7 @@ export interface Invoice {
   items?: InvoiceItem[]
   payments?: Payment[]
   project?: { id: string; nombre: string; color: string } | null
+  lead?: { id: string; nombre: string; apellido: string | null; empresa: string | null } | null
   total?: number
   total_pagado?: number
 }

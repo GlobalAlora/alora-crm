@@ -5,13 +5,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import {
   Plus, Receipt, TrendingUp, Clock, AlertTriangle, FileText,
-  Loader2, ChevronRight,
+  Loader2, ChevronRight, CalendarRange,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn, parseLocalDate } from '@/lib/utils'
 import toast from 'react-hot-toast'
-import type { Invoice, InvoiceEstado } from '@/types'
+import type { Invoice, InvoiceEstado, CondicionIva } from '@/types'
 
 // ─── helpers ──────────────────────────────────────────────
 const ESTADO_CFG: Record<InvoiceEstado, { label: string; color: string; dot: string }> = {
@@ -43,16 +43,20 @@ async function fetchInvoices(): Promise<{ data: Invoice[] }> {
 
 // ─── New Invoice Modal ─────────────────────────────────────
 interface NewInvoiceForm {
+  lead_id: string
   cliente_nombre: string
   cliente_email: string
+  cliente_telefono: string
+  cliente_razon_social: string
+  cliente_cuit: string
+  cliente_condicion_iva: CondicionIva | ''
+  cliente_domicilio: string
   project_id: string
   moneda: 'USD' | 'ARS'
   fecha_emision: string
-  fecha_vencimiento: string
   descripcion: string
   notas: string
-  items: { descripcion: string; cantidad: number; precio_unitario: number }[]
-  payments: { descripcion: string; monto: number; fecha_vencimiento: string }[]
+  payments: { descripcion: string; monto: number; fecha_vencimiento: string; metodo_pago: string }[]
 }
 
 async function fetchProjects(): Promise<{ data: { id: string; nombre: string }[] }> {
@@ -133,13 +137,22 @@ export default function BillingPage() {
             <p className="text-sm text-slate-500">{invoices.length} cliente{invoices.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          <Plus size={15} />
-          Nuevo cliente
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => router.push('/billing/control')}
+            className="flex items-center gap-2 text-slate-600 hover:text-slate-900 text-sm font-medium px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+          >
+            <CalendarRange size={15} />
+            Control mensual
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            <Plus size={15} />
+            Nuevo cliente
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -314,7 +327,24 @@ function StatCard({ icon: Icon, label, value, color }: {
   )
 }
 
-// ─── New Invoice Modal ─────────────────────────────────────
+// ─── Nuevo cliente Modal ─────────────────────────────────────
+interface LeadOption {
+  id: string
+  nombre: string
+  apellido: string | null
+  empresa: string | null
+  email: string | null
+  telefono: string | null
+}
+
+async function searchLeads(query: string): Promise<LeadOption[]> {
+  if (query.trim().length < 2) return []
+  const r = await fetch(`/api/leads?buscar=${encodeURIComponent(query)}&limit=8`)
+  if (!r.ok) return []
+  const j = await r.json()
+  return j.data ?? []
+}
+
 function NewInvoiceModal({
   onClose, onSubmit, isLoading,
 }: {
@@ -324,42 +354,75 @@ function NewInvoiceModal({
 }) {
   const today = new Date().toISOString().slice(0, 10)
   const [form, setForm] = useState<NewInvoiceForm>({
-    cliente_nombre:    '',
-    cliente_email:     '',
-    project_id:        '',
-    moneda:            'USD',
-    fecha_emision:     today,
-    fecha_vencimiento: '',
-    descripcion:       '',
-    notas:             '',
-    items:    [{ descripcion: '', cantidad: 1, precio_unitario: 0 }],
-    payments: [],
+    lead_id:               '',
+    cliente_nombre:        '',
+    cliente_email:         '',
+    cliente_telefono:      '',
+    cliente_razon_social:  '',
+    cliente_cuit:          '',
+    cliente_condicion_iva: '',
+    cliente_domicilio:     '',
+    project_id:            '',
+    moneda:                'USD',
+    fecha_emision:         today,
+    descripcion:           '',
+    notas:                 '',
+    payments: [{ descripcion: 'Pago único', monto: 0, fecha_vencimiento: '', metodo_pago: '' }],
   })
+  const [tipoPago, setTipoPago] = useState<'unico' | 'cuotas'>('unico')
+  const [leadQuery, setLeadQuery] = useState('')
+  const [leadResults, setLeadResults] = useState<LeadOption[]>([])
+  const [showLeadResults, setShowLeadResults] = useState(false)
+  const [linkedLead, setLinkedLead] = useState<LeadOption | null>(null)
 
   const { data: projData } = useQuery({ queryKey: ['projects'], queryFn: fetchProjects })
   const projects = projData?.data ?? []
 
-  const total = form.items.reduce((s, it) => s + (it.cantidad * it.precio_unitario), 0)
+  const total = form.payments.reduce((s, p) => s + (p.monto || 0), 0)
 
-  function setItem(idx: number, key: keyof typeof form.items[number], value: string | number) {
+  async function onLeadQueryChange(value: string) {
+    setLeadQuery(value)
+    setShowLeadResults(true)
+    setLeadResults(await searchLeads(value))
+  }
+
+  function pickLead(lead: LeadOption) {
+    setLinkedLead(lead)
+    setLeadQuery('')
+    setShowLeadResults(false)
     setForm(f => ({
       ...f,
-      items: f.items.map((it, i) => i === idx ? { ...it, [key]: value } : it),
+      lead_id: lead.id,
+      cliente_nombre:  f.cliente_nombre || [lead.nombre, lead.apellido].filter(Boolean).join(' ') || lead.empresa || '',
+      cliente_email:    f.cliente_email    || lead.email    || '',
+      cliente_telefono: f.cliente_telefono || lead.telefono || '',
     }))
   }
 
-  function addItem() {
-    setForm(f => ({ ...f, items: [...f.items, { descripcion: '', cantidad: 1, precio_unitario: 0 }] }))
+  function unlinkLead() {
+    setLinkedLead(null)
+    setForm(f => ({ ...f, lead_id: '' }))
   }
 
-  function removeItem(idx: number) {
-    setForm(f => ({ ...f, items: f.items.filter((_, i) => i !== idx) }))
+  function setTipoPagoMode(mode: 'unico' | 'cuotas') {
+    setTipoPago(mode)
+    if (mode === 'unico') {
+      setForm(f => ({ ...f, payments: [f.payments[0] ?? { descripcion: 'Pago único', monto: 0, fecha_vencimiento: '', metodo_pago: '' }] }))
+    } else if (form.payments.length < 2) {
+      setForm(f => ({
+        ...f,
+        payments: [
+          { ...f.payments[0], descripcion: 'Cuota 1' },
+          { descripcion: 'Cuota 2', monto: 0, fecha_vencimiento: '', metodo_pago: '' },
+        ],
+      }))
+    }
   }
 
   function addPayment() {
     setForm(f => ({
       ...f,
-      payments: [...f.payments, { descripcion: `Cuota ${f.payments.length + 1}`, monto: 0, fecha_vencimiento: '' }],
+      payments: [...f.payments, { descripcion: `Cuota ${f.payments.length + 1}`, monto: 0, fecha_vencimiento: '', metodo_pago: '' }],
     }))
   }
 
@@ -374,16 +437,22 @@ function NewInvoiceModal({
     setForm(f => ({ ...f, payments: f.payments.filter((_, i) => i !== idx) }))
   }
 
-  function submit(e: React.FormEvent) {
-    e.preventDefault()
+  function submit(e?: React.SyntheticEvent) {
+    e?.preventDefault()
     if (!form.cliente_nombre.trim()) return
     onSubmit({
       ...form,
-      project_id:        form.project_id || undefined,
-      cliente_email:     form.cliente_email || undefined,
-      descripcion:       form.descripcion || undefined,
-      fecha_vencimiento: form.fecha_vencimiento || undefined,
-      notas:             form.notas || undefined,
+      lead_id:               form.lead_id || undefined,
+      project_id:            form.project_id || undefined,
+      cliente_email:         form.cliente_email || undefined,
+      cliente_telefono:      form.cliente_telefono || undefined,
+      cliente_razon_social:  form.cliente_razon_social || undefined,
+      cliente_cuit:          form.cliente_cuit || undefined,
+      cliente_condicion_iva: form.cliente_condicion_iva || undefined,
+      cliente_domicilio:     form.cliente_domicilio || undefined,
+      descripcion:           form.descripcion || undefined,
+      notas:                 form.notas || undefined,
+      payments: form.payments.filter(p => p.monto > 0),
     })
   }
 
@@ -395,6 +464,46 @@ function NewInvoiceModal({
         </div>
 
         <form onSubmit={submit} className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          {/* Lead link */}
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Asociar a un lead existente (opcional)</label>
+            {linkedLead ? (
+              <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                <span className="text-sm text-blue-800">
+                  {[linkedLead.nombre, linkedLead.apellido].filter(Boolean).join(' ')}
+                  {linkedLead.empresa && ` · ${linkedLead.empresa}`}
+                </span>
+                <button type="button" onClick={unlinkLead} className="text-xs text-blue-600 hover:underline">Quitar</button>
+              </div>
+            ) : (
+              <div className="relative">
+                <input
+                  type="text"
+                  value={leadQuery}
+                  onChange={e => onLeadQueryChange(e.target.value)}
+                  onFocus={() => setShowLeadResults(true)}
+                  placeholder="Buscar por nombre o empresa..."
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {showLeadResults && leadResults.length > 0 && (
+                  <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {leadResults.map(lead => (
+                      <button
+                        key={lead.id}
+                        type="button"
+                        onClick={() => pickLead(lead)}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0"
+                      >
+                        <span className="font-medium text-slate-800">{[lead.nombre, lead.apellido].filter(Boolean).join(' ')}</span>
+                        {lead.empresa && <span className="text-slate-400"> · {lead.empresa}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Client info */}
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -409,7 +518,7 @@ function NewInvoiceModal({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Email (opcional)</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Email</label>
               <input
                 type="email"
                 value={form.cliente_email}
@@ -418,9 +527,16 @@ function NewInvoiceModal({
                 className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Teléfono</label>
+              <input
+                type="text"
+                value={form.cliente_telefono}
+                onChange={e => setForm(f => ({ ...f, cliente_telefono: e.target.value }))}
+                placeholder="+54 9 ..."
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">Proyecto</label>
               <select
@@ -432,93 +548,90 @@ function NewInvoiceModal({
                 {projects.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               </select>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Moneda</label>
-              <select
-                value={form.moneda}
-                onChange={e => setForm(f => ({ ...f, moneda: e.target.value as 'USD' | 'ARS' }))}
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="USD">USD</option>
-                <option value="ARS">ARS</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Vencimiento</label>
-              <input
-                type="date"
-                value={form.fecha_vencimiento}
-                onChange={e => setForm(f => ({ ...f, fecha_vencimiento: e.target.value }))}
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+          </div>
+
+          {/* Datos de facturación */}
+          <div className="border border-slate-100 rounded-lg p-3 space-y-3 bg-slate-50/50">
+            <p className="text-xs font-semibold text-slate-600">Datos de facturación</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Razón social</label>
+                <input
+                  type="text"
+                  value={form.cliente_razon_social}
+                  onChange={e => setForm(f => ({ ...f, cliente_razon_social: e.target.value }))}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">CUIT</label>
+                <input
+                  type="text"
+                  value={form.cliente_cuit}
+                  onChange={e => setForm(f => ({ ...f, cliente_cuit: e.target.value }))}
+                  placeholder="20-12345678-9"
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Condición frente al IVA</label>
+                <select
+                  value={form.cliente_condicion_iva}
+                  onChange={e => setForm(f => ({ ...f, cliente_condicion_iva: e.target.value as CondicionIva | '' }))}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Sin especificar</option>
+                  <option value="responsable_inscripto">Responsable Inscripto</option>
+                  <option value="monotributo">Monotributo</option>
+                  <option value="exento">Exento</option>
+                  <option value="consumidor_final">Consumidor Final</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Domicilio fiscal</label>
+                <input
+                  type="text"
+                  value={form.cliente_domicilio}
+                  onChange={e => setForm(f => ({ ...f, cliente_domicilio: e.target.value }))}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
           </div>
 
-          {/* Items */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-medium text-slate-700">Ítems</label>
-              <button type="button" onClick={addItem} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                <Plus size={11} /> Agregar ítem
-              </button>
-            </div>
-            <div className="space-y-2">
-              {form.items.map((it, idx) => (
-                <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                  <input
-                    type="text"
-                    value={it.descripcion}
-                    onChange={e => setItem(idx, 'descripcion', e.target.value)}
-                    placeholder="Descripción"
-                    className="col-span-6 text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={it.cantidad}
-                    onChange={e => setItem(idx, 'cantidad', parseFloat(e.target.value) || 0)}
-                    placeholder="Cant."
-                    className="col-span-2 text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={it.precio_unitario}
-                    onChange={e => setItem(idx, 'precio_unitario', parseFloat(e.target.value) || 0)}
-                    placeholder="Precio"
-                    className="col-span-3 text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeItem(idx)}
-                    disabled={form.items.length === 1}
-                    className="col-span-1 text-slate-300 hover:text-red-400 transition-colors disabled:opacity-30 text-center"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-end mt-2">
-              <span className="text-sm font-semibold text-slate-700">
-                Total: {form.moneda} {total.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-              </span>
-            </div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Moneda</label>
+            <select
+              value={form.moneda}
+              onChange={e => setForm(f => ({ ...f, moneda: e.target.value as 'USD' | 'ARS' }))}
+              className="w-32 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="USD">USD</option>
+              <option value="ARS">ARS</option>
+            </select>
           </div>
 
           {/* Payment schedule */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-medium text-slate-700">Cuotas / Plan de pago</label>
-              <button type="button" onClick={addPayment} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                <Plus size={11} /> Agregar cuota
-              </button>
+              <label className="text-xs font-medium text-slate-700">Pagos</label>
+              <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setTipoPagoMode('unico')}
+                  className={cn('text-xs px-2.5 py-1 rounded-md transition-colors', tipoPago === 'unico' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500')}
+                >
+                  Pago único
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTipoPagoMode('cuotas')}
+                  className={cn('text-xs px-2.5 py-1 rounded-md transition-colors', tipoPago === 'cuotas' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500')}
+                >
+                  En cuotas
+                </button>
+              </div>
             </div>
-            {form.payments.length === 0 && (
-              <p className="text-xs text-slate-400 italic">Sin cuotas — el cliente puede pagar todo junto</p>
-            )}
             <div className="space-y-2">
               {form.payments.map((p, idx) => (
                 <div key={idx} className="grid grid-cols-12 gap-2 items-center">
@@ -526,17 +639,17 @@ function NewInvoiceModal({
                     type="text"
                     value={p.descripcion}
                     onChange={e => setPayment(idx, 'descripcion', e.target.value)}
-                    placeholder="Descripción cuota"
-                    className="col-span-5 text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Concepto"
+                    className={cn('text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500', tipoPago === 'cuotas' ? 'col-span-3' : 'col-span-4')}
                   />
                   <input
                     type="number"
                     min="0"
                     step="0.01"
-                    value={p.monto}
+                    value={p.monto || ''}
                     onChange={e => setPayment(idx, 'monto', parseFloat(e.target.value) || 0)}
                     placeholder="Monto"
-                    className="col-span-3 text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="col-span-2 text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <input
                     type="date"
@@ -544,15 +657,40 @@ function NewInvoiceModal({
                     onChange={e => setPayment(idx, 'fecha_vencimiento', e.target.value)}
                     className="col-span-3 text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <button
-                    type="button"
-                    onClick={() => removePayment(idx)}
-                    className="col-span-1 text-slate-300 hover:text-red-400 transition-colors text-center"
+                  <select
+                    value={p.metodo_pago}
+                    onChange={e => setPayment(idx, 'metodo_pago', e.target.value)}
+                    className="col-span-3 text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    ×
-                  </button>
+                    <option value="">Forma de pago</option>
+                    <option value="transferencia">Transferencia</option>
+                    <option value="efectivo">Efectivo</option>
+                    <option value="mercadopago">MercadoPago</option>
+                    <option value="paypal">PayPal</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                  {tipoPago === 'cuotas' && (
+                    <button
+                      type="button"
+                      onClick={() => removePayment(idx)}
+                      disabled={form.payments.length === 1}
+                      className="col-span-1 text-slate-300 hover:text-red-400 transition-colors disabled:opacity-30 text-center"
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
               ))}
+            </div>
+            {tipoPago === 'cuotas' && (
+              <button type="button" onClick={addPayment} className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-2">
+                <Plus size={11} /> Agregar cuota
+              </button>
+            )}
+            <div className="flex justify-end mt-2">
+              <span className="text-sm font-semibold text-slate-700">
+                Total: {form.moneda} {total.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+              </span>
             </div>
           </div>
 
@@ -578,7 +716,7 @@ function NewInvoiceModal({
             Cancelar
           </button>
           <button
-            onClick={(e) => { e.preventDefault(); if (form.cliente_nombre.trim()) { onSubmit({ ...form, project_id: form.project_id || undefined }) } }}
+            onClick={(e) => submit(e)}
             disabled={isLoading || !form.cliente_nombre.trim()}
             className="flex-1 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >

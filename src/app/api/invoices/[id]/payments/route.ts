@@ -66,15 +66,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function recalcEstado(admin: AdminClient, invoiceId: string) {
-  const [{ data: payments }, { data: items }, { data: inv }] = await Promise.all([
+  const [{ data: payments }, { data: inv }] = await Promise.all([
     admin.from('payments').select('monto, fecha_pago, fecha_vencimiento').eq('invoice_id', invoiceId),
-    admin.from('invoice_items').select('cantidad, precio_unitario').eq('invoice_id', invoiceId),
     admin.from('invoices').select('estado').eq('id', invoiceId).maybeSingle(),
   ])
 
   if (!inv || inv.estado === 'cancelada') return
 
-  const total  = (items ?? []).reduce((s, it) => s + it.cantidad * it.precio_unitario, 0)
+  const total  = (payments ?? []).reduce((s, p) => s + p.monto, 0)
   const pagado = (payments ?? []).filter(p => p.fecha_pago).reduce((s, p) => s + p.monto, 0)
 
   if (total <= 0) return

@@ -18,19 +18,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   if (error || !invoice) return NextResponse.json({ error: 'No encontrada' }, { status: 404 })
 
-  const [{ data: items }, { data: payments }, { data: project }] = await Promise.all([
-    admin.from('invoice_items').select('*').eq('invoice_id', id).order('position'),
+  const [{ data: payments }, { data: project }, { data: lead }] = await Promise.all([
     admin.from('payments').select('*').eq('invoice_id', id).order('created_at'),
     invoice.project_id
       ? admin.from('projects').select('id, nombre, color').eq('id', invoice.project_id).maybeSingle()
       : Promise.resolve({ data: null }),
+    invoice.lead_id
+      ? admin.from('leads').select('id, nombre, apellido, empresa').eq('id', invoice.lead_id).maybeSingle()
+      : Promise.resolve({ data: null }),
   ])
 
-  const total        = (items ?? []).reduce((s, it) => s + it.cantidad * it.precio_unitario, 0)
+  const total        = (payments ?? []).reduce((s, p) => s + p.monto, 0)
   const total_pagado = (payments ?? []).filter(p => p.fecha_pago).reduce((s, p) => s + p.monto, 0)
 
   return NextResponse.json({
-    data: { ...invoice, items: items ?? [], payments: payments ?? [], project: project ?? null, total, total_pagado },
+    data: { ...invoice, payments: payments ?? [], project: project ?? null, lead: lead ?? null, total, total_pagado },
   })
 }
 
@@ -43,9 +45,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json()
 
   const allowed = [
-    'estado', 'cliente_nombre', 'cliente_email', 'descripcion', 'moneda',
-    'fecha_emision', 'fecha_vencimiento', 'notas', 'project_id',
-    'alertas_activas', 'dias_alerta',
+    'estado', 'cliente_nombre', 'cliente_email', 'cliente_telefono',
+    'cliente_razon_social', 'cliente_cuit', 'cliente_condicion_iva', 'cliente_domicilio',
+    'descripcion', 'moneda', 'fecha_emision', 'fecha_vencimiento', 'notas',
+    'project_id', 'lead_id', 'alertas_activas', 'dias_alerta',
   ]
   const updates: Record<string, unknown> = {}
   for (const key of allowed) {
