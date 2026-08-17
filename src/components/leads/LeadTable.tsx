@@ -67,6 +67,8 @@ export function LeadTable({ onLeadClick }: LeadTableProps) {
     setIdioma,
     toggleServicio,
     setServicios,
+    setFechaDesde,
+    setFechaHasta,
     clearAll,
     hasActiveFilters,
   } = useLeadFilters()
@@ -83,6 +85,8 @@ export function LeadTable({ onLeadClick }: LeadTableProps) {
     else if (key === 'idioma') setIdioma(value as string)
     else if (key === 'servicio') toggleServicio(value as string)
     else if (key === 'servicios') setServicios(value as string[])
+    else if (key === 'fecha_desde') setFechaDesde(value as string)
+    else if (key === 'fecha_hasta') setFechaHasta(value as string)
   }
   const resetFilters = () => {
     setPage(1)

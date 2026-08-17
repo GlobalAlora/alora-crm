@@ -101,6 +101,24 @@ export function LeadFilters({ filters, onFilter, onReset, onExport, hasActiveFil
         ))}
       </select>
 
+      {/* Fecha de ingreso range */}
+      <div className="flex items-center gap-1.5">
+        <label className="text-xs text-slate-400">Ingresó:</label>
+        <input
+          type="date"
+          value={filters.fechaDesde}
+          onChange={(e) => onFilter('fecha_desde', e.target.value)}
+          className="text-sm border border-slate-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700"
+        />
+        <span className="text-xs text-slate-400">→</span>
+        <input
+          type="date"
+          value={filters.fechaHasta}
+          onChange={(e) => onFilter('fecha_hasta', e.target.value)}
+          className="text-sm border border-slate-200 rounded-lg px-2 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700"
+        />
+      </div>
+
       {/* Servicios filter — single-select: replace the array, don't toggle */}
       <select
         value={filters.servicios[0] ?? ''}

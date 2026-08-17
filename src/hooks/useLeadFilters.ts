@@ -12,6 +12,8 @@ export interface LeadFilterState {
   pais: string
   idioma: string
   servicios: string[]
+  fechaDesde: string
+  fechaHasta: string
   sortBy: 'nombre' | 'empresa' | 'valor_propuesta_usd' | 'last_activity_at' | 'created_at'
   sortOrder: 'asc' | 'desc'
 }
@@ -32,6 +34,8 @@ export function useLeadFilters() {
     pais: searchParams.get('pais') ?? '',
     idioma: searchParams.get('idioma') ?? '',
     servicios: searchParams.getAll('servicio') ?? [],
+    fechaDesde: searchParams.get('fecha_desde') ?? '',
+    fechaHasta: searchParams.get('fecha_hasta') ?? '',
     sortBy: (searchParams.get('sort_by') as LeadFilterState['sortBy']) ?? 'last_activity_at',
     sortOrder: (searchParams.get('sort_order') as 'asc' | 'desc') ?? 'desc',
   }), [searchParams])
@@ -97,6 +101,18 @@ export function useLeadFilters() {
     params.delete('servicio')
     filters.servicios.forEach((s) => params.append('servicio', s))
 
+    // Handle fecha de ingreso
+    if (filters.fechaDesde) {
+      params.set('fecha_desde', filters.fechaDesde)
+    } else {
+      params.delete('fecha_desde')
+    }
+    if (filters.fechaHasta) {
+      params.set('fecha_hasta', filters.fechaHasta)
+    } else {
+      params.delete('fecha_hasta')
+    }
+
     // Handle sort
     if (filters.sortBy !== 'last_activity_at') {
       params.set('sort_by', filters.sortBy)
@@ -116,7 +132,7 @@ export function useLeadFilters() {
       router.replace(`${pathname}?${newQuery}`, { scroll: false })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedBuscar, filters.estados, filters.responsableId, filters.fuente, filters.pais, filters.idioma, filters.servicios, filters.sortBy, filters.sortOrder, pathname, router, searchParams])
+  }, [debouncedBuscar, filters.estados, filters.responsableId, filters.fuente, filters.pais, filters.idioma, filters.servicios, filters.fechaDesde, filters.fechaHasta, filters.sortBy, filters.sortOrder, pathname, router, searchParams])
 
   const setBuscar = useCallback((buscar: string) => {
     setFilters((f) => ({ ...f, buscar }))
@@ -164,6 +180,14 @@ export function useLeadFilters() {
     setFilters((f) => ({ ...f, servicios }))
   }, [])
 
+  const setFechaDesde = useCallback((fechaDesde: string) => {
+    setFilters((f) => ({ ...f, fechaDesde }))
+  }, [])
+
+  const setFechaHasta = useCallback((fechaHasta: string) => {
+    setFilters((f) => ({ ...f, fechaHasta }))
+  }, [])
+
   const setSort = useCallback((column: LeadFilterState['sortBy']) => {
     setFilters((f) => ({
       ...f,
@@ -181,6 +205,8 @@ export function useLeadFilters() {
       pais: '',
       idioma: '',
       servicios: [],
+      fechaDesde: '',
+      fechaHasta: '',
       sortBy: 'last_activity_at',
       sortOrder: 'desc',
     })
@@ -195,6 +221,8 @@ export function useLeadFilters() {
     pais: filters.pais || undefined,
     idioma: filters.idioma || undefined,
     servicio: filters.servicios.length > 0 ? filters.servicios : undefined,
+    fecha_desde: filters.fechaDesde || undefined,
+    fecha_hasta: filters.fechaHasta || undefined,
     sort_by: filters.sortBy,
     sort_order: filters.sortOrder,
   }
@@ -211,8 +239,10 @@ export function useLeadFilters() {
     setIdioma,
     toggleServicio,
     setServicios,
+    setFechaDesde,
+    setFechaHasta,
     setSort,
     clearAll,
-    hasActiveFilters: debouncedBuscar || filters.estados.length > 0 || filters.responsableId || filters.fuente || filters.pais || filters.idioma || filters.servicios.length > 0,
+    hasActiveFilters: debouncedBuscar || filters.estados.length > 0 || filters.responsableId || filters.fuente || filters.pais || filters.idioma || filters.servicios.length > 0 || filters.fechaDesde || filters.fechaHasta,
   }
 }
