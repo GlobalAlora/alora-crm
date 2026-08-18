@@ -228,7 +228,9 @@ export default function TicketsPage() {
   const filtered = tickets.filter(t => {
     if (tab === 'del_cliente') {
       if (!isEnCliente(t)) return false
-    } else if (tab !== 'todos' && t.estado !== tab) return false
+    } else if (tab === 'todos') {
+      if (t.estado === 'cerrado') return false
+    } else if (t.estado !== tab) return false
     if (projectFilter && t.project_id !== projectFilter) return false
     if (search) {
       const q = search.toLowerCase()
@@ -250,7 +252,7 @@ export default function TicketsPage() {
   }
 
   const TABS: { value: Tab; label: string; count?: number; highlight?: boolean }[] = [
-    { value: 'todos',       label: 'Todos',       count: tickets.length },
+    { value: 'todos',       label: 'Todos',       count: stats.total },
     { value: 'nuevo',       label: 'Nuevos',      count: tickets.filter(t => t.estado === 'nuevo').length },
     { value: 'estimacion',  label: 'Estimado',    count: tickets.filter(t => t.estado === 'estimacion').length },
     { value: 'en_progreso', label: 'En progreso', count: tickets.filter(t => t.estado === 'en_progreso').length },
