@@ -182,6 +182,7 @@ function NewTicketModal({ onClose, projects, users }: {
 
 function isEnCliente(t: TicketType): boolean {
   if (!t.client_email) return false
+  if (t.estado === 'cerrado') return false
   const clientAt = t.last_client_activity_at ? new Date(t.last_client_activity_at).getTime() : 0
   const teamAt   = t.last_team_reply_at       ? new Date(t.last_team_reply_at).getTime()       : 0
   return (!!t.horas_estimadas && !t.horas_aprobadas) ||

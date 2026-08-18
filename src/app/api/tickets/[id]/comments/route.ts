@@ -23,6 +23,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     .from('ticket_comments')
     .select('*')
     .eq('ticket_id', id)
+    .is('deleted_at', null)
     .order('created_at', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

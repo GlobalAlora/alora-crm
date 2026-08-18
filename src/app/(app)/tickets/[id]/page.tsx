@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Send, Trash2, FolderKanban, User as UserIcon,
-  Calendar, AlertCircle, CheckCircle2, Paperclip, FileVideo, Loader2, X, Zap, ChevronDown,
+  Calendar, AlertCircle, CheckCircle2, Paperclip, FileVideo, Loader2, X, Zap, ChevronDown, Pencil, Check,
 } from 'lucide-react'
 
 type UploadedFile = { url: string; name: string; type: string }
@@ -147,6 +147,16 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
     staleTime: 60_000,
   })
 
+  const { data: meRes } = useQuery<{ data: { id: string; role: string } }>({
+    queryKey: ['auth-me'],
+    queryFn:  () => fetch('/api/auth/me').then(r => r.json()),
+    staleTime: 300_000,
+  })
+  const me = meRes?.data ?? null
+
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
+  const [editingCommentBody, setEditingCommentBody] = useState('')
+
   const ticket = res?.data ?? null
 
   const { data: clientHoursRes } = useQuery<{ data: { nombre: string; nombre_plan: string | null; plan: number; horas_consumidas: number; horas_restantes: number; porcentaje: number } | null }>({
@@ -194,6 +204,26 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   const deleteTicket = useMutation({
     mutationFn: () => fetch(`/api/tickets/${id}`, { method: 'DELETE' }).then(r => r.json()),
     onSuccess: () => router.replace('/tickets'),
+  })
+
+  const editComment = useMutation({
+    mutationFn: ({ commentId, body }: { commentId: string; body: string }) =>
+      fetch(`/api/tickets/${id}/comments/${commentId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body }) })
+        .then(r => r.json()),
+    onSuccess: (res) => {
+      if (res.error) { alert(res.error); return }
+      setEditingCommentId(null)
+      qc.invalidateQueries({ queryKey: ['ticket', id] })
+    },
+  })
+
+  const deleteComment = useMutation({
+    mutationFn: (commentId: string) =>
+      fetch(`/api/tickets/${id}/comments/${commentId}`, { method: 'DELETE' }).then(r => r.json()),
+    onSuccess: (res) => {
+      if (res.error) { alert(res.error); return }
+      qc.invalidateQueries({ queryKey: ['ticket', id] })
+    },
   })
 
   const projects = projectsRes?.data ?? []
@@ -343,17 +373,75 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
               {(ticket.comments ?? []).length === 0 && (
                 <p className="text-sm text-muted-foreground/50 italic">Sin comentarios aún</p>
               )}
-              {(ticket.comments ?? []).map(c => (
-                <div key={c.id} className="flex gap-3">
+              {(ticket.comments ?? []).map(c => {
+                const isMine = !!me && c.user_id === me.id
+                const canDelete = isMine || me?.role === 'admin'
+                const isEditing = editingCommentId === c.id
+                return (
+                <div key={c.id} className="flex gap-3 group">
                   <Avatar user={c.user} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-2 mb-1">
                       <span className="text-xs font-medium text-foreground">{c.user?.full_name ?? c.client_nombre ?? 'Cliente'}</span>
                       <span className="text-[10px] text-muted-foreground">
                         {new Date(c.created_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        {c.updated_at && ' · editado'}
                       </span>
+                      {!isEditing && (isMine || canDelete) && (
+                        <span className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {isMine && (
+                            <button
+                              onClick={() => { setEditingCommentId(c.id); setEditingCommentBody(c.body) }}
+                              title="Editar comentario"
+                              className="p-1 rounded text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
+                            >
+                              <Pencil size={11} />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              onClick={() => { if (confirm('¿Eliminar este comentario?')) deleteComment.mutate(c.id) }}
+                              title="Eliminar comentario"
+                              className="p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          )}
+                        </span>
+                      )}
                     </div>
-                    {c.body && <p className="text-sm text-foreground/80 whitespace-pre-wrap">{c.body}</p>}
+                    {isEditing ? (
+                      <div className="space-y-1.5">
+                        <textarea
+                          autoFocus
+                          rows={2}
+                          value={editingCommentBody}
+                          onChange={e => setEditingCommentBody(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) editComment.mutate({ commentId: c.id, body: editingCommentBody })
+                            if (e.key === 'Escape') setEditingCommentId(null)
+                          }}
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-muted border border-blue-400 text-sm text-foreground focus:outline-none resize-none"
+                        />
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => editComment.mutate({ commentId: c.id, body: editingCommentBody })}
+                            disabled={!editingCommentBody.trim() || editComment.isPending}
+                            className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2.5 py-1 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                          >
+                            <Check size={11} /> Guardar
+                          </button>
+                          <button
+                            onClick={() => setEditingCommentId(null)}
+                            className="flex items-center gap-1 text-xs text-muted-foreground px-2.5 py-1 rounded-lg hover:bg-muted transition-colors"
+                          >
+                            <X size={11} /> Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      c.body && <p className="text-sm text-foreground/80 whitespace-pre-wrap">{c.body}</p>
+                    )}
                     {!!c.attachments?.length && (
                       <div className="flex flex-wrap gap-2 mt-2">
                         {c.attachments.map((a: UploadedFile, i: number) => (
@@ -371,7 +459,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                     )}
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
 
             {/* New comment */}
