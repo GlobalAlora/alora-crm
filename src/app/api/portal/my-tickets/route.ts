@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
     .select('id, numero, titulo, descripcion, estado, prioridad, categoria, created_at, resolved_at, ticket_token, horas_estimadas, horas_reales, horas_aprobadas, attachments, client_unread')
     .eq('client_email', client.email)
     .is('deleted_at', null)
+    .neq('estado', 'cerrado')
     .order('created_at', { ascending: false })
 
   return NextResponse.json({ data: tickets ?? [] })
