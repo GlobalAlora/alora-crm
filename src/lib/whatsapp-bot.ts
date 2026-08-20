@@ -1635,6 +1635,52 @@ async function bookConfirmedSlot(
   }
 }
 
+/**
+ * Last-resort fallback when the lead's reply during booking confirmation
+ * doesn't match "yes", "change time", an identity question, or an FAQ
+ * question. Instead of repeating the same confirmation line verbatim
+ * (which reads as an unresponsive loop), re-read the actual recent
+ * messages and let Claude write one short, genuinely context-aware reply.
+ * Returns '' on any failure so the caller falls back to the bare prompt.
+ */
+async function generateContextAwareBookingReply(
+  admin: AdminClient,
+  { conversationId, fullLabel, lang }: { conversationId: string; fullLabel: string; lang: Lang },
+): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return ''
+  try {
+    const { data: recent } = await admin
+      .from('wa_messages')
+      .select('direction, body')
+      .eq('conversation_id', conversationId)
+      .not('body', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(6)
+    const transcript = (recent ?? [])
+      .reverse()
+      .map(m => `${m.direction === 'inbound' ? 'Lead' : 'Lidia'}: ${m.body}`)
+      .join('\n')
+
+    const client = new Anthropic({ apiKey })
+    const result = await client.messages.create({
+      model: ANTHROPIC_MODEL,
+      max_tokens: 150,
+      messages: [{
+        role: 'user',
+        content: lang === 'en'
+          ? `You are Lidia, Alora's warm WhatsApp receptionist. A lead has a pending call slot (*${fullLabel}*) waiting for confirmation. Their last message was NOT a clear "yes" or "show me other times" — read the recent conversation below, genuinely understand what they actually said or asked, and write ONE short (max 2-3 lines), warm reply that addresses it directly. End by steering them back to confirming the slot or asking for another time — but don't just repeat a canned line, actually respond to them.\n\nRecent conversation:\n${transcript}\n\nReply with ONLY the message text, no quotes, no explanation.`
+          : `Sos Lidia, la recepcionista cálida de Alora por WhatsApp. Un lead tiene un horario de llamada pendiente de confirmar (*${fullLabel}*). Su último mensaje NO fue un "sí" claro ni un pedido de otro horario — leé la conversación reciente de abajo, entendé de verdad qué dijo o preguntó, y escribí UNA respuesta corta (máximo 2-3 líneas), cálida, que lo aborde directamente. Terminá reconduciéndolo a confirmar el horario o pedir otro — pero no repitas una línea genérica, respondele de verdad a lo que dijo.\n\nConversación reciente:\n${transcript}\n\nRespondé solo con el texto del mensaje, sin comillas ni explicación.`,
+      }],
+    })
+    const out = (result.content[0] as { type: string; text: string }).text?.trim() ?? ''
+    return out.length > 0 && out.length < 600 ? out : ''
+  } catch (err) {
+    console.error('[Bot] generateContextAwareBookingReply failed:', err)
+    return ''
+  }
+}
+
 async function handleBookingConfirmation(
   admin: AdminClient,
   { leadId, conversationId, phone, text, botNextQuestion, lang }: {
@@ -1709,6 +1755,7 @@ async function handleBookingConfirmation(
     const asksIdentity = /\b(qui[eé]n\s+(sos|eres|habla|es)|con\s+qui[eé]n\s+hablo|qu[eé]\s+es\s+esto|por\s+qu[eé]\s+ten[eé]s\s+mi\s+n[uú]mero|de\s+d[oó]nde\s+sacaste\s+mi\s+n[uú]mero|c[oó]mo\s+consegu[ií]ste\s+mi\s+n[uú]mero|who\s+(are\s+you|is\s+this)|why\s+do\s+you\s+have\s+my\s+number|how\s+did\s+you\s+get\s+my\s+number)\b/i.test(trimmed)
 
     let answer = ''
+    let fullReplacement = ''
     if (asksIdentity) {
       answer = lang === 'en'
         ? "I'm Lidia, Alora's virtual receptionist 😊 You wrote to us a while back about a project, so we have your number from that — I'm just following up to help you set up the call with Walo."
@@ -1720,11 +1767,16 @@ async function handleBookingConfirmation(
         const faqResult = await matchFaqOrEscalate(admin, trimmed)
         if (faqResult.action === 'answer' && faqResult.answer) answer = faqResult.answer
       }
+      if (!answer) {
+        // Nothing pattern-based matched — don't just repeat the same line
+        // forever, actually re-read what they said and respond to it.
+        fullReplacement = await generateContextAwareBookingReply(admin, { conversationId, fullLabel, lang })
+      }
     }
 
     await sendOutboundWhatsAppMessage(admin, {
       conversationId, leadId, phone,
-      body: answer ? `${answer}\n\n${confirmLine}` : confirmLine,
+      body: fullReplacement || (answer ? `${answer}\n\n${confirmLine}` : confirmLine),
     })
     // Keep the same bot_next_question so we wait again
     return
