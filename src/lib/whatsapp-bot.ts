@@ -1477,7 +1477,7 @@ async function handleBookingPhase(
   const ar = new Date(slot.getTime() - 3 * 60 * 60 * 1000)
   const fullLabel = `${daysFull[ar.getDay()]} ${ar.getDate()} de ${monthsFull[ar.getMonth()]} a las ${hora} hs`
 
-  const confirmState = `${BOOKING_CONFIRM_PREFIX}${slot.toISOString()}:::${nextSkip}:::${slotsStr}`
+  const confirmState = `${BOOKING_CONFIRM_PREFIX}${slot.toISOString()}:::${nextSkip}:::${slotsStr}:::0`
   const sentQ = await sendOutboundWhatsAppMessage(admin, {
     conversationId, leadId, phone,
     body: lang === 'en'
@@ -1669,8 +1669,8 @@ async function generateContextAwareBookingReply(
       messages: [{
         role: 'user',
         content: lang === 'en'
-          ? `You are Lidia, Alora's warm WhatsApp receptionist. A lead has a pending call slot (*${fullLabel}*) waiting for confirmation. Their last message was NOT a clear "yes" or "show me other times" — read the recent conversation below, genuinely understand what they actually said or asked, and write ONE short (max 2-3 lines), warm reply that addresses it directly. End by steering them back to confirming the slot or asking for another time — but don't just repeat a canned line, actually respond to them.\n\nRecent conversation:\n${transcript}\n\nReply with ONLY the message text, no quotes, no explanation.`
-          : `Sos Lidia, la recepcionista cálida de Alora por WhatsApp. Un lead tiene un horario de llamada pendiente de confirmar (*${fullLabel}*). Su último mensaje NO fue un "sí" claro ni un pedido de otro horario — leé la conversación reciente de abajo, entendé de verdad qué dijo o preguntó, y escribí UNA respuesta corta (máximo 2-3 líneas), cálida, que lo aborde directamente. Terminá reconduciéndolo a confirmar el horario o pedir otro — pero no repitas una línea genérica, respondele de verdad a lo que dijo.\n\nConversación reciente:\n${transcript}\n\nRespondé solo con el texto del mensaje, sin comillas ni explicación.`,
+          ? `You are Lidia, Alora's WhatsApp receptionist. Your ONLY goal right now is getting this lead to confirm a pending call slot (*${fullLabel}*) — this is not an open-ended chat. This is the SECOND time in a row their reply hasn't been a clear yes or a request for another time, which means something isn't landing — read the recent conversation below and genuinely figure out why, then write ONE short (max 2-3 lines) reply that resolves that specific thing. Do not ramble, do not open new topics, do not offer general help — stay strictly focused on getting to a confirmed time. End by directly asking them to confirm this slot or name another time. If you truly can't tell what they mean, say so plainly and ask them to just reply Yes or Others — don't guess elaborately.\n\nRecent conversation:\n${transcript}\n\nReply with ONLY the message text, no quotes, no explanation.`
+          : `Sos Lidia, la recepcionista de Alora por WhatsApp. Tu ÚNICO objetivo ahora mismo es que este lead confirme un horario de llamada pendiente (*${fullLabel}*) — esto no es una charla abierta. Es la SEGUNDA vez seguida que su respuesta no es un "sí" claro ni un pedido de otro horario, lo que significa que algo no está funcionando — leé la conversación reciente de abajo y entendé de verdad por qué, después escribí UNA respuesta corta (máximo 2-3 líneas) que resuelva eso puntual. No divagues, no abras temas nuevos, no ofrezcas ayuda general — mantenete estrictamente enfocada en llegar a un horario confirmado. Terminá pidiéndole directamente que confirme este horario o te diga otro. Si de verdad no entendés qué quiso decir, decilo con claridad y pedile que responda simplemente Sí u Otros — no adivines de más.\n\nConversación reciente:\n${transcript}\n\nRespondé solo con el texto del mensaje, sin comillas ni explicación.`,
       }],
     })
     const out = (result.content[0] as { type: string; text: string }).text?.trim() ?? ''
@@ -1688,17 +1688,16 @@ async function handleBookingConfirmation(
   },
 ): Promise<void> {
   const raw = botNextQuestion.slice(BOOKING_CONFIRM_PREFIX.length)
-  // format: SELECTED_ISO:::NEXT_SKIP:::SLOTS_STR
-  const firstSep  = raw.indexOf(':::')
-  if (firstSep === -1) {
+  // format: SELECTED_ISO:::NEXT_SKIP:::SLOTS_STR:::ATTEMPT (ATTEMPT is new;
+  // missing on any state created before this field existed, defaults to 0)
+  const parts = raw.split(':::')
+  if (parts.length < 2) {
     await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
     return
   }
-  const selectedISO = raw.slice(0, firstSep)
-  const rest        = raw.slice(firstSep + 3)
-  const secondSep   = rest.indexOf(':::')
-  const nextSkip    = secondSep !== -1 ? parseInt(rest.slice(0, secondSep), 10) || 0 : 0
-  const slotsStr    = secondSep !== -1 ? rest.slice(secondSep + 3) : rest
+  const [selectedISO, nextSkipRaw, slotsStr = '', attemptRaw] = parts
+  const nextSkip = parseInt(nextSkipRaw, 10) || 0
+  const attempt  = parseInt(attemptRaw, 10) || 0
 
   // .normalize('NFC'): some phone keyboards send accented letters as a
   // combining-mark pair (NFD) instead of one precomposed character — this
@@ -1751,34 +1750,59 @@ async function handleBookingConfirmation(
     // The lead asked something instead of confirming — this used to just
     // repeat confirmLine verbatim no matter what they said (even "¿quién
     // sos?" or "por qué tenés mi número?"), which reads as an unresponsive
-    // loop. Answer first, then re-show the confirmation prompt.
+    // loop. Identity/FAQ questions get a direct answer + the prompt again —
+    // these are real, useful exchanges, not the lead being "stuck", so they
+    // don't count against the attempt ladder below.
     const asksIdentity = /\b(qui[eé]n\s+(sos|eres|habla|es)|con\s+qui[eé]n\s+hablo|qu[eé]\s+es\s+esto|por\s+qu[eé]\s+ten[eé]s\s+mi\s+n[uú]mero|de\s+d[oó]nde\s+sacaste\s+mi\s+n[uú]mero|c[oó]mo\s+consegu[ií]ste\s+mi\s+n[uú]mero|who\s+(are\s+you|is\s+this)|why\s+do\s+you\s+have\s+my\s+number|how\s+did\s+you\s+get\s+my\s+number)\b/i.test(trimmed)
-
-    let answer = ''
-    let fullReplacement = ''
     if (asksIdentity) {
-      answer = lang === 'en'
+      const answer = lang === 'en'
         ? "I'm Lidia, Alora's virtual receptionist 😊 You wrote to us a while back about a project, so we have your number from that — I'm just following up to help you set up the call with Walo."
         : 'Soy Lidia, la recepcionista virtual de Alora 😊 Nos escribiste hace un tiempo por un proyecto, por eso tenemos tu número — te estoy siguiendo el hilo para coordinar la llamada con Walo.'
-    } else {
-      const looksLikeQuestion = trimmed.includes('?') ||
-        /^(qu[eé]|c[oó]mo|cu[aá]nto|cu[aá]ndo|tienen|hacen|ofrecen|trabajan|pueden|hay |es posible|what|how|when|do you|can you|why)\b/i.test(trimmed)
-      if (looksLikeQuestion) {
-        const faqResult = await matchFaqOrEscalate(admin, trimmed)
-        if (faqResult.action === 'answer' && faqResult.answer) answer = faqResult.answer
-      }
-      if (!answer) {
-        // Nothing pattern-based matched — don't just repeat the same line
-        // forever, actually re-read what they said and respond to it.
-        fullReplacement = await generateContextAwareBookingReply(admin, { conversationId, fullLabel, lang })
+      await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: `${answer}\n\n${confirmLine}` })
+      return
+    }
+
+    const looksLikeQuestion = trimmed.includes('?') ||
+      /^(qu[eé]|c[oó]mo|cu[aá]nto|cu[aá]ndo|tienen|hacen|ofrecen|trabajan|pueden|hay |es posible|what|how|when|do you|can you|why)\b/i.test(trimmed)
+    if (looksLikeQuestion) {
+      const faqResult = await matchFaqOrEscalate(admin, trimmed)
+      if (faqResult.action === 'answer' && faqResult.answer) {
+        await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: `${faqResult.answer}\n\n${confirmLine}` })
+        return
       }
     }
 
-    await sendOutboundWhatsAppMessage(admin, {
-      conversationId, leadId, phone,
-      body: fullReplacement || (answer ? `${answer}\n\n${confirmLine}` : confirmLine),
-    })
-    // Keep the same bot_next_question so we wait again
+    // Genuinely unmatched reply — this is where the lead is actually stuck.
+    // Ladder by consecutive attempt (persisted in bot_next_question):
+    //   0 → simple confirmLine, no AI call, stay focused on the ask
+    //   1 → Lidia is about to repeat herself for the 2nd time — that's the
+    //       signal something's not landing. Use AI, but tightly scoped to
+    //       the booking goal, not open-ended chat
+    //   2+ → still unresolved after the smart reply — stop looping and
+    //        hand off to the team instead of an endless back-and-forth
+    if (attempt >= 2) {
+      const sentHandoff = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: getHandoff(lang) })
+      if (!sentHandoff) return
+      await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
+      const { data: leadInfo } = await admin.from('leads').select('nombre, apellido').eq('id', leadId).maybeSingle()
+      const leadLabel = [leadInfo?.nombre, leadInfo?.apellido].filter(Boolean).join(' ') || `+${phone}`
+      notifyAll({
+        title: `🙋 ${leadLabel} se trabó confirmando la llamada`,
+        body:  'Lidia no logró que confirme un horario después de varios intentos — pausó la conversación.',
+        url:   `/leads/${leadId}`,
+      }).catch(() => {})
+      return
+    }
+
+    const body = attempt === 0
+      ? confirmLine
+      : (await generateContextAwareBookingReply(admin, { conversationId, fullLabel, lang })) || confirmLine
+
+    const sent = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body })
+    if (sent) {
+      const newState = `${BOOKING_CONFIRM_PREFIX}${selectedISO}:::${nextSkip}:::${slotsStr}:::${attempt + 1}`
+      await admin.from('whatsapp_conversations').update({ bot_next_question: newState }).eq('id', conversationId)
+    }
     return
   }
 
