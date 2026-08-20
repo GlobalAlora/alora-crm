@@ -1666,17 +1666,28 @@ async function generateContextAwareBookingReply(
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return ''
   try {
-    const { data: recent } = await admin
-      .from('wa_messages')
-      .select('direction, body')
-      .eq('conversation_id', conversationId)
-      .not('body', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(6)
+    const [{ data: recent }, { data: faqs }] = await Promise.all([
+      admin
+        .from('wa_messages')
+        .select('direction, body')
+        .eq('conversation_id', conversationId)
+        .not('body', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(6),
+      admin
+        .from('whatsapp_faqs')
+        .select('pregunta, respuesta')
+        .eq('activo', true)
+        .order('orden', { ascending: true }),
+    ])
     const transcript = (recent ?? [])
       .reverse()
       .map(m => `${m.direction === 'inbound' ? 'Lead' : 'Lidia'}: ${m.body}`)
       .join('\n')
+    // Real FAQ answers the team maintains — this is the same source of
+    // truth matchFaqOrEscalate uses, not facts hand-typed into this prompt,
+    // so it stays correct as the team edits the FAQ list instead of drifting.
+    const faqList = (faqs ?? []).map(f => `P: ${f.pregunta}\nR: ${f.respuesta}`).join('\n\n')
 
     const client = new Anthropic({ apiKey })
     const result = await client.messages.create({
@@ -1685,8 +1696,8 @@ async function generateContextAwareBookingReply(
       messages: [{
         role: 'user',
         content: lang === 'en'
-          ? `You are Lidia, Alora's WhatsApp receptionist. Alora is a digital technology agency: websites, apps, e-commerce, WhatsApp bots, and management systems for businesses across Latin America. Your ONLY goal right now is getting this lead to confirm a pending call slot (*${fullLabel}*) — this is not an open-ended chat. This is the SECOND time in a row their reply hasn't been a clear yes or a request for another time — read the recent conversation below and genuinely figure out why.\n\nIMPORTANT: if what they said is a basic factual question (what does Alora do, what services you offer, is this a real company, etc.), just ANSWER IT directly in one short sentence using the description above — that is not "going off topic", it's normal and expected. Only defer to the call for things that truly need project-specific context, like exact pricing or technical scoping. Never say "I'll tell you on the call" for something you can just answer now.\n\nWrite ONE short (max 2-3 lines) reply, then end by directly asking them to confirm this slot or name another time. If you truly can't tell what they mean, say so plainly and ask them to just reply Yes or Others.\n\nRecent conversation:\n${transcript}\n\nReply with ONLY the message text, no quotes, no explanation.`
-          : `Sos Lidia, la recepcionista de Alora por WhatsApp. Alora es una agencia de tecnología digital: sitios web, apps, ecommerce, bots de WhatsApp y sistemas de gestión para empresas de toda América Latina. Tu ÚNICO objetivo ahora mismo es que este lead confirme un horario de llamada pendiente (*${fullLabel}*) — esto no es una charla abierta. Es la SEGUNDA vez seguida que su respuesta no es un "sí" claro ni un pedido de otro horario — leé la conversación reciente de abajo y entendé de verdad por qué.\n\nIMPORTANTE: si lo que dijo es una pregunta básica y factual (qué hace Alora, qué servicios ofrecen, si son una empresa real, etc.), RESPONDÉSELA directo en una frase corta usando la descripción de arriba — eso no es "desviarse del tema", es lo normal y esperable. Solo derivá a la llamada cosas que de verdad necesiten el contexto puntual del proyecto, como un precio exacto o un alcance técnico específico. Nunca digas "te lo cuento en la llamada" para algo que podés responder ya mismo.\n\nEscribí UNA respuesta corta (máximo 2-3 líneas), y terminá pidiéndole directamente que confirme este horario o te diga otro. Si de verdad no entendés qué quiso decir, decilo con claridad y pedile que responda simplemente Sí u Otros.\n\nConversación reciente:\n${transcript}\n\nRespondé solo con el texto del mensaje, sin comillas ni explicación.`,
+          ? `You are Lidia, Alora's WhatsApp receptionist. Your ONLY goal right now is getting this lead to confirm a pending call slot (*${fullLabel}*) — this is not an open-ended chat. This is the SECOND time in a row their reply hasn't been a clear yes or a request for another time — read the recent conversation below and genuinely figure out why.\n\nIMPORTANT: if what they said is a basic factual question, check the team's FAQ list below first and answer using it if it applies (translate to English if needed) — that is not "going off topic", it's normal and expected. Only defer to the call for things that truly need project-specific context, like exact pricing or technical scoping, or that aren't covered by the FAQs. Never say "I'll tell you on the call" for something you can just answer now.\n\nTeam FAQs:\n${faqList || '(none loaded)'}\n\nWrite ONE short (max 2-3 lines) reply, then end by directly asking them to confirm this slot or name another time. If you truly can't tell what they mean, say so plainly and ask them to just reply Yes or Others.\n\nRecent conversation:\n${transcript}\n\nReply with ONLY the message text, no quotes, no explanation.`
+          : `Sos Lidia, la recepcionista de Alora por WhatsApp. Tu ÚNICO objetivo ahora mismo es que este lead confirme un horario de llamada pendiente (*${fullLabel}*) — esto no es una charla abierta. Es la SEGUNDA vez seguida que su respuesta no es un "sí" claro ni un pedido de otro horario — leé la conversación reciente de abajo y entendé de verdad por qué.\n\nIMPORTANTE: si lo que dijo es una pregunta básica y factual, revisá primero la lista de FAQs del equipo de abajo y respondé con eso si aplica — eso no es "desviarse del tema", es lo normal y esperable. Solo derivá a la llamada cosas que de verdad necesiten el contexto puntual del proyecto (precio exacto, alcance técnico específico) o que no estén cubiertas por las FAQs. Nunca digas "te lo cuento en la llamada" para algo que podés responder ya mismo.\n\nFAQs del equipo:\n${faqList || '(no hay ninguna cargada)'}\n\nEscribí UNA respuesta corta (máximo 2-3 líneas), y terminá pidiéndole directamente que confirme este horario o te diga otro. Si de verdad no entendés qué quiso decir, decilo con claridad y pedile que responda simplemente Sí u Otros.\n\nConversación reciente:\n${transcript}\n\nRespondé solo con el texto del mensaje, sin comillas ni explicación.`,
       }],
     })
     const out = (result.content[0] as { type: string; text: string }).text?.trim() ?? ''
