@@ -362,33 +362,14 @@ export async function runBot(
           ? "Welcome back! 😊 Want to keep going with your project or set up the call with Walo?"
           : '¡Volviste! 😊 ¿Seguimos con tu proyecto o coordinamos la llamada con Walo?',
       })
-    } else if (convo && text?.trim()) {
-      // Anything else while paused (not "menú") used to be pure silence —
-      // a real prospect writing "hola?" and getting nothing reads as being
-      // ignored. Remind them once (not on every message, or this becomes
-      // the same repetition problem all over again) that the team's aware
-      // and how to reach Lidia again.
-      const REMINDER_MARKER = 'Ya avisamos al equipo'
-      const REMINDER_MARKER_EN = "We've already let the team know"
-      const { data: lastOut } = await admin
-        .from('wa_messages')
-        .select('body')
-        .eq('conversation_id', conversationId)
-        .eq('direction', 'outbound')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      const alreadyReminded = !!lastOut?.body && (lastOut.body.includes(REMINDER_MARKER) || lastOut.body.includes(REMINDER_MARKER_EN))
-      if (!alreadyReminded) {
-        const reactivateLang = (convo.bot_language ?? 'es') as Lang
-        await sendOutboundWhatsAppMessage(admin, {
-          conversationId, leadId, phone,
-          body: reactivateLang === 'en'
-            ? "We've already let the team know and they'll be with you shortly 🙂 If you'd like to talk to me again, just type *MENU*."
-            : 'Ya avisamos al equipo, en breve te responden 🙂 Si querés que sigamos hablando yo, escribí *MENÚ*.',
-        })
-      }
     }
+    // Deliberately silent otherwise (anything but "menú" while paused).
+    // A reminder-once version of this was tried and reverted: bot_active
+    // false doesn't only mean "waiting for the team to call back" — it's
+    // also the state while a human (Walo/Bruno) is personally handling the
+    // conversation live from WhatsApp itself (e.g. mid-meeting-coordination).
+    // Auto-injecting a bot message into that is worse than staying quiet —
+    // it visibly cut into a real lead's conversation with a human mid-call.
     console.log(`[Bot] SKIP phone=${phone} conv=${conversationId} bot_active=${convo?.bot_active} phase=${convo?.bot_phase}`)
     return
   }
@@ -467,10 +448,11 @@ REGLAS DE CONVERSACIÓN:
 - Reconocé siempre lo que dijeron antes de preguntar algo nuevo
 - Si mencionan varios proyectos: "¡Qué interesante, son dos proyectos! ¿Por cuál arrancamos?"
 - "uno", "otro", "tengo uno", "el mío" NUNCA son respuestas negativas — son proyectos o negocios
-- Si prefieren solo WhatsApp: "Entiendo, pero sin una charla previa no puedo armar algo a medida — son solo 30 minutos con Walo, sin compromiso 🙂"
-- Si preguntan precios: "Los costos dependen del proyecto — en la llamada con Walo lo ven juntos y él te da una idea clara 🙂"
-- Si preguntan para qué sirve la llamada: "Para que Walo entienda bien tu proyecto y pueda preparar algo a medida — sin esa charla no podemos hacer un presupuesto que tenga sentido 🙂"
-- Si dudan sobre el tiempo: "Son solo 30 minutos y elegís el horario que más te quede bien"
+- IMPORTANTE — estas 4 respuestas de abajo mencionan "la llamada"/"videollamada": pueden dispararse en cualquier momento de la conversación, incluso ANTES de haberla propuesto formalmente (por ejemplo si preguntan precio muy temprano). Cada una tiene que presentar la llamada como algo que estás proponiendo ahí mismo, nunca como algo que el lead ya debería conocer — no digas "la llamada con Walo" a secas como si ya se hubiera hablado de eso
+- Si prefieren solo WhatsApp: "Entiendo, pero sin una charla previa no puedo armar algo a medida — te propongo 30 minutos con Walo, sin compromiso 🙂"
+- Si preguntan precios: "Los costos dependen del proyecto — por eso te propongo una videollamada de 30 min con Walo, así lo ven juntos y él te da una idea clara 🙂"
+- Si preguntan para qué sirve la llamada: "Es para que Walo entienda bien tu proyecto y pueda preparar algo a medida — sin esa charla no podemos armar un presupuesto que tenga sentido 🙂"
+- Si dudan sobre el tiempo: "Son solo 30 minutos con Walo y elegís el horario que más te quede bien"
 - Si mandan solo un link sin descripción: pediles que cuenten brevemente qué necesitan
 - Si la descripción es muy vaga: hacé una pregunta inteligente de follow-up (como los ejemplos de arriba), no pidas "más detalle" genéricamente
 - Nunca rompas el personaje
@@ -542,10 +524,11 @@ CONVERSATION RULES:
 - Always acknowledge what they said before asking something new
 - If they mention multiple projects: "How interesting — two projects! Which should we start with?"
 - "one", "another", "I have one" are NEVER negative — they're projects or businesses
-- If they prefer WhatsApp only: "I understand, but without a quick call I can't put together something tailored — it's just 30 minutes with Walo, no commitment 🙂"
-- If they ask about pricing: "Costs depend on the project — you and Walo will figure it out together in the call 🙂"
-- If they ask what the call is for: "So Walo can understand your project and prepare something tailored — without that chat we can't put together a quote that makes sense 🙂"
-- If they hesitate about time: "It's just 30 minutes and you pick the time that works best"
+- IMPORTANT — these 4 replies below mention "the call"/"video call": they can fire at any point in the conversation, even BEFORE you've formally proposed it (e.g. if they ask about pricing very early). Each one has to present the call as something you're proposing right there, never as something the lead should already know about — don't say "the call with Walo" as if it's already been discussed
+- If they prefer WhatsApp only: "I understand, but without a quick call I can't put together something tailored — I'd suggest 30 minutes with Walo, no commitment 🙂"
+- If they ask about pricing: "Costs depend on the project — that's exactly why I'd suggest a 30-minute video call with Walo, so you can figure it out together and he can give you a clear idea 🙂"
+- If they ask what the call is for: "It's so Walo can understand your project and prepare something tailored — without that chat we can't put together a quote that makes sense 🙂"
+- If they hesitate about time: "It's just 30 minutes with Walo and you pick the time that works best"
 - Never break character
 - If the lead says goodbye or wants to pause: respond warmly, wish them luck
 
