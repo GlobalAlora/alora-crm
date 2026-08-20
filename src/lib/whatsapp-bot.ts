@@ -1692,18 +1692,39 @@ async function handleBookingConfirmation(
   const confirmed = /^(s[ií]i*|dale|confirmo|confirmado|ok|listo|perfecto|va|b[aá]rbaro|de una|buen[ií]simo|claro|genial|excelente|re bien|yes|yep|yeah|confirmed|confirm|sounds good|sure|great|perfect|absolutely|definitely)(?!\p{L})/iu.test(trimmed)
 
   if (!confirmed) {
-    // Re-ask — the lead said something unexpected
     const slot = new Date(selectedISO)
     const { hora } = formatSlotAR(slot)
     const daysFull   = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
     const monthsFull = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
     const ar = new Date(slot.getTime() - 3 * 60 * 60 * 1000)
     const fullLabel = `${daysFull[ar.getDay()]} ${ar.getDate()} de ${monthsFull[ar.getMonth()]} a las ${hora} hs`
+    const confirmLine = lang === 'en'
+      ? `To confirm *${fullLabel}*, reply *Yes* — or if you'd prefer another time, type *Others* 🙂`
+      : `Para confirmar el *${fullLabel}*, respondé *Sí* — o si preferís otro horario, escribí *Otros* 🙂`
+
+    // The lead asked something instead of confirming — this used to just
+    // repeat confirmLine verbatim no matter what they said (even "¿quién
+    // sos?" or "por qué tenés mi número?"), which reads as an unresponsive
+    // loop. Answer first, then re-show the confirmation prompt.
+    const asksIdentity = /\b(qui[eé]n\s+(sos|eres|habla|es)|con\s+qui[eé]n\s+hablo|qu[eé]\s+es\s+esto|por\s+qu[eé]\s+ten[eé]s\s+mi\s+n[uú]mero|de\s+d[oó]nde\s+sacaste\s+mi\s+n[uú]mero|c[oó]mo\s+consegu[ií]ste\s+mi\s+n[uú]mero|who\s+(are\s+you|is\s+this)|why\s+do\s+you\s+have\s+my\s+number|how\s+did\s+you\s+get\s+my\s+number)\b/i.test(trimmed)
+
+    let answer = ''
+    if (asksIdentity) {
+      answer = lang === 'en'
+        ? "I'm Lidia, Alora's virtual receptionist 😊 You wrote to us a while back about a project, so we have your number from that — I'm just following up to help you set up the call with Walo."
+        : 'Soy Lidia, la recepcionista virtual de Alora 😊 Nos escribiste hace un tiempo por un proyecto, por eso tenemos tu número — te estoy siguiendo el hilo para coordinar la llamada con Walo.'
+    } else {
+      const looksLikeQuestion = trimmed.includes('?') ||
+        /^(qu[eé]|c[oó]mo|cu[aá]nto|cu[aá]ndo|tienen|hacen|ofrecen|trabajan|pueden|hay |es posible|what|how|when|do you|can you|why)\b/i.test(trimmed)
+      if (looksLikeQuestion) {
+        const faqResult = await matchFaqOrEscalate(admin, trimmed)
+        if (faqResult.action === 'answer' && faqResult.answer) answer = faqResult.answer
+      }
+    }
+
     await sendOutboundWhatsAppMessage(admin, {
       conversationId, leadId, phone,
-      body: lang === 'en'
-        ? `To confirm *${fullLabel}*, reply *Yes* — or if you'd prefer another time, type *Others* 🙂`
-        : `Para confirmar el *${fullLabel}*, respondé *Sí* — o si preferís otro horario, escribí *Otros* 🙂`,
+      body: answer ? `${answer}\n\n${confirmLine}` : confirmLine,
     })
     // Keep the same bot_next_question so we wait again
     return
