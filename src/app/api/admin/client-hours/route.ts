@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+// Un ticket abierto solo consume horas del plan si ya se trabajó (horas_reales)
+// o si el cliente aprobó la estimación (horas_aprobadas). Mientras esté
+// pendiente de aprobación, no debe contar contra el plan.
+function horasTicketAbierto(t: { horas_estimadas: number | string | null; horas_reales: number | string | null; horas_aprobadas: boolean | null }): number {
+  if (t.horas_reales != null) return Number(t.horas_reales) || 0
+  if (t.horas_aprobadas) return Number(t.horas_estimadas) || 0
+  return 0
+}
+
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -29,11 +38,11 @@ export async function GET(req: NextRequest) {
 
   const [{ data: resolved }, { data: open }] = await Promise.all([
     admin.from('tickets').select('horas_reales').eq('client_email', email).in('estado', ['resuelto', 'cerrado']).gte('resolved_at', monthStart).lt('resolved_at', monthEnd).is('deleted_at', null),
-    admin.from('tickets').select('horas_estimadas, horas_reales').eq('client_email', email).not('estado', 'in', '("resuelto","cerrado")').not('horas_estimadas', 'is', null).gte('created_at', monthStart).lt('created_at', monthEnd).is('deleted_at', null),
+    admin.from('tickets').select('horas_estimadas, horas_reales, horas_aprobadas').eq('client_email', email).not('estado', 'in', '("resuelto","cerrado")').not('horas_estimadas', 'is', null).gte('created_at', monthStart).lt('created_at', monthEnd).is('deleted_at', null),
   ])
 
   const horas_consumidas = (resolved ?? []).reduce((s, t) => s + (Number(t.horas_reales) || 0), 0)
-                         + (open    ?? []).reduce((s, t) => s + (Number(t.horas_reales ?? t.horas_estimadas) || 0), 0)
+                         + (open    ?? []).reduce((s, t) => s + horasTicketAbierto(t), 0)
 
   return NextResponse.json({
     data: {

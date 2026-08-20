@@ -182,6 +182,7 @@ function NewTicketModal({ onClose, projects, users }: {
 
 function isEnCliente(t: TicketType): boolean {
   if (!t.client_email) return false
+  if (t.estado === 'cerrado') return false
   const clientAt = t.last_client_activity_at ? new Date(t.last_client_activity_at).getTime() : 0
   const teamAt   = t.last_team_reply_at       ? new Date(t.last_team_reply_at).getTime()       : 0
   return (!!t.horas_estimadas && !t.horas_aprobadas) ||
@@ -228,7 +229,9 @@ export default function TicketsPage() {
   const filtered = tickets.filter(t => {
     if (tab === 'del_cliente') {
       if (!isEnCliente(t)) return false
-    } else if (tab !== 'todos' && t.estado !== tab) return false
+    } else if (tab === 'todos') {
+      if (t.estado === 'cerrado') return false
+    } else if (t.estado !== tab) return false
     if (projectFilter && t.project_id !== projectFilter) return false
     if (search) {
       const q = search.toLowerCase()
@@ -250,7 +253,7 @@ export default function TicketsPage() {
   }
 
   const TABS: { value: Tab; label: string; count?: number; highlight?: boolean }[] = [
-    { value: 'todos',       label: 'Todos',       count: tickets.length },
+    { value: 'todos',       label: 'Todos',       count: stats.total },
     { value: 'nuevo',       label: 'Nuevos',      count: tickets.filter(t => t.estado === 'nuevo').length },
     { value: 'estimacion',  label: 'Estimado',    count: tickets.filter(t => t.estado === 'estimacion').length },
     { value: 'en_progreso', label: 'En progreso', count: tickets.filter(t => t.estado === 'en_progreso').length },

@@ -1307,6 +1307,23 @@ async function handleBookingPhase(
     return
   }
 
+  // Lead is expressing a specific time (e.g. "22:00", "10 de la noche", "24 horas")
+  // that likely doesn't match any available slot — explain and re-offer
+  const expressesOutOfHoursTime =
+    /\b(\d{1,2})[:.]\d{2}\b/.test(trimmed) ||
+    /\b(noche|madrugada|medianoche|nocturno|de noche|por la noche|a la noche|tarde noche)\b/i.test(trimmed) ||
+    /\b(24\s*hora|toda(s)? la(s)? noche|cualquier hora|a las? \d{1,2})\b/i.test(trimmed)
+
+  if (expressesOutOfHoursTime) {
+    await startBookingFlow(admin, { leadId, conversationId, phone }, nextSkip,
+      lang === 'en'
+        ? 'Our calls are scheduled during business hours 🕘 Here are the available times:\n\n'
+        : 'Las llamadas son en horario comercial 🕘 Estos son los horarios disponibles:\n\n',
+      lang,
+    )
+    return
+  }
+
   let num = parseInt(trimmed, 10)
   if (isNaN(num)) {
     // Handle "Viernes 24 1" — extract the last standalone number
@@ -1397,13 +1414,53 @@ async function handleBookingPhase(
         lang,
       )
     } else {
-      // No portfolio match, no question — just nudge without re-sending the full slot list
-      await sendOutboundWhatsAppMessage(admin, {
-        conversationId, leadId, phone,
-        body: lang === 'en'
-          ? 'Just reply with the number of the time that works best for you 😊 (or write *others* to see different options)'
-          : 'Respondé con el número del horario que más te quede bien 😊 (o escribí *otros* para ver opciones diferentes)',
-      })
+      // Detect confusion — re-show full slot list with clearer instructions
+      const isConfused =
+        /\b(no entiendo|no comprendo|no sé qué|no se que|que numero|qué número|cual numero|cuál número|cómo elijo|como elijo|no me queda claro|no entend)\b/i.test(trimmed) ||
+        /^(no entiendo|que numero|cual numero|como hago|no se|no sé)\b/i.test(trimmed)
+
+      if (isConfused) {
+        await startBookingFlow(admin, { leadId, conversationId, phone }, nextSkip,
+          lang === 'en'
+            ? 'No worries! 😊 It\'s simple: just reply with the *number* next to the time that works best for you (for example, reply *1* to pick the first option):\n\n'
+            : '¡No hay problema! 😊 Es simple: respondé con el *número* que está al lado del horario que te quede bien (por ejemplo, respondé *1* para elegir la primera opción):\n\n',
+          lang,
+        )
+        return
+      }
+
+      // Count consecutive failed nudges by checking recent outbound messages
+      const { data: recentOut } = await admin
+        .from('wa_messages')
+        .select('body')
+        .eq('conversation_id', conversationId)
+        .eq('direction', 'outbound')
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      const NUDGE_ES = 'Respondé con el número del horario'
+      const NUDGE_EN = 'Just reply with the number'
+      const consecutiveNudges = (recentOut ?? []).filter(m =>
+        m.body?.includes(NUDGE_ES) || m.body?.includes(NUDGE_EN)
+      ).length
+
+      if (consecutiveNudges >= 3) {
+        // Too many failed attempts — re-show full slot list with extra explanation
+        await startBookingFlow(admin, { leadId, conversationId, phone }, nextSkip,
+          lang === 'en'
+            ? 'Let me show you the options again 😊 Reply with the *number* (1, 2, 3…) of the time that works for you, or write *others* to see different dates:\n\n'
+            : 'Te muestro los horarios de nuevo 😊 Respondé con el *número* (1, 2, 3…) del horario que te quede bien, o escribí *otros* para ver otras fechas:\n\n',
+          lang,
+        )
+      } else {
+        // Simple nudge
+        await sendOutboundWhatsAppMessage(admin, {
+          conversationId, leadId, phone,
+          body: lang === 'en'
+            ? 'Just reply with the number of the time that works best for you 😊 (or write *others* to see different options)'
+            : 'Respondé con el número del horario que más te quede bien 😊 (o escribí *otros* para ver opciones diferentes)',
+        })
+      }
     }
     return
   }
