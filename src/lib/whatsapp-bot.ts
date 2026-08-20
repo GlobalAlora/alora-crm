@@ -266,8 +266,8 @@ const CLOSING_FALLBACK_EN = "All set, I have everything I need! 🎉 Thanks for 
   + "Meanwhile, if you have any other questions, feel free to ask 🙂"
 function getClosingFallback(lang: Lang): string { return lang === 'en' ? CLOSING_FALLBACK_EN : CLOSING_FALLBACK }
 
-const HANDOFF  = 'Dejame que te conecte con alguien del equipo para ayudarte mejor con esto 🙂 En breve te responden.'
-const HANDOFF_EN = "Let me connect you with someone from the team to better help you with this 🙂 They'll be in touch shortly."
+const HANDOFF  = 'Te derivo con alguien del equipo para que te ayude mejor con esto 🙂 En breve te responden. Si en algún momento querés volver a hablar conmigo, escribí *MENÚ*.'
+const HANDOFF_EN = "I'm connecting you with someone from the team to better help you with this 🙂 They'll be in touch shortly. If you'd like to talk to me again at any point, just type *MENU*."
 function getHandoff(lang: Lang): string { return lang === 'en' ? HANDOFF_EN : HANDOFF }
 
 const BOOKING_SLOTS_PREFIX   = 'booking_slots:::'
@@ -347,6 +347,22 @@ export async function runBot(
     .single()
 
   if (!convo || convo.bot_active === false) {
+    // The bot goes silent when paused (human handoff) — but the lead was
+    // told they can type "menú" to come back. Without this, that promise
+    // was empty: every message just got ignored forever, "menú" included.
+    const MENU_RE = /^\s*men[uú]\s*$/i
+    if (convo && MENU_RE.test(text ?? '')) {
+      const reactivateLang = (convo.bot_language ?? 'es') as Lang
+      await admin.from('whatsapp_conversations')
+        .update({ bot_active: true, bot_phase: 'faq', bot_next_question: null })
+        .eq('id', conversationId)
+      await sendOutboundWhatsAppMessage(admin, {
+        conversationId, leadId, phone,
+        body: reactivateLang === 'en'
+          ? "Welcome back! 😊 Want to keep going with your project or set up the call with Walo?"
+          : '¡Volviste! 😊 ¿Seguimos con tu proyecto o coordinamos la llamada con Walo?',
+      })
+    }
     console.log(`[Bot] SKIP phone=${phone} conv=${conversationId} bot_active=${convo?.bot_active} phase=${convo?.bot_phase}`)
     return
   }
