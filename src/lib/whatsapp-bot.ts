@@ -362,6 +362,32 @@ export async function runBot(
           ? "Welcome back! 😊 Want to keep going with your project or set up the call with Walo?"
           : '¡Volviste! 😊 ¿Seguimos con tu proyecto o coordinamos la llamada con Walo?',
       })
+    } else if (convo && text?.trim()) {
+      // Anything else while paused (not "menú") used to be pure silence —
+      // a real prospect writing "hola?" and getting nothing reads as being
+      // ignored. Remind them once (not on every message, or this becomes
+      // the same repetition problem all over again) that the team's aware
+      // and how to reach Lidia again.
+      const REMINDER_MARKER = 'Ya avisamos al equipo'
+      const REMINDER_MARKER_EN = "We've already let the team know"
+      const { data: lastOut } = await admin
+        .from('wa_messages')
+        .select('body')
+        .eq('conversation_id', conversationId)
+        .eq('direction', 'outbound')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const alreadyReminded = !!lastOut?.body && (lastOut.body.includes(REMINDER_MARKER) || lastOut.body.includes(REMINDER_MARKER_EN))
+      if (!alreadyReminded) {
+        const reactivateLang = (convo.bot_language ?? 'es') as Lang
+        await sendOutboundWhatsAppMessage(admin, {
+          conversationId, leadId, phone,
+          body: reactivateLang === 'en'
+            ? "We've already let the team know and they'll be with you shortly 🙂 If you'd like to talk to me again, just type *MENU*."
+            : 'Ya avisamos al equipo, en breve te responden 🙂 Si querés que sigamos hablando yo, escribí *MENÚ*.',
+        })
+      }
     }
     console.log(`[Bot] SKIP phone=${phone} conv=${conversationId} bot_active=${convo?.bot_active} phase=${convo?.bot_phase}`)
     return
