@@ -263,7 +263,9 @@ export async function getAvailableSlotsByDay(daysToShow = 2, skipDays = 0): Prom
     let skipped = 0
     const todayAR = new Date(nowUTC.getTime() + AR_MS); todayAR.setHours(0, 0, 0, 0)
 
-    for (let d = 0; d < 45 && result.length < daysToShow; d++) {
+    // Start at d = 1 (tomorrow) — never offer same-day slots, regardless of
+    // how many hours are left in the day.
+    for (let d = 1; d < 45 && result.length < daysToShow; d++) {
       const dayAR = new Date(todayAR.getTime() + d * 86_400_000)
       const dow   = dayAR.getDay()
       if (dow === 0 || dow === 6) continue
