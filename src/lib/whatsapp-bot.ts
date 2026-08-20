@@ -20,6 +20,7 @@ const PORTFOLIO_CASES = [
   { name: 'Soy LIDIA',        url: `${BASE_SITE}/es/casos-de-exito/soy-lidia`,  teaser: 'una recepcionista virtual por WhatsApp que agenda turnos 24/7, cobra señas y confirma citas automáticamente — activa hoy en clínicas de 4 países' },
   { name: 'ALORA CRM',        url: `${BASE_SITE}/es/casos-de-exito/alora-crm`,  teaser: 'un CRM (sistema de gestión de clientes) con pipeline de ventas automatizado, seguimiento de leads y dashboard en tiempo real — solo relevante si el cliente necesita gestión interna de su negocio' },
   { name: 'Castro Yeso',      url: `${BASE_SITE}/es/casos-de-exito/castro-yeso`, teaser: 'una landing page (sitio de una sola página, sin catálogo ni e-commerce) para un negocio de servicios y oficios — solo relevante si el cliente NO necesita catálogo de productos ni tienda online' },
+  { name: 'Escribanía Jalil', url: `${BASE_SITE}/es/casos-de-exito/escribania-jalil`, teaser: 'un sitio para un estudio de escribanía, con información de servicios notariales/legales y contacto directo — solo relevante para negocios de servicios profesionales, sin catálogo de productos ni tienda online' },
   { name: 'ALKEMIA',          url: `${BASE_SITE}/es/casos-de-exito/alkemia`,    teaser: 'un sitio institucional bilingüe para posicionarse en el mercado tech e IA a nivel internacional' },
   { name: 'Distri-Sal',       url: `${BASE_SITE}/es/casos-de-exito/distrisal`,  teaser: 'un ecommerce con catálogo de productos integrado con su sistema de gestión para sincronizar stock y precios en tiempo real — ideal para distribuidoras o mayoristas' },
   { name: 'Voutier Repuestos', url: `${BASE_SITE}/es/casos-de-exito/voutier`,   teaser: 'una tienda online de repuestos automotrices con catálogo filtrable por marca, modelo y año — ideal para negocios de autopartes o repuestos' },
@@ -474,15 +475,25 @@ CUANDO VAS A BOOKING (recién cuando tenés proyecto + país + sitio web + email
 - Ejemplo (personalizalo con el proyecto real, NO copies esto): "¡Perfecto Ana! Ya tengo todo lo que Walo necesita sobre tu ecommerce de ropa 🙌 Se va a preparar bien para la charla — en un momento te muestro los horarios disponibles."
 - NO incluyas los horarios en tu mensaje — el sistema los envía automáticamente después
 
-PORTAFOLIO (mencioná orgánicamente — máximo una vez, solo si hay match muy claro del TIPO de producto):
-- Autodux: marketplace de autos para concesionarias (catálogo, búsqueda, WhatsApp) → https://www.globalalora.com/es/casos-de-exito/autodux
-- Soy LIDIA: bot de WhatsApp para clínicas (agenda 24/7, cobro de señas) → https://www.globalalora.com/es/casos-de-exito/soy-lidia
-- ALORA CRM: sistema de gestión de leads y ventas (SOLO si el cliente necesita gestión interna de su negocio) → https://www.globalalora.com/es/casos-de-exito/alora-crm
+PORTAFOLIO (mencioná orgánicamente — máximo una vez, solo si hay match muy claro):
+- Primero fijate si el negocio del lead es un SERVICIO (no vende productos — ej. fletes, gestoría, asesoría, yesería, escribanía) o un PRODUCTO/TIENDA (vende algo con catálogo — ej. repuestos, ropa, insumos). Elegí un ejemplo de la MISMA categoría — nunca le muestres una tienda a alguien que ofrece un servicio, ni al revés, aunque no tengas un caso 100% idéntico a su rubro
+
+Servicios:
 - Castro Yeso: landing page ONE-PAGE para servicios — SIN catálogo ni tienda → https://www.globalalora.com/es/casos-de-exito/castro-yeso
+- Escribanía Jalil: sitio para un estudio de escribanía (servicios legales/notariales) → https://www.globalalora.com/es/casos-de-exito/escribania-jalil
 - ALKEMIA: sitio institucional bilingüe → https://www.globalalora.com/es/casos-de-exito/alkemia
+
+Productos / tiendas:
+- Autodux: marketplace de autos para concesionarias (catálogo, búsqueda, WhatsApp) → https://www.globalalora.com/es/casos-de-exito/autodux
 - Distri-Sal: ecommerce con sincronización de stock en tiempo real → https://www.globalalora.com/es/casos-de-exito/distrisal
 - Voutier: tienda de repuestos automotrices con catálogo filtrable → https://www.globalalora.com/es/casos-de-exito/voutier
 - Mimi Kids: tienda artesanal con catálogo + MercadoPago → https://www.globalalora.com/es/casos-de-exito/mimikids
+
+Otros:
+- Soy LIDIA: bot de WhatsApp para clínicas (agenda 24/7, cobro de señas) → https://www.globalalora.com/es/casos-de-exito/soy-lidia
+- ALORA CRM: sistema de gestión de leads y ventas (SOLO si el cliente necesita gestión interna de su negocio) → https://www.globalalora.com/es/casos-de-exito/alora-crm
+
+- Si preguntan por casos de campañas de Google Ads puntualmente: "No tenemos casos de campañas de Ads para mostrarte, pero todas las páginas que hacemos quedan listas para correr Google Ads arriba sin problema 🙂" — y ahí sí podés mostrar un caso de portafolio de la categoría que corresponda (servicio o tienda), aclarando que es de la web, no de la campaña
 
 IR A BOOKING: cuando tenés descripción del proyecto + país + sitio web + email — las 4, sin excepción. Nunca vayas a booking sin email.
 IR A STOP: si el lead claramente no quiere continuar. Respondé amablemente antes de parar.`
@@ -548,15 +559,25 @@ WHEN GOING TO BOOKING (only once you have project + country + website + email, a
 - Example (personalize it with the real project, do NOT copy this): "Perfect Sarah! I have everything Walo needs about your clothing e-commerce 🙌 He'll be well prepared for the call — I'll show you the available times in a moment."
 - Do NOT include the time slots in your message — the system sends them automatically
 
-PORTFOLIO (mention organically — once max, only on a very clear product-type match):
-- Autodux: car marketplace for dealers → https://www.globalalora.com/es/casos-de-exito/autodux
-- Soy LIDIA: WhatsApp bot for clinics (24/7 booking) → https://www.globalalora.com/es/casos-de-exito/soy-lidia
-- ALORA CRM: lead/sales management system (ONLY if client needs internal business management) → https://www.globalalora.com/es/casos-de-exito/alora-crm
+PORTFOLIO (mention organically — once max, only on a very clear match):
+- First figure out if the lead's business is a SERVICE (doesn't sell products — e.g. moving/hauling, consulting, notary, plaster/construction trades) or a PRODUCT/STORE (sells something with a catalog — e.g. auto parts, clothing, supplies). Pick an example from the SAME category — never show a store to someone offering a service, or vice versa, even if you don't have a perfect match for their exact industry
+
+Services:
 - Castro Yeso: one-page landing (NO catalog or store) → https://www.globalalora.com/es/casos-de-exito/castro-yeso
+- Escribanía Jalil: website for a notary/legal services firm → https://www.globalalora.com/es/casos-de-exito/escribania-jalil
 - ALKEMIA: bilingual institutional website → https://www.globalalora.com/es/casos-de-exito/alkemia
+
+Products / stores:
+- Autodux: car marketplace for dealers → https://www.globalalora.com/es/casos-de-exito/autodux
 - Distri-Sal: e-commerce with real-time stock sync → https://www.globalalora.com/es/casos-de-exito/distrisal
 - Voutier: auto parts store with filterable catalog → https://www.globalalora.com/es/casos-de-exito/voutier
 - Mimi Kids: artisan e-commerce with MercadoPago → https://www.globalalora.com/es/casos-de-exito/mimikids
+
+Other:
+- Soy LIDIA: WhatsApp bot for clinics (24/7 booking) → https://www.globalalora.com/es/casos-de-exito/soy-lidia
+- ALORA CRM: lead/sales management system (ONLY if client needs internal business management) → https://www.globalalora.com/es/casos-de-exito/alora-crm
+
+- If asked specifically about Google Ads campaign case studies: "We don't have Ads campaign case studies to show you, but every website we build is ready to run Google Ads on top without any issue 🙂" — you can then show a portfolio case from the matching category (service or store), making clear it's a website example, not an ads campaign
 
 GO TO BOOKING: when you have project description + country + website + email — all 4, no exceptions. Never go to booking without the email.
 GO TO STOP: if the lead clearly doesn't want to continue. Respond warmly before stopping.`
