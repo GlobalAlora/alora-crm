@@ -113,7 +113,7 @@ export interface Lead {
   fecha_reunion: string | null
   reunion_hora: string | null
   reunion_link: string | null
-  reunion_asistencia: 'se_presento' | 'no_se_presento' | 'reagendo' | null
+  reunion_asistencia: 'se_presento' | 'no_se_presento' | 'reagendo' | 'cancelada_alora' | null
   fecha_propuesta: string | null
   fecha_followup: string | null
   fecha_cierre: string | null
@@ -144,6 +144,7 @@ export interface Lead {
   next_followup_at?: string | null
   propuestas?: Propuesta[]
   stage_history?: StageHistory[]
+  whatsapp_conversation?: { id: string; phone_number: string } | null
   // Computed on GET /leads (list)
   propuestas_total_usd?: number
   propuestas_total_ars?: number

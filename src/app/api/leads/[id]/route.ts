@@ -35,7 +35,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       .order('fecha_ingreso', { ascending: false }),
     admin
       .from('whatsapp_conversations')
-      .select('bot_active, last_message_direction, last_message_at, followup_count')
+      .select('id, phone_number, bot_active, last_message_direction, last_message_at, followup_count')
       .eq('lead_id', id)
       .maybeSingle(),
   ])
@@ -68,7 +68,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
     next_followup_at = new Date(ts).toISOString()
   }
 
-  return NextResponse.json({ data: { ...lead, propuestas: propuestas || [], stage_history: stageHistory || [], calidad_lead, dias_sin_respuesta, next_followup_at } })
+  const whatsapp_conversation = waConvo ? { id: waConvo.id, phone_number: waConvo.phone_number } : null
+
+  return NextResponse.json({ data: { ...lead, propuestas: propuestas || [], stage_history: stageHistory || [], calidad_lead, dias_sin_respuesta, next_followup_at, whatsapp_conversation } })
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
@@ -204,9 +206,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // Log reunion_asistencia change (best-effort)
   if ('reunion_asistencia' in body && body.reunion_asistencia) {
     const labels: Record<string, string> = {
-      se_presento:    '✅ Se presentó a la reunión',
-      no_se_presento: '❌ No se presentó a la reunión',
-      reagendo:       '🔄 Reagendó la reunión',
+      se_presento:      '✅ Se presentó a la reunión',
+      no_se_presento:   '❌ No se presentó a la reunión',
+      reagendo:         '🔄 Reagendó la reunión',
+      cancelada_alora:  '🚫 Reunión cancelada por ALORA',
     }
     const descripcion = labels[body.reunion_asistencia as string] ?? 'Estado de reunión actualizado'
     await supabase.from('activities').insert({

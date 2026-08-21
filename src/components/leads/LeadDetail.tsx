@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   X, Mail, Building2, Tag as TagIcon, Globe, Calendar,
@@ -219,7 +220,7 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
   const patch = (data: Partial<Lead> & { skip_calendar?: boolean }) => patchMutation.mutate(data as Partial<Lead>)
 
   const handleMeetingStatus = (
-    asistencia: 'se_presento' | 'no_se_presento' | 'reagendo',
+    asistencia: 'se_presento' | 'no_se_presento' | 'reagendo' | 'cancelada_alora',
     reschedule?: { fecha_reunion: string; reunion_hora: string; reunion_link: string }
   ) => {
     const updates: Partial<Lead> = { reunion_asistencia: asistencia }
@@ -415,6 +416,14 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                 >
                   <MessageCircle size={13} className="text-green-500" /> WhatsApp
                 </a>
+              )}
+              {lead.whatsapp_conversation && (
+                <Link
+                  href={`/inbox/whatsapp?phone=${lead.whatsapp_conversation.phone_number}`}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-white hover:border-slate-300 transition-colors"
+                >
+                  <MessageSquare size={13} className="text-blue-500" /> Ver conversación
+                </Link>
               )}
             </div>
 

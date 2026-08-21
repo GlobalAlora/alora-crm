@@ -237,6 +237,10 @@ export async function GET(req: NextRequest) {
     // TidyCal con datos históricos ruidosos.
     const reunionesAgendadas = cualificados.filter(l => !!l.fecha_reunion)
     const reunionesRealizadas = cualificados.filter(l => l.reunion_asistencia === 'se_presento')
+    // Reuniones que ALORA decidió no dar (ej. tras más charla por WhatsApp, el lead
+    // no da la talla) — siguen contando como agendadas, pero se reportan aparte:
+    // no son un "no show" del lead ni bajan el show-up rate en ese sentido.
+    const reunionesCanceladasAlora = cualificados.filter(l => l.reunion_asistencia === 'cancelada_alora')
     const showUpRate = pct(reunionesRealizadas.length, reunionesAgendadas.length)
 
     // Leads cualificados con al menos una propuesta real (tabla propuestas,
@@ -541,6 +545,7 @@ export async function GET(req: NextRequest) {
       basura: trim(basuraLeads),
       reuniones_agendadas: trim(reunionesAgendadas),
       reuniones_realizadas: trim(reunionesRealizadas),
+      reuniones_canceladas_alora: trim(reunionesCanceladasAlora),
       con_propuesta: trim(cualificadosConPropuesta),
       ganados: trim(ganados),
       perdidos: trim(perdidos),
@@ -581,6 +586,7 @@ export async function GET(req: NextRequest) {
       reuniones: {
         agendadas: reunionesAgendadas.length,
         realizadas: reunionesRealizadas.length,
+        canceladas_alora: reunionesCanceladasAlora.length,
         show_up_rate: showUpRate,
       },
       conversiones: {
@@ -597,6 +603,7 @@ export async function GET(req: NextRequest) {
         basura_pct: 'Ni siquiera era una consulta real (spam, número equivocado, algo no relacionado con ALORA). No cuenta como lead.',
         reuniones_agendadas: 'Leads con fecha, hora y link de reunión cargados — sin importar el origen (TidyCal, bot de WhatsApp, carga manual). Mide agenda, no asistencia.',
         reuniones_realizadas: 'De las agendadas, las que se confirmaron manualmente en la ficha del lead como "se presentó". Antes del 17/08/2026 este dato es poco confiable por una carga masiva histórica vía TidyCal.',
+        reuniones_canceladas_alora: 'De las agendadas, las que ALORA decidió no dar (ej. tras más charla por WhatsApp el lead no da la talla) — se cuentan aparte, no como "no show" del lead ni bajan directamente el show-up rate.',
         show_up_rate: 'Reuniones realizadas ÷ reuniones agendadas. Cuántas de las reuniones que se agendan realmente se concretan.',
         tasa_cierre_ganado: 'Cierres ganados ÷ leads cualificados del período (no se cuentan Basura ni No cualificado en la base, porque nunca iban a cerrar).',
         lead_a_reunion: 'Reuniones agendadas ÷ leads cualificados.',

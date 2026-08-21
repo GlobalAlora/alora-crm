@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle2, XCircle, RefreshCw, ChevronDown } from 'lucide-react'
+import { CheckCircle2, XCircle, RefreshCw, ChevronDown, Ban } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-type Asistencia = 'se_presento' | 'no_se_presento' | 'reagendo'
+type Asistencia = 'se_presento' | 'no_se_presento' | 'reagendo' | 'cancelada_alora'
 
 interface RescheduleData {
   fecha_reunion: string
@@ -43,6 +43,13 @@ const OPTIONS: { value: Asistencia; label: string; icon: React.ReactNode; active
     icon: <RefreshCw size={14} />,
     activeClass: 'bg-amber-50 text-amber-700 border-amber-300',
     borderClass: 'border-slate-200 text-slate-500 hover:border-amber-300 hover:text-amber-600',
+  },
+  {
+    value: 'cancelada_alora',
+    label: 'Cancelada por ALORA',
+    icon: <Ban size={14} />,
+    activeClass: 'bg-slate-100 text-slate-700 border-slate-300',
+    borderClass: 'border-slate-200 text-slate-500 hover:border-slate-400 hover:text-slate-700',
   },
 ]
 
@@ -190,6 +197,7 @@ export function MeetingStatusCheck({
           {current === 'se_presento' && '✅ Registrado: se presentó'}
           {current === 'no_se_presento' && '❌ Registrado: no se presentó'}
           {current === 'reagendo' && '🔄 Registrado: reagendó'}
+          {current === 'cancelada_alora' && '🚫 Registrado: cancelada por ALORA'}
         </p>
       )}
     </div>

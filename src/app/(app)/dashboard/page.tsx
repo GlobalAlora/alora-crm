@@ -50,6 +50,7 @@ interface AnalyticsData {
   reuniones: {
     agendadas: number
     realizadas: number
+    canceladas_alora: number
     show_up_rate: number
   }
   conversiones: {
@@ -455,6 +456,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
               <StatCard label="Reuniones agendadas" value={a?.reuniones.agendadas ?? 0} sub="Fecha, hora y link cargados" info={a?.definiciones.reuniones_agendadas} onOpenDetail={() => openDetail('reuniones_agendadas', 'Reuniones agendadas')} />
               <StatCard label="Reuniones realizadas" value={a?.reuniones.realizadas ?? 0} sub={`Show-up rate: ${a?.reuniones.show_up_rate ?? 0}%`} info={a?.definiciones.reuniones_realizadas} onOpenDetail={() => openDetail('reuniones_realizadas', 'Reuniones realizadas')} />
+              <StatCard label="Canceladas por ALORA" value={a?.reuniones.canceladas_alora ?? 0} sub="De las agendadas, decisión de ALORA" info={a?.definiciones.reuniones_canceladas_alora} onOpenDetail={() => openDetail('reuniones_canceladas_alora', 'Canceladas por ALORA')} />
               <StatCard label="Conv. Lead → Reunión" value={`${a?.conversiones.lead_a_reunion ?? 0}%`} sub="Sobre leads cualificados" info={a?.definiciones.lead_a_reunion} />
               <StatCard label="Conv. Lead → Propuesta" value={`${a?.conversiones.lead_a_propuesta ?? 0}%`} sub="Sobre leads cualificados" info={a?.definiciones.lead_a_propuesta} onOpenDetail={() => openDetail('con_propuesta', 'Leads con propuesta')} />
               <StatCard label="Conv. Reunión → Propuesta" value={`${a?.conversiones.reunion_a_propuesta ?? 0}%`} sub="Sobre reuniones realizadas" info={a?.definiciones.reunion_a_propuesta} />
