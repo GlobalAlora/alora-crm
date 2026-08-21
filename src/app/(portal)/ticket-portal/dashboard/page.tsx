@@ -608,7 +608,7 @@ export default function DashboardPage() {
             { key: 'todos',       label: 'Todos',       count: base.length },
             { key: 'nuevos',      label: 'Nuevos',      count: base.filter(t => t.estado === 'nuevo').length },
             { key: 'en_progreso', label: 'En progreso', count: base.filter(t => ['en_progreso', 'en_espera'].includes(t.estado)).length },
-            { key: 'resueltos',   label: 'Resueltos',   count: base.filter(t => ['resuelto', 'cerrado'].includes(t.estado)).length },
+            { key: 'resueltos',   label: 'Cerrados',    count: base.filter(t => ['resuelto', 'cerrado'].includes(t.estado)).length },
           ]
           return (
             <div style={{ display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', paddingBottom: 2 }}>
