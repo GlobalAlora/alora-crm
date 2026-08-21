@@ -5,18 +5,15 @@ import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import {
   Users, DollarSign, Clock, BarChart3, Globe,
-  TrendingUp, Zap, Activity, ArrowRight,
-  ArrowDown, ChevronRight, FileText, Phone, Mail, Calendar,
-  CheckSquare, FolderKanban, Plus, MessageSquare, ListTodo, Info, X,
+  TrendingUp, ArrowRight,
+  ArrowDown, ChevronRight, Calendar,
+  FolderKanban, Plus, MessageSquare, ListTodo, Info, X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatUSD, formatARS } from '@/lib/utils'
 import { getArgentinaDateStr } from '@/lib/timezone'
 import { FUENTES, PAISES } from '@/types'
-import type { PipelineStage } from '@/types'
-import { useStageMap } from '@/hooks/usePipelineStages'
 import { dashboardApi } from '@/lib/api'
-import { UserAvatar } from '@/components/shared/UserAvatar'
 import { useLeadFormStore } from '@/hooks/useLeadFormStore'
 import { MonthlyEvolutionChart } from '@/components/dashboard/charts/MonthlyEvolutionChart'
 
@@ -56,6 +53,8 @@ interface AnalyticsData {
     agendadas: number
     realizadas: number
     canceladas_alora: number
+    no_se_presento: number
+    sin_informacion: number
     show_up_rate: number
   }
   conversiones: {
@@ -121,6 +120,13 @@ interface AnalyticsData {
     por_mes: { key: string; mes: string; count: number }[]
     servicios_top: { servicio: string; count: number }[]
   }
+  lidia: {
+    conversaciones: number
+    reuniones_confirmadas: number
+    conversion_reunion: number
+    followups_enviados: number
+    leads_en_frio: number
+  }
   detalle: Record<string, DetalleLead[]>
 }
 
@@ -141,21 +147,6 @@ function getDefaultDesde() {
 }
 function getDefaultHasta() {
   return getArgentinaDateStr()
-}
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const m = Math.floor(diff / 60000)
-  if (m < 1) return 'ahora'
-  if (m < 60) return `hace ${m}m`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `hace ${h}h`
-  return `hace ${Math.floor(h / 24)}d`
-}
-
-const ACTIVITY_ICON: Record<string, React.ElementType> = {
-  nota: FileText, llamada: Phone, email: Mail, reunion: Calendar,
-  cambio_estado: Activity, tarea_completada: CheckSquare, webhook: Globe,
 }
 
 const PRESETS: { label: string; key: string }[] = [
@@ -305,8 +296,6 @@ function Skel({ h = 'h-24' }: { h?: string }) {
 export default function DashboardPage() {
   const router = useRouter()
   const { open: openLeadForm } = useLeadFormStore()
-  const stageMap = useStageMap()
-
   const [fechaDesde, setFechaDesde] = useState(getDefaultDesde)
   const [fechaHasta, setFechaHasta] = useState(getDefaultHasta)
   const [pais, setPais] = useState('')
@@ -483,6 +472,8 @@ export default function DashboardPage() {
             <StatCard label="Reuniones agendadas" value={a?.reuniones.agendadas ?? 0} sub="Fecha, hora y link cargados" info={a?.definiciones.reuniones_agendadas} onOpenDetail={() => openDetail('reuniones_agendadas', 'Reuniones agendadas')} />
             <StatCard label="Reuniones realizadas" value={a?.reuniones.realizadas ?? 0} sub={`Show-up rate: ${a?.reuniones.show_up_rate ?? 0}%`} info={a?.definiciones.reuniones_realizadas} onOpenDetail={() => openDetail('reuniones_realizadas', 'Reuniones realizadas')} />
             <StatCard label="Canceladas por ALORA" value={a?.reuniones.canceladas_alora ?? 0} sub="Decisión de ALORA, por fecha de la cancelación" info={a?.definiciones.reuniones_canceladas_alora} onOpenDetail={() => openDetail('reuniones_canceladas_alora', 'Canceladas por ALORA')} />
+            <StatCard label="No se presentó" value={a?.reuniones.no_se_presento ?? 0} sub="Confirmado en la ficha" color={(a?.reuniones.no_se_presento ?? 0) > 0 ? 'red' : 'slate'} info={a?.definiciones.reuniones_no_se_presento} onOpenDetail={() => openDetail('reuniones_no_se_presento', 'No se presentó')} />
+            <StatCard label="Sin información" value={a?.reuniones.sin_informacion ?? 0} sub="Nadie confirmó qué pasó — hacé clic para completar" color={(a?.reuniones.sin_informacion ?? 0) > 0 ? 'amber' : 'slate'} info={a?.definiciones.reuniones_sin_informacion} onOpenDetail={() => openDetail('reuniones_sin_informacion', 'Sin información')} />
             <StatCard label="Conv. Lead → Reunión" value={`${a?.conversiones.lead_a_reunion ?? 0}%`} sub="Sobre leads cualificados" info={a?.definiciones.lead_a_reunion} />
           </div>
         )}
@@ -542,6 +533,28 @@ export default function DashboardPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+      </section>
+
+      {/* ── LIDIA (bot de WhatsApp) ──────────────────────────────────────────── */}
+      <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
+        <SectionHeader icon={MessageSquare} title="LIDIA" subtitle="Desempeño del bot de WhatsApp en el período" />
+        {loadingAnalytics ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{[...Array(4)].map((_, i) => <Skel key={i} />)}</div>
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard label="Conversaciones" value={a?.lidia.conversaciones ?? 0} sub="Leads cualificados que hablaron con Lidia" onOpenDetail={() => openDetail('lidia_conversaciones', 'Conversaciones con Lidia')} />
+            <StatCard
+              label="Confirmaron reunión"
+              value={`${a?.lidia.conversion_reunion ?? 0}%`}
+              sub={`${a?.lidia.reuniones_confirmadas ?? 0} / ${a?.lidia.conversaciones ?? 0} conversaciones`}
+              color={(a?.lidia.conversion_reunion ?? 0) >= 30 ? 'green' : (a?.lidia.conversion_reunion ?? 0) >= 15 ? 'amber' : 'slate'}
+              info={a?.definiciones.lidia_conversion_reunion}
+              onOpenDetail={() => openDetail('lidia_con_reunion', 'Confirmaron reunión con Lidia')}
+            />
+            <StatCard label="Follow-ups enviados" value={a?.lidia.followups_enviados ?? 0} sub="Mensajes automáticos de seguimiento" info={a?.definiciones.lidia_followups_enviados} />
+            <StatCard label="Se enfriaron" value={a?.lidia.leads_en_frio ?? 0} sub="Sin respuesta tras los 2 follow-ups" color={(a?.lidia.leads_en_frio ?? 0) > 0 ? 'amber' : 'slate'} info={a?.definiciones.lidia_leads_en_frio} />
           </div>
         )}
       </section>
@@ -769,20 +782,26 @@ export default function DashboardPage() {
             {/* Por hora del día */}
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-3">Por hora del día</p>
-              <div className="flex items-end gap-0.5 h-24">
+              <div className="flex items-end gap-0.5 h-28">
                 {a.ingreso_leads.por_hora.map(h => {
                   const maxHora = Math.max(1, ...a.ingreso_leads.por_hora.map(x => x.count))
                   return (
-                    <div key={h.hora} className="flex-1 flex flex-col items-center justify-end h-full">
+                    <div key={h.hora} className="flex-1 h-full flex items-end">
                       <div
                         className={cn('w-full rounded-t transition-all', h.count > 0 ? 'bg-blue-400' : 'bg-slate-100')}
                         style={{ height: `${Math.max(4, (h.count / maxHora) * 100)}%` }}
                         title={`${h.hora}:00 hs — ${h.count} lead${h.count !== 1 ? 's' : ''}`}
                       />
-                      {h.hora % 6 === 0 && <span className="text-[9px] text-slate-400 mt-1">{h.hora}h</span>}
                     </div>
                   )
                 })}
+              </div>
+              <div className="flex gap-0.5 mt-1">
+                {a.ingreso_leads.por_hora.map(h => (
+                  <div key={h.hora} className="flex-1 text-center">
+                    {h.hora % 3 === 0 && <span className="text-[9px] text-slate-400">{h.hora}h</span>}
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -846,87 +865,6 @@ export default function DashboardPage() {
           </div>
         )}
       </section>
-
-      {/* ── Operacional: Performance + Live feed ─────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-        <div className="bg-white rounded-xl border p-6">
-          <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-4">
-            <Users size={15} className="text-slate-400" />
-            Performance por usuario
-          </h2>
-          {loadingDash ? (
-            <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="h-12 bg-slate-50 rounded-lg animate-pulse" />)}</div>
-          ) : (d?.top_responsables ?? []).length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-6">Sin usuarios de ventas</p>
-          ) : (
-            <div className="space-y-1">
-              {(d?.top_responsables ?? []).map((u, idx) => (
-                <div key={u.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 cursor-pointer" onClick={() => router.push(`/leads?view=kanban&responsable_id=${u.id}`)}>
-                  <span className="text-xs text-slate-400 w-4 text-right">{idx + 1}</span>
-                  <UserAvatar user={u} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate">{u.full_name}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-400 rounded-full" style={{ width: `${u.tasa_conversion}%` }} />
-                      </div>
-                      <span className="text-xs text-slate-500">{u.tasa_conversion}%</span>
-                    </div>
-                  </div>
-                  <div className="flex gap-4 text-right flex-shrink-0">
-                    <div><p className="text-xs text-slate-400">Activos</p><p className="text-sm font-semibold text-slate-900">{u.activos}</p></div>
-                    <div><p className="text-xs text-slate-400">Ganados</p><p className="text-sm font-semibold text-emerald-600">{u.ganados}</p></div>
-                    <div><p className="text-xs text-slate-400">Revenue</p><p className="text-xs font-semibold text-slate-900">{u.revenue_usd > 0 ? formatUSD(u.revenue_usd) : ''} {u.revenue_ars > 0 ? formatARS(u.revenue_ars) : ''}</p></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-xl border p-6">
-          <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-4">
-            <Zap size={15} className="text-slate-400" />
-            Live feed
-          </h2>
-          {loadingDash ? (
-            <div className="space-y-3">{[1, 2, 3, 4].map(i => <div key={i} className="h-10 bg-slate-50 rounded-lg animate-pulse" />)}</div>
-          ) : (
-            <div className="space-y-1 max-h-72 overflow-y-auto">
-              {(d?.ultimos_leads ?? []).slice(0, 4).map(lead => {
-                const sc = stageMap[lead.estado_pipeline as PipelineStage]
-                return (
-                  <div key={`lead-${lead.id}`} className="flex items-start gap-3 px-2 py-2 rounded-lg hover:bg-slate-50 cursor-pointer" onClick={() => router.push(`/leads/${lead.id}`)}>
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5" style={{ backgroundColor: sc?.bgColor ?? '#f1f5f9' }}>
-                      <Users size={11} style={{ color: sc?.color ?? '#64748b' }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-slate-800 truncate"><span className="font-medium">{lead.nombre}</span><span className="text-slate-400"> · nuevo lead</span></p>
-                      <p className="text-xs text-slate-400">{lead.fuente ? (FUENTES.find(f => f.value === lead.fuente)?.label ?? lead.fuente) : '—'} · {timeAgo(lead.created_at)}</p>
-                    </div>
-                  </div>
-                )
-              })}
-              {(d?.actividad_reciente ?? []).map(act => {
-                const Icon = ACTIVITY_ICON[act.tipo] ?? Activity
-                return (
-                  <div key={`act-${act.id}`} className="flex items-start gap-3 px-2 py-2 rounded-lg hover:bg-slate-50 cursor-pointer" onClick={() => { if (act.lead_id) router.push(`/leads/${act.lead_id}`) }}>
-                    <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 mt-0.5"><Icon size={11} className="text-slate-500" /></div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-slate-800 truncate">{act.lead_nombre && <span className="font-medium">{act.lead_nombre} · </span>}<span className="text-slate-600">{act.descripcion}</span></p>
-                      <p className="text-xs text-slate-400">{act.user_full_name ?? 'Sistema'} · {timeAgo(act.created_at)}</p>
-                    </div>
-                  </div>
-                )
-              })}
-              {(d?.ultimos_leads ?? []).length === 0 && (d?.actividad_reciente ?? []).length === 0 && (
-                <p className="text-sm text-slate-400 text-center py-6">Sin actividad reciente</p>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* Proyectos */}
       {!loadingDash && (d?.proyectos?.en_tiempo ?? 0) + (d?.proyectos?.proximo_a_vencer ?? 0) + (d?.proyectos?.atrasado ?? 0) > 0 && (

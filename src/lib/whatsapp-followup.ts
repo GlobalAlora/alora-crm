@@ -7,7 +7,7 @@ type AdminClient = ReturnType<typeof createAdminClient>
 
 const FOLLOWUP_HOURS = [0.5, 24] // hours of silence required before follow-up #1 (30 min), then #2 (24 h)
 
-const FOLLOWUP_TEXT = [
+export const FOLLOWUP_TEXT = [
   '¡Hola! 👋 Vi que quedamos en contacto pero no supe más de vos — ¿seguís por ahí? Si tenés alguna duda o querés que sigamos viendo tu proyecto, contame 🙂',
   '¡Hola de nuevo! Te escribo por última vez para ver si seguís interesado/a — si en algún momento querés retomar, escribime tranquilo, quedo atenta 💛',
 ]

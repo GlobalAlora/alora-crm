@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { TIMEZONE } from '@/lib/timezone'
+import { FOLLOWUP_TEXT } from '@/lib/whatsapp-followup'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -239,6 +240,11 @@ export async function GET(req: NextRequest) {
     const reunionesAgendadasTotal = leadsParaReuniones.filter(l => !!l.fecha_reunion)
     const reunionesRealizadasTotal = leadsParaReuniones.filter(l => l.reunion_asistencia === 'se_presento')
     const showUpRateTotal = pct(reunionesRealizadasTotal.length, reunionesAgendadasTotal.length)
+    // De las agendadas: no-show real del lead, y las que nadie entró a
+    // confirmar todavía en la ficha (reunion_asistencia sigue null) — para
+    // que se pueda ver y completar lo que falta.
+    const reunionesNoSePresento = reunionesAgendadasTotal.filter(l => l.reunion_asistencia === 'no_se_presento')
+    const reunionesSinInformacion = reunionesAgendadasTotal.filter(l => !l.reunion_asistencia)
 
     // Leads cualificados con al menos una propuesta real (tabla propuestas,
     // no fecha_propuesta — esa se autocompleta al mover la tarjeta de
@@ -532,6 +538,46 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.count - a.count)
       .slice(0, 10)
 
+    // ── Section 8: LIDIA (bot de WhatsApp) ───────────────────────────────────
+    // whatsapp_conversations/wa_messages no traen período propio en la query
+    // principal — se cruzan acá contra `leads`/`cualificados` (ya acotados por
+    // fecha_ingreso arriba) para saber cuáles de esos leads pasaron por LIDIA.
+    type WaConvoRow = { id: string; lead_id: string | null; followup_count: number }
+    type WaMsgRow = { id: string; conversation_id: string; body: string | null }
+
+    const [{ data: waConvosRaw }, { data: followupMsgsRaw }] = await Promise.all([
+      adminSupabase.from('whatsapp_conversations').select('id, lead_id, followup_count'),
+      adminSupabase
+        .from('wa_messages')
+        .select('id, conversation_id, body')
+        .eq('direction', 'outbound')
+        .in('body', FOLLOWUP_TEXT)
+        .gte('created_at', fechaDesde)
+        .lte('created_at', fechaHasta + 'T23:59:59'),
+    ])
+
+    const waConvos = (waConvosRaw ?? []) as WaConvoRow[]
+    const waConvoMap = new Map(waConvos.map(c => [c.id, c]))
+    const waLeadIds = new Set(waConvos.filter(c => c.lead_id).map(c => c.lead_id as string))
+
+    // Leads cualificados del período que tuvieron conversación con LIDIA, y
+    // de esos, cuántos confirmaron una reunión — conversión pedida "sobre
+    // leads de calidad", no sobre el total de conversaciones.
+    const cualificadosConLidia = cualificados.filter(l => waLeadIds.has(l.id))
+    const cualificadosConLidiaReunion = cualificadosConLidia.filter(l => !!l.fecha_reunion)
+    const conversionLidiaReunion = pct(cualificadosConLidiaReunion.length, cualificadosConLidia.length)
+
+    // Follow-ups automáticos (los 2 mensajes de silencio) enviados en el período
+    const followupMsgs = (followupMsgsRaw ?? []) as WaMsgRow[]
+    const followupsEnviados = followupMsgs.length
+    // De esos, el 2º follow-up (el último) cuya conversación sigue sin
+    // respuesta hoy (followup_count no se resetea a 0 salvo que el lead conteste)
+    const leadsQuedaronEnFollowUp = followupMsgs.filter(m => {
+      if (m.body !== FOLLOWUP_TEXT[FOLLOWUP_TEXT.length - 1]) return false
+      const conv = waConvoMap.get(m.conversation_id)
+      return !!conv && conv.followup_count >= FOLLOWUP_TEXT.length
+    }).length
+
     // ── Detalle (drill-down) ─────────────────────────────────────────────────
     // Listas reales detrás de cada número del resumen, para que se pueda
     // hacer clic en una métrica y ver exactamente qué leads la componen.
@@ -565,6 +611,8 @@ export async function GET(req: NextRequest) {
       basura: trim(basuraLeads),
       reuniones_agendadas: trim(reunionesAgendadasTotal),
       reuniones_realizadas: trim(reunionesRealizadasTotal),
+      reuniones_no_se_presento: trim(reunionesNoSePresento),
+      reuniones_sin_informacion: trim(reunionesSinInformacion),
       reuniones_canceladas_alora: trim(reunionesCanceladasAlora),
       con_propuesta: trim(cualificadosConPropuesta),
       ganados: trim(ganados),
@@ -575,6 +623,8 @@ export async function GET(req: NextRequest) {
       propuestas_ganadas_usd: trimPropuestas(propuestasDeGanados.filter(p => p.moneda === 'USD')),
       propuestas_perdidas_ars: trimPropuestas(propuestasDePerdidos.filter(p => p.moneda === 'ARS')),
       propuestas_perdidas_usd: trimPropuestas(propuestasDePerdidos.filter(p => p.moneda === 'USD')),
+      lidia_con_reunion: trim(cualificadosConLidiaReunion),
+      lidia_conversaciones: trim(cualificadosConLidia),
     }
 
     // ── Response ─────────────────────────────────────────────────────────────
@@ -613,6 +663,8 @@ export async function GET(req: NextRequest) {
         agendadas: reunionesAgendadasTotal.length,
         realizadas: reunionesRealizadasTotal.length,
         canceladas_alora: reunionesCanceladasAlora.length,
+        no_se_presento: reunionesNoSePresento.length,
+        sin_informacion: reunionesSinInformacion.length,
         show_up_rate: showUpRateTotal,
       },
       conversiones: {
@@ -630,6 +682,8 @@ export async function GET(req: NextRequest) {
         reuniones_agendadas: 'Leads con fecha, hora y link de reunión cargados — sin importar el origen (TidyCal, bot de WhatsApp, carga manual) ni si el lead se reclasificó después a No cualificado (la reunión igual pasó). Mide agenda, no asistencia.',
         reuniones_realizadas: 'De las agendadas, las que se confirmaron manualmente en la ficha del lead como "se presentó" — incluye leads reclasificados a No cualificado después de la reunión. Antes del 17/08/2026 este dato es poco confiable por una carga masiva histórica vía TidyCal.',
         reuniones_canceladas_alora: 'Reuniones que ALORA decidió no dar (ej. tras más charla por WhatsApp el lead no da la talla) — no cuentan como "no show" del lead ni bajan el show-up rate. Se mide por cuándo se marcó la cancelación, no por cuándo ingresó el lead.',
+        reuniones_no_se_presento: 'De las agendadas, las que se confirmaron manualmente en la ficha del lead como "no se presentó".',
+        reuniones_sin_informacion: 'De las agendadas, las que todavía nadie confirmó en la ficha del lead (ni se presentó, ni no se presentó, ni cancelada por ALORA) — hacé clic para verlas y completarlas.',
         show_up_rate: 'Reuniones realizadas ÷ reuniones agendadas. Cuántas de las reuniones que se agendan realmente se concretan.',
         tasa_cierre_ganado: 'Cierres ganados ÷ leads cualificados del período (no se cuentan Basura ni No cualificado en la base, porque nunca iban a cerrar).',
         lead_a_reunion: 'Reuniones agendadas ÷ leads cualificados.',
@@ -639,6 +693,9 @@ export async function GET(req: NextRequest) {
         tasa_perdida_propuesta: 'Propuestas rechazadas ÷ propuestas enviadas en el período.',
         propuestas_perdidas_ars: 'Monto de propuestas en ARS rechazadas de leads que cerraron como "Cliente perdido" en el período (por fecha de cierre, igual que las ganadas).',
         propuestas_perdidas_usd: 'Monto de propuestas en USD rechazadas de leads que cerraron como "Cliente perdido" en el período (por fecha de cierre, igual que las ganadas).',
+        lidia_conversion_reunion: 'De los leads cualificados del período que tuvieron conversación con Lidia por WhatsApp, cuántos confirmaron una reunión.',
+        lidia_followups_enviados: 'Mensajes automáticos de seguimiento que Lidia manda cuando el lead queda en silencio (a los 30 min y a las 24 hs) — hasta 2 por conversación.',
+        lidia_leads_en_frio: 'Conversaciones donde Lidia mandó los 2 follow-ups automáticos y el lead nunca respondió — se enfriaron.',
       },
       funnel,
       tiempos,
@@ -650,6 +707,13 @@ export async function GET(req: NextRequest) {
         por_dia_semana: porDiaSemana,
         por_mes: porMes,
         servicios_top: serviciosTop,
+      },
+      lidia: {
+        conversaciones: cualificadosConLidia.length,
+        reuniones_confirmadas: cualificadosConLidiaReunion.length,
+        conversion_reunion: conversionLidiaReunion,
+        followups_enviados: followupsEnviados,
+        leads_en_frio: leadsQuedaronEnFollowUp,
       },
       detalle,
     })
