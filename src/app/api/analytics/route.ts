@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { TIMEZONE } from '@/lib/timezone'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -52,23 +53,6 @@ function perdidoEnEtapa(lead: LeadRow): 'ingreso' | 'reunion_agendada' | 'propue
   return 'ingreso'
 }
 
-// Risk thresholds in days per stage. Includes the custom stages added via
-// Configuración → Pipeline (ghosting, no_asistio_a_reunion__follow_up) —
-// previously missing here entirely, so those leads never triggered a "en
-// riesgo" alert no matter how long they sat stale (found 2026-08-17).
-const RISK_THRESHOLDS: Record<string, number> = {
-  lead_entrante:       3,
-  lead_contactado:     7,
-  sin_respuesta:       7,
-  reunion_reservada:   5,
-  reunion_realizada:   5,
-  propuesta_en_armado: 5,
-  propuesta_enviada:   14,
-  follow_up:           14,
-  ghosting:            7,
-  no_asistio_a_reunion__follow_up: 3,
-}
-
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Propuesta = {
@@ -98,18 +82,8 @@ type LeadRow = {
   fecha_cierre: string | null
   stage_updated_at: string
   last_activity_at: string
+  servicios_interesados: string[] | null
   propuestas: Propuesta[] | null
-}
-
-type ActiveLead = {
-  id: string
-  nombre: string
-  apellido: string | null
-  pais: string | null
-  fuente: string | null
-  estado_pipeline: string
-  stage_updated_at: string
-  last_activity_at: string
 }
 
 // ── Route ─────────────────────────────────────────────────────────────────────
@@ -137,11 +111,6 @@ export async function GET(req: NextRequest) {
     // and 'basura' ARE real leads — they're broken out as their own metrics below,
     // not hidden. See memory: project_alora_crm_lead_quality_definitions (2026-08-17).
     const EXCLUDED = new Set(['consulta_cliente', 'testing'])
-    const ACTIVE_STAGES_OR = [
-      'lead_entrante', 'lead_contactado', 'sin_respuesta', 'reunion_reservada',
-      'reunion_realizada', 'propuesta_en_armado', 'propuesta_enviada', 'follow_up',
-      'ghosting', 'no_asistio_a_reunion__follow_up',
-    ].map(s => `estado_pipeline.eq.${s}`).join(',')
 
     // ── Main query: leads in period ─────────────────────────────────────────
     // Use OR so leads with null fecha_ingreso fall back to created_at for date check
@@ -150,7 +119,7 @@ export async function GET(req: NextRequest) {
       .select(`
         id, nombre, apellido, pais, fuente, estado_pipeline,
         fecha_ingreso, fecha_contacto, fecha_reunion, reunion_asistencia, reunion_asistencia_at, fecha_propuesta, fecha_cierre,
-        stage_updated_at, last_activity_at, created_at,
+        stage_updated_at, last_activity_at, created_at, servicios_interesados,
         propuestas(id, valor_usd, valor_ars, moneda, estado, created_at, updated_at)
       `)
       .is('deleted_at', null)
@@ -196,16 +165,10 @@ export async function GET(req: NextRequest) {
     if (paisFilter) canceladasAloraQuery = canceladasAloraQuery.eq('pais', paisFilter)
     if (fuenteFilter) canceladasAloraQuery = canceladasAloraQuery.eq('fuente', fuenteFilter)
 
-    // Active leads for risk section (no date filter) — use .or() instead of .not().in()
-    const [leadsResult, cierresResult, canceladasAloraResult, activeResult] = await Promise.all([
+    const [leadsResult, cierresResult, canceladasAloraResult] = await Promise.all([
       leadsQuery,
       cierresQuery,
       canceladasAloraQuery,
-      adminSupabase
-        .from('leads')
-        .select('id, nombre, apellido, pais, fuente, estado_pipeline, stage_updated_at, last_activity_at')
-        .is('deleted_at', null)
-        .or(ACTIVE_STAGES_OR),
     ])
 
     // Filter excluded stages in JS
@@ -214,7 +177,6 @@ export async function GET(req: NextRequest) {
     // Leads closed in period (by fecha_cierre) — used for resumen KPIs
     const cierresEnPeriodo: LeadRow[] = (cierresResult.data ?? []) as unknown as LeadRow[]
     const reunionesCanceladasAlora: LeadRow[] = (canceladasAloraResult.data ?? []) as unknown as LeadRow[]
-    const activeLeads: ActiveLead[] = (activeResult.data ?? []) as ActiveLead[]
 
     // Flatten all propuestas for the period (leads ingresados)
     const allPropuestas = leads.flatMap(l => l.propuestas ?? [])
@@ -326,6 +288,18 @@ export async function GET(req: NextRequest) {
     )
     const propuestasGanadasARS = propuestasDeGanados.filter(p => p.moneda === 'ARS').reduce((s, p) => s + (p.valor_ars ?? 0), 0)
     const propuestasGanadasUSD = propuestasDeGanados.filter(p => p.moneda === 'USD').reduce((s, p) => s + (p.valor_usd ?? 0), 0)
+
+    // "Perdidas" = propuestas rechazadas de los leads cerrados-perdidos en el período (mismo criterio que ganadas)
+    const propuestasDePerdidos = perdidos.flatMap(l =>
+      (l.propuestas ?? []).filter(p => p.estado === 'rechazada')
+        .map(p => ({ ...p, lead_id: l.id, lead_nombre: [l.nombre, l.apellido].filter(Boolean).join(' ') }))
+    )
+    const propuestasPerdidasARS = propuestasDePerdidos.filter(p => p.moneda === 'ARS').reduce((s, p) => s + (p.valor_ars ?? 0), 0)
+    const propuestasPerdidasUSD = propuestasDePerdidos.filter(p => p.moneda === 'USD').reduce((s, p) => s + (p.valor_usd ?? 0), 0)
+
+    // Combinado (ambas monedas) de todas las propuestas del período, no solo las de leads cerrados
+    const propuestasRechazadas = allPropuestas.filter(p => p.estado === 'rechazada')
+    const tasaPerdidaPropuesta = pct(propuestasRechazadas.length, propuestasEnviadas.length)
 
     // ── Section 2: Funnel ────────────────────────────────────────────────────
     // Funnel se calcula sobre leads CUALIFICADOS únicamente — basura/no
@@ -523,29 +497,40 @@ export async function GET(req: NextRequest) {
       }
     }).sort((a, b) => b.cantidad - a.cantidad)
 
-    // ── Section 7: Leads en riesgo ───────────────────────────────────────────
+    // ── Section 7: Ingreso de leads ──────────────────────────────────────────
+    // Cuándo entran los leads (hora/día/mes, en horario Argentina) y qué
+    // servicios piden — sobre TODOS los leads del período (no solo
+    // cualificados), para ver el patrón real de demanda, no solo la buena.
+    const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+    const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
-    const now = Date.now()
-    const leadsEnRiesgo = activeLeads
-      .map(l => {
-        const threshold = RISK_THRESHOLDS[l.estado_pipeline]
-        if (!threshold) return null
-        const diasEnEtapa = Math.floor((now - new Date(l.stage_updated_at).getTime()) / 86_400_000)
-        if (diasEnEtapa < threshold) return null
-        return {
-          id: l.id,
-          nombre: [l.nombre, l.apellido].filter(Boolean).join(' '),
-          pais: l.pais,
-          fuente: l.fuente,
-          etapa: l.estado_pipeline,
-          dias_en_etapa: diasEnEtapa,
-          ultima_actividad: l.last_activity_at,
-          umbral: threshold,
-        }
-      })
-      .filter(Boolean)
-      .sort((a, b) => b!.dias_en_etapa - a!.dias_en_etapa)
-      .slice(0, 30) // max 30
+    const porHora = Array.from({ length: 24 }, (_, hora) => ({ hora, count: 0 }))
+    const porDiaSemanaRaw = DIAS_SEMANA.map((dia, idx) => ({ dia, idx, count: 0 }))
+    const porMesMap = new Map<string, { key: string; mes: string; count: number }>()
+    const serviciosMap = new Map<string, number>()
+
+    for (const l of leads) {
+      const fechaRaw = l.fecha_ingreso ?? l.created_at
+      if (fechaRaw) {
+        const argDate = new Date(new Date(fechaRaw).toLocaleString('en-US', { timeZone: TIMEZONE }))
+        porHora[argDate.getHours()].count++
+        porDiaSemanaRaw[argDate.getDay()].count++
+        const key = `${argDate.getFullYear()}-${String(argDate.getMonth() + 1).padStart(2, '0')}`
+        const label = `${MESES[argDate.getMonth()]} ${argDate.getFullYear()}`
+        porMesMap.set(key, { key, mes: label, count: (porMesMap.get(key)?.count ?? 0) + 1 })
+      }
+      for (const s of l.servicios_interesados ?? []) {
+        serviciosMap.set(s, (serviciosMap.get(s) ?? 0) + 1)
+      }
+    }
+
+    // Lunes primero, como una semana laboral
+    const porDiaSemana = [1, 2, 3, 4, 5, 6, 0].map(i => porDiaSemanaRaw[i])
+    const porMes = Array.from(porMesMap.values()).sort((a, b) => a.key.localeCompare(b.key))
+    const serviciosTop = Array.from(serviciosMap.entries())
+      .map(([servicio, count]) => ({ servicio, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10)
 
     // ── Detalle (drill-down) ─────────────────────────────────────────────────
     // Listas reales detrás de cada número del resumen, para que se pueda
@@ -588,6 +573,8 @@ export async function GET(req: NextRequest) {
       propuestas_enviadas_usd: trimPropuestas(allPropuestasConLead.filter(p => p.moneda === 'USD')),
       propuestas_ganadas_ars: trimPropuestas(propuestasDeGanados.filter(p => p.moneda === 'ARS')),
       propuestas_ganadas_usd: trimPropuestas(propuestasDeGanados.filter(p => p.moneda === 'USD')),
+      propuestas_perdidas_ars: trimPropuestas(propuestasDePerdidos.filter(p => p.moneda === 'ARS')),
+      propuestas_perdidas_usd: trimPropuestas(propuestasDePerdidos.filter(p => p.moneda === 'USD')),
     }
 
     // ── Response ─────────────────────────────────────────────────────────────
@@ -599,6 +586,7 @@ export async function GET(req: NextRequest) {
         cierres_perdidos: perdidos.length,
         tasa_cierre_ganado: tasaCierreGanado,
         tasa_conversion_propuesta: tasaConversionPropuesta,
+        tasa_perdida_propuesta: tasaPerdidaPropuesta,
         ciclo_venta_promedio: cicloVentaPromedio,
         tiempo_ingreso_propuesta_aceptada: tiempoIngresoAceptada,
         tiempo_propuesta_aceptacion: tiempoPropuestaAceptacion,
@@ -606,8 +594,11 @@ export async function GET(req: NextRequest) {
         propuestas_enviadas_usd: Math.round(propuestasEnviadasUSD),
         propuestas_ganadas_ars: Math.round(propuestasGanadasARS),
         propuestas_ganadas_usd: Math.round(propuestasGanadasUSD),
+        propuestas_perdidas_ars: Math.round(propuestasPerdidasARS),
+        propuestas_perdidas_usd: Math.round(propuestasPerdidasUSD),
         propuestas_count: propuestasEnviadas.length,
         propuestas_aceptadas_count: propuestasAceptadas.length,
+        propuestas_rechazadas_count: propuestasRechazadas.length,
       },
       calidad: {
         total: totalLeads,
@@ -645,13 +636,21 @@ export async function GET(req: NextRequest) {
         lead_a_propuesta: 'Leads cualificados con al menos una propuesta real cargada (tabla de propuestas, no el simple movimiento de la tarjeta) ÷ leads cualificados.',
         reunion_a_propuesta: 'Leads con propuesta real ÷ reuniones realizadas (confirmadas).',
         propuestas_count: 'Propuestas reales cargadas en el sistema (con monto), no tarjetas que pasaron por la columna "Propuesta enviada" sin una propuesta real detrás.',
+        tasa_perdida_propuesta: 'Propuestas rechazadas ÷ propuestas enviadas en el período.',
+        propuestas_perdidas_ars: 'Monto de propuestas en ARS rechazadas de leads que cerraron como "Cliente perdido" en el período (por fecha de cierre, igual que las ganadas).',
+        propuestas_perdidas_usd: 'Monto de propuestas en USD rechazadas de leads que cerraron como "Cliente perdido" en el período (por fecha de cierre, igual que las ganadas).',
       },
       funnel,
       tiempos,
       propuestas: propuestasPorMoneda,
       por_pais: porPais,
       por_fuente: porFuente,
-      leads_en_riesgo: leadsEnRiesgo,
+      ingreso_leads: {
+        por_hora: porHora,
+        por_dia_semana: porDiaSemana,
+        por_mes: porMes,
+        servicios_top: serviciosTop,
+      },
       detalle,
     })
   } catch (error) {

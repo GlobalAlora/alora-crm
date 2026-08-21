@@ -4,8 +4,8 @@ import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import {
-  Users, DollarSign, Target, Clock, BarChart3, Globe,
-  TrendingUp, AlertTriangle, Zap, Activity, ArrowRight,
+  Users, DollarSign, Clock, BarChart3, Globe,
+  TrendingUp, Zap, Activity, ArrowRight,
   ArrowDown, ChevronRight, FileText, Phone, Mail, Calendar,
   CheckSquare, FolderKanban, Plus, MessageSquare, ListTodo, Info, X,
 } from 'lucide-react'
@@ -29,6 +29,7 @@ interface AnalyticsData {
     cierres_perdidos: number
     tasa_cierre_ganado: number
     tasa_conversion_propuesta: number
+    tasa_perdida_propuesta: number
     ciclo_venta_promedio: number | null
     tiempo_ingreso_propuesta_aceptada: number | null
     tiempo_propuesta_aceptacion: number | null
@@ -36,8 +37,11 @@ interface AnalyticsData {
     propuestas_enviadas_usd: number
     propuestas_ganadas_ars: number
     propuestas_ganadas_usd: number
+    propuestas_perdidas_ars: number
+    propuestas_perdidas_usd: number
     propuestas_count: number
     propuestas_aceptadas_count: number
+    propuestas_rechazadas_count: number
   }
   calidad: {
     total: number
@@ -111,16 +115,12 @@ interface AnalyticsData {
     valor_total_usd: number
     tasa_conversion_propuesta: number
   }[]
-  leads_en_riesgo: {
-    id: string
-    nombre: string
-    pais: string | null
-    fuente: string | null
-    etapa: string
-    dias_en_etapa: number
-    ultima_actividad: string | null
-    umbral: number
-  }[]
+  ingreso_leads: {
+    por_hora: { hora: number; count: number }[]
+    por_dia_semana: { dia: string; idx: number; count: number }[]
+    por_mes: { key: string; mes: string; count: number }[]
+    servicios_top: { servicio: string; count: number }[]
+  }
   detalle: Record<string, DetalleLead[]>
 }
 
@@ -420,14 +420,13 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── S1: Resumen ejecutivo ──────────────────────────────────────────── */}
+      {/* ── S1: Leads ─────────────────────────────────────────────────────────── */}
       <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
-        <SectionHeader icon={Target} title="Resumen ejecutivo" subtitle="Métricas clave del período seleccionado" />
+        <SectionHeader icon={Users} title="Leads" subtitle="Volumen y calidad del período seleccionado" />
         {loadingAnalytics ? (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{[...Array(8)].map((_, i) => <Skel key={i} />)}</div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{[...Array(6)].map((_, i) => <Skel key={i} />)}</div>
         ) : (
           <div className="space-y-4">
-            {/* Calidad de leads */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard label="Leads recibidos" value={a?.calidad.total ?? 0} sub="Todas las consultas del período" color="blue" large info={a?.definiciones.total_leads} onOpenDetail={() => openDetail('leads_recibidos', 'Leads recibidos')} />
               <StatCard
@@ -458,15 +457,7 @@ export default function DashboardPage() {
                 onOpenDetail={() => openDetail('basura', 'Basura')}
               />
             </div>
-
-            {/* Reuniones y conversiones — sobre leads cualificados */}
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-              <StatCard label="Reuniones agendadas" value={a?.reuniones.agendadas ?? 0} sub="Fecha, hora y link cargados" info={a?.definiciones.reuniones_agendadas} onOpenDetail={() => openDetail('reuniones_agendadas', 'Reuniones agendadas')} />
-              <StatCard label="Reuniones realizadas" value={a?.reuniones.realizadas ?? 0} sub={`Show-up rate: ${a?.reuniones.show_up_rate ?? 0}%`} info={a?.definiciones.reuniones_realizadas} onOpenDetail={() => openDetail('reuniones_realizadas', 'Reuniones realizadas')} />
-              <StatCard label="Canceladas por ALORA" value={a?.reuniones.canceladas_alora ?? 0} sub="Decisión de ALORA, por fecha de la cancelación" info={a?.definiciones.reuniones_canceladas_alora} onOpenDetail={() => openDetail('reuniones_canceladas_alora', 'Canceladas por ALORA')} />
-              <StatCard label="Conv. Lead → Reunión" value={`${a?.conversiones.lead_a_reunion ?? 0}%`} sub="Sobre leads cualificados" info={a?.definiciones.lead_a_reunion} />
-              <StatCard label="Conv. Lead → Propuesta" value={`${a?.conversiones.lead_a_propuesta ?? 0}%`} sub="Sobre leads cualificados" info={a?.definiciones.lead_a_propuesta} onOpenDetail={() => openDetail('con_propuesta', 'Leads con propuesta')} />
-              <StatCard label="Conv. Reunión → Propuesta" value={`${a?.conversiones.reunion_a_propuesta ?? 0}%`} sub="Sobre reuniones realizadas" info={a?.definiciones.reunion_a_propuesta} />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard
                 label="Tasa de cierre ganado"
                 value={`${a?.resumen.tasa_cierre_ganado ?? 0}%`}
@@ -475,27 +466,24 @@ export default function DashboardPage() {
                 info={a?.definiciones.tasa_cierre_ganado}
                 onOpenDetail={() => openDetail('ganados', 'Cierres ganados')}
               />
-            </div>
-
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard
-                label="Conversión de propuesta"
-                value={`${a?.resumen.tasa_conversion_propuesta ?? 0}%`}
-                sub={`${a?.resumen.propuestas_aceptadas_count ?? 0} / ${a?.resumen.propuestas_count ?? 0} propuestas`}
-                color={(a?.resumen.tasa_conversion_propuesta ?? 0) >= 50 ? 'green' : (a?.resumen.tasa_conversion_propuesta ?? 0) >= 30 ? 'amber' : 'slate'}
-                info={a?.definiciones.propuestas_count}
-                onOpenDetail={() => openDetail('con_propuesta', 'Leads con propuesta enviada')}
-              />
+              <StatCard label="Cierres perdidos" value={a?.resumen.cierres_perdidos ?? 0} sub="En el período" color={(a?.resumen.cierres_perdidos ?? 0) > 0 ? 'red' : 'slate'} onOpenDetail={() => openDetail('perdidos', 'Cierres perdidos')} />
               <StatCard label="Ciclo de venta promedio" value={a?.resumen.ciclo_venta_promedio != null ? `${a.resumen.ciclo_venta_promedio}d` : '—'} sub="Ingreso → cierre ganado" color="purple" />
-              <StatCard label="Tiempo: ingreso → propuesta aceptada" value={a?.resumen.tiempo_ingreso_propuesta_aceptada != null ? `${a.resumen.tiempo_ingreso_propuesta_aceptada} días` : '—'} sub="Duración total del proceso comercial completo" />
-              <StatCard label="Tiempo: propuesta enviada → aceptada" value={a?.resumen.tiempo_propuesta_aceptacion != null ? `${a.resumen.tiempo_propuesta_aceptacion} días` : '—'} sub="Cuánto tarda el cliente en decidir tras recibir la propuesta" />
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard label="Propuestas enviadas ARS" value={formatARS(a?.resumen.propuestas_enviadas_ars ?? 0)} sub="Total en período" onOpenDetail={() => openDetail('propuestas_enviadas_ars', 'Propuestas enviadas ARS')} />
-              <StatCard label="Propuestas enviadas USD" value={formatUSD(a?.resumen.propuestas_enviadas_usd ?? 0)} sub="Total en período" onOpenDetail={() => openDetail('propuestas_enviadas_usd', 'Propuestas enviadas USD')} />
-              <StatCard label="Propuestas ganadas ARS" value={formatARS(a?.resumen.propuestas_ganadas_ars ?? 0)} sub="Solo aceptadas" color={(a?.resumen.propuestas_ganadas_ars ?? 0) > 0 ? 'green' : 'slate'} onOpenDetail={() => openDetail('propuestas_ganadas_ars', 'Propuestas ganadas ARS')} />
-              <StatCard label="Propuestas ganadas USD" value={formatUSD(a?.resumen.propuestas_ganadas_usd ?? 0)} sub="Solo aceptadas" color={(a?.resumen.propuestas_ganadas_usd ?? 0) > 0 ? 'green' : 'slate'} onOpenDetail={() => openDetail('propuestas_ganadas_usd', 'Propuestas ganadas USD')} />
-            </div>
+          </div>
+        )}
+      </section>
+
+      {/* ── S1b: Reuniones ────────────────────────────────────────────────────── */}
+      <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
+        <SectionHeader icon={Calendar} title="Reuniones" subtitle="Agenda, asistencia y cancelaciones del período" />
+        {loadingAnalytics ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{[...Array(4)].map((_, i) => <Skel key={i} />)}</div>
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard label="Reuniones agendadas" value={a?.reuniones.agendadas ?? 0} sub="Fecha, hora y link cargados" info={a?.definiciones.reuniones_agendadas} onOpenDetail={() => openDetail('reuniones_agendadas', 'Reuniones agendadas')} />
+            <StatCard label="Reuniones realizadas" value={a?.reuniones.realizadas ?? 0} sub={`Show-up rate: ${a?.reuniones.show_up_rate ?? 0}%`} info={a?.definiciones.reuniones_realizadas} onOpenDetail={() => openDetail('reuniones_realizadas', 'Reuniones realizadas')} />
+            <StatCard label="Canceladas por ALORA" value={a?.reuniones.canceladas_alora ?? 0} sub="Decisión de ALORA, por fecha de la cancelación" info={a?.definiciones.reuniones_canceladas_alora} onOpenDetail={() => openDetail('reuniones_canceladas_alora', 'Canceladas por ALORA')} />
+            <StatCard label="Conv. Lead → Reunión" value={`${a?.conversiones.lead_a_reunion ?? 0}%`} sub="Sobre leads cualificados" info={a?.definiciones.lead_a_reunion} />
           </div>
         )}
       </section>
@@ -597,12 +585,48 @@ export default function DashboardPage() {
 
       {/* ── S4: Propuestas ────────────────────────────────────────────────────── */}
       <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
-        <SectionHeader icon={DollarSign} title="Análisis de propuestas" subtitle="ARS y USD no se mezclan ni convierten" />
+        <SectionHeader icon={DollarSign} title="Propuestas" subtitle="Conversión, montos y ARS/USD del período — no se mezclan ni convierten" />
         {loadingAnalytics ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><Skel h="h-48" /><Skel h="h-48" /></div>
-        ) : !a?.propuestas.length ? (
-          <p className="text-sm text-slate-400 text-center py-8">Sin propuestas en el período</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{[...Array(8)].map((_, i) => <Skel key={i} />)}</div>
         ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <StatCard label="Conv. Lead → Propuesta" value={`${a?.conversiones.lead_a_propuesta ?? 0}%`} sub="Sobre leads cualificados" info={a?.definiciones.lead_a_propuesta} onOpenDetail={() => openDetail('con_propuesta', 'Leads con propuesta')} />
+              <StatCard label="Conv. Reunión → Propuesta" value={`${a?.conversiones.reunion_a_propuesta ?? 0}%`} sub="Sobre reuniones realizadas" info={a?.definiciones.reunion_a_propuesta} />
+              <StatCard
+                label="Conversión de propuesta"
+                value={`${a?.resumen.tasa_conversion_propuesta ?? 0}%`}
+                sub={`${a?.resumen.propuestas_aceptadas_count ?? 0} / ${a?.resumen.propuestas_count ?? 0} propuestas`}
+                color={(a?.resumen.tasa_conversion_propuesta ?? 0) >= 50 ? 'green' : (a?.resumen.tasa_conversion_propuesta ?? 0) >= 30 ? 'amber' : 'slate'}
+                info={a?.definiciones.propuestas_count}
+                onOpenDetail={() => openDetail('con_propuesta', 'Leads con propuesta enviada')}
+              />
+              <StatCard
+                label="Tasa de pérdida"
+                value={`${a?.resumen.tasa_perdida_propuesta ?? 0}%`}
+                sub={`${a?.resumen.propuestas_rechazadas_count ?? 0} / ${a?.resumen.propuestas_count ?? 0} propuestas`}
+                color={(a?.resumen.tasa_perdida_propuesta ?? 0) >= 50 ? 'red' : (a?.resumen.tasa_perdida_propuesta ?? 0) >= 30 ? 'amber' : 'slate'}
+                info={a?.definiciones.tasa_perdida_propuesta}
+              />
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              <StatCard label="Propuestas enviadas ARS" value={formatARS(a?.resumen.propuestas_enviadas_ars ?? 0)} sub="Total en período" onOpenDetail={() => openDetail('propuestas_enviadas_ars', 'Propuestas enviadas ARS')} />
+              <StatCard label="Propuestas ganadas ARS" value={formatARS(a?.resumen.propuestas_ganadas_ars ?? 0)} sub="Solo aceptadas" color={(a?.resumen.propuestas_ganadas_ars ?? 0) > 0 ? 'green' : 'slate'} onOpenDetail={() => openDetail('propuestas_ganadas_ars', 'Propuestas ganadas ARS')} />
+              <StatCard label="Propuestas perdidas ARS" value={formatARS(a?.resumen.propuestas_perdidas_ars ?? 0)} sub="Solo rechazadas" color={(a?.resumen.propuestas_perdidas_ars ?? 0) > 0 ? 'red' : 'slate'} info={a?.definiciones.propuestas_perdidas_ars} onOpenDetail={() => openDetail('propuestas_perdidas_ars', 'Propuestas perdidas ARS')} />
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              <StatCard label="Propuestas enviadas USD" value={formatUSD(a?.resumen.propuestas_enviadas_usd ?? 0)} sub="Total en período" onOpenDetail={() => openDetail('propuestas_enviadas_usd', 'Propuestas enviadas USD')} />
+              <StatCard label="Propuestas ganadas USD" value={formatUSD(a?.resumen.propuestas_ganadas_usd ?? 0)} sub="Solo aceptadas" color={(a?.resumen.propuestas_ganadas_usd ?? 0) > 0 ? 'green' : 'slate'} onOpenDetail={() => openDetail('propuestas_ganadas_usd', 'Propuestas ganadas USD')} />
+              <StatCard label="Propuestas perdidas USD" value={formatUSD(a?.resumen.propuestas_perdidas_usd ?? 0)} sub="Solo rechazadas" color={(a?.resumen.propuestas_perdidas_usd ?? 0) > 0 ? 'red' : 'slate'} info={a?.definiciones.propuestas_perdidas_usd} onOpenDetail={() => openDetail('propuestas_perdidas_usd', 'Propuestas perdidas USD')} />
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <StatCard label="Tiempo: ingreso → propuesta aceptada" value={a?.resumen.tiempo_ingreso_propuesta_aceptada != null ? `${a.resumen.tiempo_ingreso_propuesta_aceptada} días` : '—'} sub="Duración total del proceso comercial completo" />
+              <StatCard label="Tiempo: propuesta enviada → aceptada" value={a?.resumen.tiempo_propuesta_aceptacion != null ? `${a.resumen.tiempo_propuesta_aceptacion} días` : '—'} sub="Cuánto tarda el cliente en decidir tras recibir la propuesta" />
+            </div>
+
+            {!a?.propuestas.length ? (
+              <p className="text-sm text-slate-400 text-center py-4">Sin propuestas en el período</p>
+            ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {a.propuestas.map(prop => {
               const fmt = prop.moneda === 'ARS' ? formatARS : formatUSD
@@ -648,6 +672,8 @@ export default function DashboardPage() {
                 </div>
               )
             })}
+          </div>
+            )}
           </div>
         )}
       </section>
@@ -731,48 +757,92 @@ export default function DashboardPage() {
         </section>
       </div>
 
-      {/* ── S7: Leads en riesgo ───────────────────────────────────────────────── */}
+      {/* ── S7: Ingreso de leads ─────────────────────────────────────────────── */}
       <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
-        <SectionHeader icon={AlertTriangle} title="Leads activos en riesgo" subtitle="Sin filtro de período — leads estancados más allá del umbral" />
-        {loadingAnalytics ? <Skel h="h-32" /> : !a?.leads_en_riesgo.length ? (
-          <div className="flex items-center gap-3 py-4 text-sm text-emerald-600">
-            <Zap size={16} className="text-emerald-500" />
-            Sin leads en riesgo actualmente
-          </div>
+        <SectionHeader icon={Clock} title="Ingreso de leads" subtitle="Cuándo llegan y qué piden — horario Argentina" />
+        {loadingAnalytics ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><Skel h="h-40" /><Skel h="h-40" /></div>
+        ) : !a || a.calidad.total === 0 ? (
+          <p className="text-sm text-slate-400 text-center py-8">Sin leads en el período</p>
         ) : (
-          <div className="space-y-2">
-            <div className="flex flex-wrap gap-2 mb-3">
-              {[{ l: 'Sin contactar', d: 3 }, { l: 'Sin reunión', d: 7 }, { l: 'Sin propuesta', d: 5 }, { l: 'Propuesta sin respuesta', d: 14 }].map(t => (
-                <span key={t.l} className="text-xs bg-slate-100 text-slate-500 px-2.5 py-1 rounded-full">{t.l}: +{t.d}d</span>
-              ))}
-            </div>
-            {a.leads_en_riesgo.map(lead => {
-              const stageConfig = stageMap[lead.etapa as PipelineStage]
-              const exceso = lead.dias_en_etapa - lead.umbral
-              const urg = exceso > 14 ? 'alta' : exceso > 7 ? 'media' : 'baja'
-              return (
-                <button key={lead.id} onClick={() => router.push(`/leads/${lead.id}`)}
-                  className="w-full flex items-center gap-4 p-3 rounded-lg border border-slate-100 hover:border-slate-300 hover:bg-slate-50 transition-all text-left group"
-                >
-                  <div className={cn('w-2 h-8 rounded-full flex-shrink-0', urg === 'alta' ? 'bg-red-500' : urg === 'media' ? 'bg-amber-400' : 'bg-yellow-300')} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-slate-800 truncate">{lead.nombre}</span>
-                      {lead.pais && <span className="text-xs text-slate-400">{lead.pais}</span>}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Por hora del día */}
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-3">Por hora del día</p>
+              <div className="flex items-end gap-0.5 h-24">
+                {a.ingreso_leads.por_hora.map(h => {
+                  const maxHora = Math.max(1, ...a.ingreso_leads.por_hora.map(x => x.count))
+                  return (
+                    <div key={h.hora} className="flex-1 flex flex-col items-center justify-end h-full">
+                      <div
+                        className={cn('w-full rounded-t transition-all', h.count > 0 ? 'bg-blue-400' : 'bg-slate-100')}
+                        style={{ height: `${Math.max(4, (h.count / maxHora) * 100)}%` }}
+                        title={`${h.hora}:00 hs — ${h.count} lead${h.count !== 1 ? 's' : ''}`}
+                      />
+                      {h.hora % 6 === 0 && <span className="text-[9px] text-slate-400 mt-1">{h.hora}h</span>}
                     </div>
-                    <span className="text-xs px-2 py-0.5 rounded font-medium mt-0.5 inline-block"
-                      style={{ backgroundColor: stageConfig?.bgColor ?? '#f1f5f9', color: stageConfig?.color ?? '#64748b' }}>
-                      {stageConfig?.label ?? lead.etapa}
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Por día de semana */}
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-3">Por día de la semana</p>
+              <div className="space-y-1.5">
+                {a.ingreso_leads.por_dia_semana.map(d => {
+                  const maxDia = Math.max(1, ...a.ingreso_leads.por_dia_semana.map(x => x.count))
+                  return (
+                    <div key={d.idx} className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500 w-20 flex-shrink-0">{d.dia}</span>
+                      <div className="flex-1 h-4 bg-slate-100 rounded overflow-hidden">
+                        <div className="h-full bg-purple-400 rounded" style={{ width: `${(d.count / maxDia) * 100}%` }} />
+                      </div>
+                      <span className="text-xs font-medium text-slate-600 w-6 text-right flex-shrink-0">{d.count}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Por mes */}
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-3">Por mes</p>
+              {!a.ingreso_leads.por_mes.length ? (
+                <p className="text-xs text-slate-400">Sin datos</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {a.ingreso_leads.por_mes.map(m => {
+                    const maxMes = Math.max(1, ...a.ingreso_leads.por_mes.map(x => x.count))
+                    return (
+                      <div key={m.key} className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500 w-24 flex-shrink-0 truncate">{m.mes}</span>
+                        <div className="flex-1 h-4 bg-slate-100 rounded overflow-hidden">
+                          <div className="h-full bg-cyan-400 rounded" style={{ width: `${(m.count / maxMes) * 100}%` }} />
+                        </div>
+                        <span className="text-xs font-medium text-slate-600 w-6 text-right flex-shrink-0">{m.count}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Servicios más pedidos */}
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-3">Servicios más pedidos</p>
+              {!a.ingreso_leads.servicios_top.length ? (
+                <p className="text-xs text-slate-400">Sin datos</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {a.ingreso_leads.servicios_top.map(s => (
+                    <span key={s.servicio} className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full font-medium">
+                      {s.servicio} <strong>{s.count}</strong>
                     </span>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className={cn('text-sm font-bold', urg === 'alta' ? 'text-red-600' : urg === 'media' ? 'text-amber-600' : 'text-yellow-600')}>{lead.dias_en_etapa}d</p>
-                    <p className="text-xs text-slate-400">umbral {lead.umbral}d</p>
-                  </div>
-                  <ChevronRight size={14} className="text-slate-300 group-hover:text-slate-500 flex-shrink-0" />
-                </button>
-              )
-            })}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </section>
