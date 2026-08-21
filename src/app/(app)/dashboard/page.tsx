@@ -696,7 +696,7 @@ export default function DashboardPage() {
 
         {/* País */}
         <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
-          <SectionHeader icon={Globe} title="Por país" subtitle="Qué mercado convierte mejor" />
+          <SectionHeader icon={Globe} title="Por país" subtitle="Qué mercado convierte mejor — solo leads cualificados" />
           {loadingAnalytics ? <Skel h="h-40" /> : !a?.por_pais.length ? (
             <p className="text-sm text-slate-400 text-center py-6">Sin datos</p>
           ) : (
@@ -735,7 +735,7 @@ export default function DashboardPage() {
 
         {/* Fuente */}
         <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
-          <SectionHeader icon={TrendingUp} title="Por fuente" subtitle="El canal con más leads no es el mejor si el cierre es bajo" />
+          <SectionHeader icon={TrendingUp} title="Por fuente" subtitle="El canal con más leads no es el mejor si el cierre es bajo — solo leads cualificados" />
           {loadingAnalytics ? <Skel h="h-40" /> : !a?.por_fuente.length ? (
             <p className="text-sm text-slate-400 text-center py-6">Sin datos</p>
           ) : (
