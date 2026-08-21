@@ -90,12 +90,6 @@ export const leadsApi = {
     })
   },
 
-  updatePosition(id: string, kanban_position: number, updated_at: string): Promise<Lead> {
-    return request(`${BASE}/leads/${id}/position`, {
-      method: 'PATCH',
-      body: JSON.stringify({ kanban_position, updated_at }),
-    })
-  },
 }
 
 // ─── Activities ───────────────────────────────────────────────────────────────

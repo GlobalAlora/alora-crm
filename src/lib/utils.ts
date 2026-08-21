@@ -125,13 +125,6 @@ export function getProjectStatus(fechaCierreProyecto: string | null): ProjectSta
   return 'en_tiempo'
 }
 
-export function midpoint(a: number | null, b: number | null): number {
-  if (a === null && b === null) return 0
-  if (a === null) return b!
-  if (b === null) return a
-  return (a + b) / 2
-}
-
 // Base price for extra hours outside plan, with 9% quarterly compounding.
 // Adjust PRICE_BASE_DATE when renegotiating the base.
 const EXTRA_HOUR_BASE_PRICE = 40_000       // ARS at base date

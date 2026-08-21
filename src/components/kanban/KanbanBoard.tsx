@@ -10,14 +10,12 @@ import {
   type DragOverEvent,
   type DragEndEvent,
 } from '@dnd-kit/core'
-import { arrayMove } from '@dnd-kit/sortable'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import type { Lead, PipelineStage } from '@/types'
 import { PIPELINE_STAGES } from '@/types'
 import { leadsApi } from '@/lib/api'
-import { midpoint } from '@/lib/utils'
 import { KanbanColumn } from './KanbanColumn'
 import { LeadCard } from './LeadCard'
 import { useActivePipelineStages } from '@/hooks/usePipelineStages'
@@ -28,18 +26,44 @@ interface KanbanBoardProps {
 
 type LeadsByStage = Record<PipelineStage, Lead[]>
 
+// Which date best represents "cuándo entró a esta etapa" varies per etapa —
+// mirrors the fields auto-stamped in /api/leads/[id]/stage/route.ts. Stages
+// without a specific milestone date (and any custom stage from the
+// pipeline_stages table) fall back to stage_updated_at.
+const STAGE_SORT_FIELD: Partial<Record<PipelineStage, keyof Lead>> = {
+  lead_entrante: 'fecha_ingreso',
+  lead_contactado: 'fecha_contacto',
+  reunion_reservada: 'fecha_reunion',
+  reunion_realizada: 'fecha_reunion',
+  propuesta_enviada: 'fecha_propuesta',
+  follow_up: 'fecha_followup',
+  cliente_ganado: 'fecha_cierre',
+  cliente_perdido: 'fecha_cierre',
+}
+
 function groupByStage(leads: Lead[]): LeadsByStage {
   const initial = Object.fromEntries(
     PIPELINE_STAGES.map((s) => [s.value, []])
   ) as unknown as LeadsByStage
 
-  return leads.reduce((acc, lead) => {
+  const grouped = leads.reduce((acc, lead) => {
     if (!acc[lead.estado_pipeline]) {
       acc[lead.estado_pipeline] = []
     }
     acc[lead.estado_pipeline].push(lead)
     return acc
   }, initial)
+
+  for (const stage of Object.keys(grouped) as PipelineStage[]) {
+    const field = STAGE_SORT_FIELD[stage] ?? 'stage_updated_at'
+    grouped[stage].sort((a, b) => {
+      const dateA = (a[field] as string | null) ?? a.stage_updated_at
+      const dateB = (b[field] as string | null) ?? b.stage_updated_at
+      return new Date(dateB).getTime() - new Date(dateA).getTime()
+    })
+  }
+
+  return grouped
 }
 
 export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
@@ -126,23 +150,6 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
     },
   })
 
-  const positionMutation = useMutation({
-    mutationFn: ({ id, position, updatedAt }: { id: string; position: number; updatedAt: string }) =>
-      leadsApi.updatePosition(id, position, updatedAt),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] })
-    },
-    onError: (error: Error) => {
-      setOptimisticLeads(null)
-      if (error.message.includes('409') || error.message.includes('modificado')) {
-        toast.error('El tablero fue modificado por otro usuario. Recargando...')
-        queryClient.invalidateQueries({ queryKey: ['leads'] })
-      } else {
-        toast.error(error.message || 'Error al reordenar')
-      }
-    },
-  })
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   )
@@ -193,33 +200,10 @@ export function KanbanBoard({ onLeadClick }: KanbanBoardProps) {
       stageMutation.mutate({ id: draggedLead.id, stage: targetStage }, {
         onSettled: () => setOptimisticLeads(null),
       })
-      return
     }
-
-    // Same column reorder
-    if (!isColumn) {
-      const overLead = displayLeads.find((l) => l.id === overId)
-      if (!overLead || overLead.id === draggedLead.id) return
-
-      const columnLeads = grouped[targetStage]
-      const oldIdx = columnLeads.findIndex((l) => l.id === draggedLead.id)
-      const newIdx = columnLeads.findIndex((l) => l.id === overLead.id)
-      const reordered = arrayMove(columnLeads, oldIdx, newIdx)
-
-      const prevPosition = reordered[newIdx - 1]?.kanban_position ?? null
-      const nextPosition = reordered[newIdx + 1]?.kanban_position ?? null
-      const newPosition = midpoint(prevPosition, nextPosition)
-
-      const updated = displayLeads.map((l) =>
-        l.id === draggedLead.id ? { ...l, kanban_position: newPosition } : l
-      )
-      setOptimisticLeads(updated)
-      positionMutation.mutate(
-        { id: draggedLead.id, position: newPosition, updatedAt: draggedLead.updated_at },
-        { onSettled: () => setOptimisticLeads(null) }
-      )
-    }
-  }, [displayLeads, grouped, stageMutation, positionMutation])
+    // Dropping within the same column is a no-op — order is always automatic
+    // by the stage's relevant date (see STAGE_SORT_FIELD / groupByStage).
+  }, [displayLeads, stageMutation])
 
   // Restore horizontal scroll position when returning via browser back
   useEffect(() => {
