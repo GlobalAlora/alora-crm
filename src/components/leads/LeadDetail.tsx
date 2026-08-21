@@ -383,12 +383,17 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
             {/* AI Summary */}
             <LeadSummary leadId={lead.id} />
 
-            {/* Stage selector + valor */}
+            {/* Stage selector + valor + fuente */}
             <div className="flex items-center gap-2 flex-wrap">
               <StageSelector lead={lead} onStageChange={onStageChange} />
               {valor && (
                 <span className="text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-1">
                   {valor}
+                </span>
+              )}
+              {lead.fuente && (
+                <span className="flex items-center gap-1 text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200 rounded-full px-2.5 py-1">
+                  <Globe size={11} /> {FUENTES.find((f) => f.value === lead.fuente)?.label ?? lead.fuente}
                 </span>
               )}
             </div>
