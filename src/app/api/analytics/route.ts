@@ -259,14 +259,24 @@ export async function GET(req: NextRequest) {
     // por separado para poder ver el show-up rate. reunion_asistencia solo
     // es confiable desde 2026-08-17 — antes hubo una carga masiva vía
     // TidyCal con datos históricos ruidosos.
+    //
+    // Dos variantes con propósitos distintos:
+    // - reunionesAgendadas/Realizadas (cualificados): para el FUNNEL y sus
+    //   conversiones, donde tienen que ser subconjunto de "leads cualificados"
+    //   para que el embudo tenga sentido visualmente.
+    // - *Total (todos salvo basura): para el panel "Reuniones" que ve el
+    //   usuario — una reunión que de verdad pasó sigue contando aunque el
+    //   lead se haya reclasificado a No cualificado después (típicamente
+    //   pasa junto con "Cancelada por ALORA": se agenda, se charla, recién
+    //   ahí se decide que no califica). Excluir esos leads escondía
+    //   reuniones reales — confirmado con Leo y María, ambos con reunión
+    //   agendada y luego marcados No cualificado.
     const reunionesAgendadas = cualificados.filter(l => !!l.fecha_reunion)
     const reunionesRealizadas = cualificados.filter(l => l.reunion_asistencia === 'se_presento')
-    // Reuniones que ALORA decidió no dar (ej. tras más charla por WhatsApp, el lead
-    // no da la talla) — no son un "no show" del lead ni bajan el show-up rate.
-    // A diferencia de agendadas/realizadas (que miden la cohorte de leads que
-    // ingresó en el período), esta se computa por reunion_asistencia_at —
-    // cuándo se marcó la cancelación — ver canceladasAloraQuery arriba.
-    const showUpRate = pct(reunionesRealizadas.length, reunionesAgendadas.length)
+    const leadsParaReuniones = leads.filter(l => l.estado_pipeline !== 'basura')
+    const reunionesAgendadasTotal = leadsParaReuniones.filter(l => !!l.fecha_reunion)
+    const reunionesRealizadasTotal = leadsParaReuniones.filter(l => l.reunion_asistencia === 'se_presento')
+    const showUpRateTotal = pct(reunionesRealizadasTotal.length, reunionesAgendadasTotal.length)
 
     // Leads cualificados con al menos una propuesta real (tabla propuestas,
     // no fecha_propuesta — esa se autocompleta al mover la tarjeta de
@@ -568,8 +578,8 @@ export async function GET(req: NextRequest) {
       cualificados: trim(cualificados),
       no_cualificados: trim(noCualificadoLeads),
       basura: trim(basuraLeads),
-      reuniones_agendadas: trim(reunionesAgendadas),
-      reuniones_realizadas: trim(reunionesRealizadas),
+      reuniones_agendadas: trim(reunionesAgendadasTotal),
+      reuniones_realizadas: trim(reunionesRealizadasTotal),
       reuniones_canceladas_alora: trim(reunionesCanceladasAlora),
       con_propuesta: trim(cualificadosConPropuesta),
       ganados: trim(ganados),
@@ -609,10 +619,10 @@ export async function GET(req: NextRequest) {
         cualificado_pct: pct(cualificadoCount, totalLeads),
       },
       reuniones: {
-        agendadas: reunionesAgendadas.length,
-        realizadas: reunionesRealizadas.length,
+        agendadas: reunionesAgendadasTotal.length,
+        realizadas: reunionesRealizadasTotal.length,
         canceladas_alora: reunionesCanceladasAlora.length,
-        show_up_rate: showUpRate,
+        show_up_rate: showUpRateTotal,
       },
       conversiones: {
         lead_a_reunion: conversionLeadReunion,
@@ -626,8 +636,8 @@ export async function GET(req: NextRequest) {
         cualificado_pct: 'Leads cuya consulta original era algo que ALORA puede resolver — independiente de si convirtieron. Incluye Sin respuesta, Ghosting, Ganado y Perdido. Solo excluye Basura y No cualificado.',
         no_cualificado_pct: 'Hubo respuesta/diálogo real, pero se evaluó que ALORA no puede o no debe resolver esa necesidad.',
         basura_pct: 'Ni siquiera era una consulta real (spam, número equivocado, algo no relacionado con ALORA). No cuenta como lead.',
-        reuniones_agendadas: 'Leads con fecha, hora y link de reunión cargados — sin importar el origen (TidyCal, bot de WhatsApp, carga manual). Mide agenda, no asistencia.',
-        reuniones_realizadas: 'De las agendadas, las que se confirmaron manualmente en la ficha del lead como "se presentó". Antes del 17/08/2026 este dato es poco confiable por una carga masiva histórica vía TidyCal.',
+        reuniones_agendadas: 'Leads con fecha, hora y link de reunión cargados — sin importar el origen (TidyCal, bot de WhatsApp, carga manual) ni si el lead se reclasificó después a No cualificado (la reunión igual pasó). Mide agenda, no asistencia.',
+        reuniones_realizadas: 'De las agendadas, las que se confirmaron manualmente en la ficha del lead como "se presentó" — incluye leads reclasificados a No cualificado después de la reunión. Antes del 17/08/2026 este dato es poco confiable por una carga masiva histórica vía TidyCal.',
         reuniones_canceladas_alora: 'Reuniones que ALORA decidió no dar (ej. tras más charla por WhatsApp el lead no da la talla) — no cuentan como "no show" del lead ni bajan el show-up rate. Se mide por cuándo se marcó la cancelación, no por cuándo ingresó el lead.',
         show_up_rate: 'Reuniones realizadas ÷ reuniones agendadas. Cuántas de las reuniones que se agendan realmente se concretan.',
         tasa_cierre_ganado: 'Cierres ganados ÷ leads cualificados del período (no se cuentan Basura ni No cualificado en la base, porque nunca iban a cerrar).',
