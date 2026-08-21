@@ -28,7 +28,8 @@ const FULL_NAV = [
     sub: [{ href: '/leads/tareas', label: 'Tareas', icon: CheckSquare }],
   },
   { href: '/inbox/whatsapp', label: 'WhatsApp',        icon: MessageCircle,  badge: null, sub: undefined },
-  { href: '/email',          label: 'Email Marketing', icon: Mail,           badge: null, sub: undefined },
+  // Email Marketing: oculto del menú por ahora (no se usa) — feature y ruta siguen intactas, no reactivar sin pedir confirmación.
+  // { href: '/email',          label: 'Email Marketing', icon: Mail,           badge: null, sub: undefined },
   { href: '/projects',       label: 'Proyectos',       icon: FolderKanban,   badge: null, sub: undefined },
   { href: '/billing',        label: 'Facturación',     icon: Receipt,        badge: null, sub: undefined },
   { href: '/tickets',        label: 'Tickets',          icon: Ticket,         badge: null, sub: undefined },
