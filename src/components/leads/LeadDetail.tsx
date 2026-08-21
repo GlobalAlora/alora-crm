@@ -276,10 +276,6 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
       ? `USD ${lead.valor_propuesta_usd.toLocaleString('en-US')}`
       : null
 
-  const whatsappUrl = lead.telefono
-    ? `https://wa.me/${lead.telefono.replace(/\D/g, '')}`
-    : null
-
   // ── Panel layout ──────────────────────────────────────────────────────────
   const wrapper = fullPage
     ? 'flex flex-col md:flex-row h-full overflow-hidden'
@@ -399,24 +395,6 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
 
             {/* Quick actions */}
             <div className="flex gap-2">
-              {lead.email && (
-                <a
-                  href={`mailto:${lead.email}`}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-white hover:border-slate-300 transition-colors"
-                >
-                  <Mail size={13} /> Email
-                </a>
-              )}
-              {whatsappUrl && (
-                <a
-                  href={whatsappUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-white hover:border-slate-300 transition-colors"
-                >
-                  <MessageCircle size={13} className="text-green-500" /> WhatsApp
-                </a>
-              )}
               {lead.whatsapp_conversation && (
                 <Link
                   href={`/inbox/whatsapp?phone=${lead.whatsapp_conversation.phone_number}`}
@@ -639,7 +617,7 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                   type="url"
                   placeholder="https://..."
                 />
-                {(lead.estado_pipeline === 'reunion_reservada' || lead.estado_pipeline === 'reunion_realizada') && lead.fecha_reunion && (
+                {lead.fecha_reunion && (
                   <MeetingStatusCheck
                     leadId={lead.id}
                     current={lead.reunion_asistencia ?? null}
@@ -889,7 +867,7 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                   type="url"
                   placeholder="https://..."
                 />
-                {(lead.estado_pipeline === 'reunion_reservada' || lead.estado_pipeline === 'reunion_realizada') && lead.fecha_reunion && (
+                {lead.fecha_reunion && (
                   <MeetingStatusCheck
                     leadId={lead.id}
                     current={lead.reunion_asistencia ?? null}
