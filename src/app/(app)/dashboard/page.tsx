@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatUSD, formatARS } from '@/lib/utils'
+import { getArgentinaDateStr } from '@/lib/timezone'
 import { FUENTES, PAISES } from '@/types'
 import type { PipelineStage } from '@/types'
 import { useStageMap } from '@/hooks/usePipelineStages'
@@ -136,10 +137,10 @@ interface DetalleLead {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getDefaultDesde() {
-  return new Date(Date.now() - 30 * 86_400_000).toISOString().split('T')[0]
+  return getArgentinaDateStr(new Date(Date.now() - 30 * 86_400_000))
 }
 function getDefaultHasta() {
-  return new Date().toISOString().split('T')[0]
+  return getArgentinaDateStr()
 }
 
 function timeAgo(iso: string): string {
@@ -158,6 +159,7 @@ const ACTIVITY_ICON: Record<string, React.ElementType> = {
 }
 
 const PRESETS: { label: string; key: string }[] = [
+  { label: 'Hoy', key: 'hoy' },
   { label: '7 días', key: '7d' },
   { label: '30 días', key: '30d' },
   { label: '90 días', key: '90d' },
@@ -166,16 +168,21 @@ const PRESETS: { label: string; key: string }[] = [
   { label: 'Este año', key: 'año' },
 ]
 
+// Todas las fechas se calculan según el calendario de Argentina (no el
+// timezone del navegador/servidor) para que "Hoy" y los demás presets
+// reflejen el día real en Buenos Aires.
 function applyPreset(key: string): [string, string] {
-  const today = new Date()
-  const t = today.toISOString().split('T')[0]
-  const ago = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString().split('T')[0]
+  const t = getArgentinaDateStr()
+  const [year, month] = t.split('-').map(Number) // month: 1-12
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const ago = (days: number) => getArgentinaDateStr(new Date(Date.now() - days * 86_400_000))
+  if (key === 'hoy') return [t, t]
   if (key === '7d') return [ago(7), t]
   if (key === '30d') return [ago(30), t]
   if (key === '90d') return [ago(90), t]
-  if (key === 'mes') return [new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0], t]
-  if (key === 'trimestre') return [new Date(today.getFullYear(), Math.floor(today.getMonth() / 3) * 3, 1).toISOString().split('T')[0], t]
-  if (key === 'año') return [new Date(today.getFullYear(), 0, 1).toISOString().split('T')[0], t]
+  if (key === 'mes') return [`${year}-${pad(month)}-01`, t]
+  if (key === 'trimestre') return [`${year}-${pad(Math.floor((month - 1) / 3) * 3 + 1)}-01`, t]
+  if (key === 'año') return [`${year}-01-01`, t]
   return [getDefaultDesde(), t]
 }
 

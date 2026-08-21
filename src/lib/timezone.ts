@@ -40,6 +40,13 @@ export function formatArgentinaDateTime(date: Date | string): string {
   })
 }
 
+// Fecha del día (YYYY-MM-DD) según el calendario de Argentina, sin importar
+// el timezone del navegador/servidor que ejecuta el código — para filtros de
+// fecha tipo "Hoy" que deben reflejar el día real en Buenos Aires.
+export function getArgentinaDateStr(date: Date = new Date()): string {
+  return date.toLocaleDateString('en-CA', { timeZone: TIMEZONE })
+}
+
 // Función para obtener fecha de inicio del día en Argentina
 export function getArgentinaStartOfDay(date: Date = new Date()): Date {
   const argentinaDate = new Date(date.toLocaleString("en-US", { timeZone: TIMEZONE }))
