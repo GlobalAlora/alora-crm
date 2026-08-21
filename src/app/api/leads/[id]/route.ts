@@ -173,6 +173,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
   }
 
+  if ('reunion_asistencia' in body && body.reunion_asistencia) {
+    body.reunion_asistencia_at = new Date().toISOString()
+  }
+
   const { data, error } = await supabase
     .from('leads')
     .update({ ...body, updated_at: new Date().toISOString() })

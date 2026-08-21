@@ -93,6 +93,7 @@ type LeadRow = {
   fecha_contacto: string | null
   fecha_reunion: string | null
   reunion_asistencia: string | null
+  reunion_asistencia_at: string | null
   fecha_propuesta: string | null
   fecha_cierre: string | null
   stage_updated_at: string
@@ -148,7 +149,7 @@ export async function GET(req: NextRequest) {
       .from('leads')
       .select(`
         id, nombre, apellido, pais, fuente, estado_pipeline,
-        fecha_ingreso, fecha_contacto, fecha_reunion, reunion_asistencia, fecha_propuesta, fecha_cierre,
+        fecha_ingreso, fecha_contacto, fecha_reunion, reunion_asistencia, reunion_asistencia_at, fecha_propuesta, fecha_cierre,
         stage_updated_at, last_activity_at, created_at,
         propuestas(id, valor_usd, valor_ars, moneda, estado, created_at, updated_at)
       `)
@@ -165,7 +166,7 @@ export async function GET(req: NextRequest) {
       .from('leads')
       .select(`
         id, nombre, apellido, pais, fuente, estado_pipeline,
-        fecha_ingreso, fecha_contacto, fecha_reunion, reunion_asistencia, fecha_propuesta, fecha_cierre,
+        fecha_ingreso, fecha_contacto, fecha_reunion, reunion_asistencia, reunion_asistencia_at, fecha_propuesta, fecha_cierre,
         stage_updated_at, last_activity_at, created_at,
         propuestas(id, valor_usd, valor_ars, moneda, estado, created_at, updated_at)
       `)
@@ -174,10 +175,32 @@ export async function GET(req: NextRequest) {
       .gte('fecha_cierre', fechaDesde)
       .lte('fecha_cierre', fechaHasta + 'T23:59:59')
 
+    // Reuniones canceladas por ALORA en el período: filtradas por
+    // reunion_asistencia_at (cuándo se marcó la cancelación), no por
+    // fecha_ingreso del lead — mismo criterio que cierresQuery, para que
+    // "Hoy" muestre lo que realmente se canceló hoy, sin importar cuándo
+    // entró el lead.
+    let canceladasAloraQuery = adminSupabase
+      .from('leads')
+      .select(`
+        id, nombre, apellido, pais, fuente, estado_pipeline,
+        fecha_ingreso, fecha_contacto, fecha_reunion, reunion_asistencia, reunion_asistencia_at, fecha_propuesta, fecha_cierre,
+        stage_updated_at, last_activity_at, created_at,
+        propuestas(id, valor_usd, valor_ars, moneda, estado, created_at, updated_at)
+      `)
+      .is('deleted_at', null)
+      .eq('reunion_asistencia', 'cancelada_alora')
+      .gte('reunion_asistencia_at', fechaDesde)
+      .lte('reunion_asistencia_at', fechaHasta + 'T23:59:59')
+
+    if (paisFilter) canceladasAloraQuery = canceladasAloraQuery.eq('pais', paisFilter)
+    if (fuenteFilter) canceladasAloraQuery = canceladasAloraQuery.eq('fuente', fuenteFilter)
+
     // Active leads for risk section (no date filter) — use .or() instead of .not().in()
-    const [leadsResult, cierresResult, activeResult] = await Promise.all([
+    const [leadsResult, cierresResult, canceladasAloraResult, activeResult] = await Promise.all([
       leadsQuery,
       cierresQuery,
+      canceladasAloraQuery,
       adminSupabase
         .from('leads')
         .select('id, nombre, apellido, pais, fuente, estado_pipeline, stage_updated_at, last_activity_at')
@@ -190,6 +213,7 @@ export async function GET(req: NextRequest) {
       .filter(l => !EXCLUDED.has(l.estado_pipeline))
     // Leads closed in period (by fecha_cierre) — used for resumen KPIs
     const cierresEnPeriodo: LeadRow[] = (cierresResult.data ?? []) as unknown as LeadRow[]
+    const reunionesCanceladasAlora: LeadRow[] = (canceladasAloraResult.data ?? []) as unknown as LeadRow[]
     const activeLeads: ActiveLead[] = (activeResult.data ?? []) as ActiveLead[]
 
     // Flatten all propuestas for the period (leads ingresados)
@@ -238,9 +262,10 @@ export async function GET(req: NextRequest) {
     const reunionesAgendadas = cualificados.filter(l => !!l.fecha_reunion)
     const reunionesRealizadas = cualificados.filter(l => l.reunion_asistencia === 'se_presento')
     // Reuniones que ALORA decidió no dar (ej. tras más charla por WhatsApp, el lead
-    // no da la talla) — siguen contando como agendadas, pero se reportan aparte:
-    // no son un "no show" del lead ni bajan el show-up rate en ese sentido.
-    const reunionesCanceladasAlora = cualificados.filter(l => l.reunion_asistencia === 'cancelada_alora')
+    // no da la talla) — no son un "no show" del lead ni bajan el show-up rate.
+    // A diferencia de agendadas/realizadas (que miden la cohorte de leads que
+    // ingresó en el período), esta se computa por reunion_asistencia_at —
+    // cuándo se marcó la cancelación — ver canceladasAloraQuery arriba.
     const showUpRate = pct(reunionesRealizadas.length, reunionesAgendadas.length)
 
     // Leads cualificados con al menos una propuesta real (tabla propuestas,
@@ -603,7 +628,7 @@ export async function GET(req: NextRequest) {
         basura_pct: 'Ni siquiera era una consulta real (spam, número equivocado, algo no relacionado con ALORA). No cuenta como lead.',
         reuniones_agendadas: 'Leads con fecha, hora y link de reunión cargados — sin importar el origen (TidyCal, bot de WhatsApp, carga manual). Mide agenda, no asistencia.',
         reuniones_realizadas: 'De las agendadas, las que se confirmaron manualmente en la ficha del lead como "se presentó". Antes del 17/08/2026 este dato es poco confiable por una carga masiva histórica vía TidyCal.',
-        reuniones_canceladas_alora: 'De las agendadas, las que ALORA decidió no dar (ej. tras más charla por WhatsApp el lead no da la talla) — se cuentan aparte, no como "no show" del lead ni bajan directamente el show-up rate.',
+        reuniones_canceladas_alora: 'Reuniones que ALORA decidió no dar (ej. tras más charla por WhatsApp el lead no da la talla) — no cuentan como "no show" del lead ni bajan el show-up rate. Se mide por cuándo se marcó la cancelación, no por cuándo ingresó el lead.',
         show_up_rate: 'Reuniones realizadas ÷ reuniones agendadas. Cuántas de las reuniones que se agendan realmente se concretan.',
         tasa_cierre_ganado: 'Cierres ganados ÷ leads cualificados del período (no se cuentan Basura ni No cualificado en la base, porque nunca iban a cerrar).',
         lead_a_reunion: 'Reuniones agendadas ÷ leads cualificados.',

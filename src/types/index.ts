@@ -114,6 +114,7 @@ export interface Lead {
   reunion_hora: string | null
   reunion_link: string | null
   reunion_asistencia: 'se_presento' | 'no_se_presento' | 'reagendo' | 'cancelada_alora' | null
+  reunion_asistencia_at: string | null
   fecha_propuesta: string | null
   fecha_followup: string | null
   fecha_cierre: string | null
