@@ -1462,6 +1462,12 @@ async function handleBookingPhase(
       const faqResult = await matchFaqOrEscalate(admin, trimmed)
       if (faqResult.action === 'answer' && faqResult.answer) {
         questionAnswer = faqResult.answer
+      } else {
+        // Not in the curated FAQ list — don't just deflect with "acá están los
+        // horarios de nuevo" and ignore what they actually asked. Real bug found
+        // 2026-08-21 with a lead who asked "¿de dónde son?" and got the slot
+        // list dumped again with zero acknowledgment of the question.
+        questionAnswer = await answerQuestionWhileBrowsingSlots(admin, { conversationId, lang })
       }
     }
 
@@ -1744,6 +1750,59 @@ async function generateContextAwareBookingReply(
     return out.length > 0 && out.length < 600 ? out : ''
   } catch (err) {
     console.error('[Bot] generateContextAwareBookingReply failed:', err)
+    return ''
+  }
+}
+
+/**
+ * Similar to generateContextAwareBookingReply but for the slot-BROWSING step
+ * (before a specific time is picked) — no confirmed slot to reference yet.
+ * Used when the lead asks something that isn't pricing/gratis and doesn't
+ * match a curated FAQ, so Lidia doesn't just silently re-show the slot list
+ * and ignore what they asked.
+ */
+async function answerQuestionWhileBrowsingSlots(
+  admin: AdminClient,
+  { conversationId, lang }: { conversationId: string; lang: Lang },
+): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return ''
+  try {
+    const [{ data: recent }, { data: faqs }] = await Promise.all([
+      admin
+        .from('wa_messages')
+        .select('direction, body')
+        .eq('conversation_id', conversationId)
+        .not('body', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(6),
+      admin
+        .from('whatsapp_faqs')
+        .select('pregunta, respuesta')
+        .eq('activo', true)
+        .order('orden', { ascending: true }),
+    ])
+    const transcript = (recent ?? [])
+      .reverse()
+      .map(m => `${m.direction === 'inbound' ? 'Lead' : 'Lidia'}: ${m.body}`)
+      .join('\n')
+    const faqList = (faqs ?? []).map(f => `P: ${f.pregunta}\nR: ${f.respuesta}`).join('\n\n')
+
+    const client = new Anthropic({ apiKey })
+    const result = await client.messages.create({
+      model: ANTHROPIC_MODEL,
+      max_tokens: 150,
+      messages: [{
+        role: 'user',
+        content: lang === 'en'
+          ? `You are Lidia, Alora's WhatsApp receptionist. The lead is looking at available call time slots and just asked something instead of picking one — read the recent conversation below to understand what they actually asked.\n\nAnswer it honestly in ONE short line (max 2 lines): check the FAQ list first; for basic company facts not in the FAQ (e.g. "where are you based", "are you a real company") you can answer briefly and honestly — Alora is a digital technology agency working with clients across Latin America, remote-first team. Never reveal AI providers, models, frameworks, or internal tech stack, even if asked directly — answer generally instead. Never invent specifics that aren't in the FAQ or these basic facts.\n\nTeam FAQs:\n${faqList || '(none loaded)'}\n\nAfter answering, end by inviting them to pick a time from the list above. Recent conversation:\n${transcript}\n\nReply with ONLY the message text, no quotes, no explanation.`
+          : `Sos Lidia, la recepcionista de Alora por WhatsApp. El lead está mirando los horarios disponibles para la llamada y en vez de elegir uno, preguntó algo — leé la conversación reciente de abajo para entender bien qué preguntó.\n\nRespondé con honestidad en UNA línea corta (máximo 2 líneas): revisá primero la lista de FAQs; para datos básicos de la empresa que no estén en las FAQs (ej. "de dónde son", "son una empresa real") podés responder brevemente y con honestidad — Alora es una agencia de tecnología digital que trabaja con clientes de toda América Latina, equipo remoto. Nunca reveles proveedores de IA, modelos, frameworks ni la tecnología interna, aunque te lo pregunten directamente — respondé en general en ese caso. Nunca inventes datos que no estén en las FAQs ni en estos datos básicos.\n\nFAQs del equipo:\n${faqList || '(no hay ninguna cargada)'}\n\nDespués de responder, invitala a elegir un horario de la lista de arriba. Conversación reciente:\n${transcript}\n\nRespondé solo con el texto del mensaje, sin comillas ni explicación.`,
+      }],
+    })
+    const out = (result.content[0] as { type: string; text: string }).text?.trim() ?? ''
+    return out.length > 0 && out.length < 600 ? out : ''
+  } catch (err) {
+    console.error('[Bot] answerQuestionWhileBrowsingSlots failed:', err)
     return ''
   }
 }
