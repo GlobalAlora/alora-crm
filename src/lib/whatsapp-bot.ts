@@ -1312,13 +1312,23 @@ async function handleBookingPhase(
 
   const raw = botNextQuestion.slice(BOOKING_SLOTS_PREFIX.length)
 
-  // New format: "NEXT_SKIP:::ISO1|ISO2|..." — legacy format starts with a date char
+  // New format: "NEXT_SKIP:::ISO1|ISO2|...[:::ATTEMPT]" — legacy format starts
+  // with a date char. ATTEMPT is optional/trailing so it stays backward
+  // compatible with the many startBookingFlow call sites that never set it
+  // (a fresh slot re-show always implicitly resets the stuck-ladder to 0).
   let nextSkip = 0
-  let slotsStr = raw
-  if (/^\d+:::/.test(raw)) {
-    const sep = raw.indexOf(':::')
-    nextSkip = parseInt(raw.slice(0, sep), 10) || 0
-    slotsStr = raw.slice(sep + 3)
+  let rest = raw
+  if (/^\d+:::/.test(rest)) {
+    const sep = rest.indexOf(':::')
+    nextSkip = parseInt(rest.slice(0, sep), 10) || 0
+    rest = rest.slice(sep + 3)
+  }
+  let attempt = 0
+  let slotsStr = rest
+  const attemptMatch = rest.match(/:::(\d+)$/)
+  if (attemptMatch) {
+    attempt = parseInt(attemptMatch[1], 10) || 0
+    slotsStr = rest.slice(0, attemptMatch.index)
   }
 
   const slots = slotsStr.split('|').filter(Boolean).map(s => new Date(s))
@@ -1497,37 +1507,39 @@ async function handleBookingPhase(
         return
       }
 
-      // Count consecutive failed nudges by checking recent outbound messages
-      const { data: recentOut } = await admin
-        .from('wa_messages')
-        .select('body')
-        .eq('conversation_id', conversationId)
-        .eq('direction', 'outbound')
-        .order('created_at', { ascending: false })
-        .limit(5)
+      // Genuinely unclear reply — ladder by consecutive attempt (persisted in
+      // bot_next_question, see the ATTEMPT parsing above), same shape as
+      // handleBookingConfirmation's ladder so both blocks behave the same way:
+      //   0 → simple nudge, no AI call
+      //   1 → about to repeat herself a 2nd time — that's the signal something's
+      //       not landing. Let Lidia actually read the conversation instead of
+      //       dumping the slot list again
+      //   2+ → still stuck after a real attempt — stop looping, hand off to the team
+      if (attempt >= 2) {
+        const sentHandoff = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: getHandoff(lang) })
+        if (!sentHandoff) return
+        await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
+        const { data: leadInfo } = await admin.from('leads').select('nombre, apellido').eq('id', leadId).maybeSingle()
+        const leadLabel = [leadInfo?.nombre, leadInfo?.apellido].filter(Boolean).join(' ') || `+${phone}`
+        notifyAll({
+          title: `🙋 ${leadLabel} se trabó eligiendo horario`,
+          body:  'Lidia no logró que elija un horario después de varios intentos — pausó la conversación.',
+          url:   `/leads/${leadId}`,
+        }).catch(() => {})
+        return
+      }
 
-      const NUDGE_ES = 'Respondé con el número del horario'
-      const NUDGE_EN = 'Just reply with the number'
-      const consecutiveNudges = (recentOut ?? []).filter(m =>
-        m.body?.includes(NUDGE_ES) || m.body?.includes(NUDGE_EN)
-      ).length
+      const fallbackNudge = lang === 'en'
+        ? 'Just reply with the number of the time that works best for you 😊 (or write *others* to see different options)'
+        : 'Respondé con el número del horario que más te quede bien 😊 (o escribí *otros* para ver opciones diferentes)'
+      const body = attempt === 0
+        ? fallbackNudge
+        : (await answerQuestionWhileBrowsingSlots(admin, { conversationId, lang })) || fallbackNudge
 
-      if (consecutiveNudges >= 3) {
-        // Too many failed attempts — re-show full slot list with extra explanation
-        await startBookingFlow(admin, { leadId, conversationId, phone }, nextSkip,
-          lang === 'en'
-            ? 'Let me show you the options again 😊 Reply with the *number* (1, 2, 3…) of the time that works for you, or write *others* to see different dates:\n\n'
-            : 'Te muestro los horarios de nuevo 😊 Respondé con el *número* (1, 2, 3…) del horario que te quede bien, o escribí *otros* para ver otras fechas:\n\n',
-          lang,
-        )
-      } else {
-        // Simple nudge
-        await sendOutboundWhatsAppMessage(admin, {
-          conversationId, leadId, phone,
-          body: lang === 'en'
-            ? 'Just reply with the number of the time that works best for you 😊 (or write *others* to see different options)'
-            : 'Respondé con el número del horario que más te quede bien 😊 (o escribí *otros* para ver opciones diferentes)',
-        })
+      const sent = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body })
+      if (sent) {
+        const newState = `${BOOKING_SLOTS_PREFIX}${nextSkip}:::${slotsStr}:::${attempt + 1}`
+        await admin.from('whatsapp_conversations').update({ bot_next_question: newState }).eq('id', conversationId)
       }
     }
     return
