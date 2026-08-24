@@ -1479,7 +1479,18 @@ async function handleBookingPhase(
         // horarios de nuevo" and ignore what they actually asked. Real bug found
         // 2026-08-21 with a lead who asked "¿de dónde son?" and got the slot
         // list dumped again with zero acknowledgment of the question.
-        questionAnswer = await answerQuestionWhileBrowsingSlots(admin, { conversationId, lang })
+        const aiReply = await answerQuestionWhileBrowsingSlots(admin, { conversationId, lang })
+        if (aiReply.quiere_parar) {
+          await sendOutboundWhatsAppMessage(admin, {
+            conversationId, leadId, phone,
+            body: lang === 'en'
+              ? "Understood, no problem! Sorry we couldn't help right now. Whenever you're ready to pick things back up, just write to us — we'll be here 💛 Best of luck!"
+              : '¡Entendido, sin problema! Lamentamos no poder ayudarte por ahora. Cuando estés listo/a para retomar, escribinos tranquilo — acá vamos a estar 💛 ¡Mucho ánimo!',
+          })
+          await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
+          return
+        }
+        questionAnswer = aiReply.mensaje
       }
     }
 
@@ -1516,9 +1527,22 @@ async function handleBookingPhase(
       const fallbackNudge = lang === 'en'
         ? 'Just reply with the number of the time that works best for you 😊 (or write *others* to see different options)'
         : 'Respondé con el número del horario que más te quede bien 😊 (o escribí *otros* para ver opciones diferentes)'
-      const body = attempt === 0
-        ? fallbackNudge
-        : (await answerQuestionWhileBrowsingSlots(admin, { conversationId, lang })) || fallbackNudge
+
+      let body = fallbackNudge
+      if (attempt > 0) {
+        const aiReply = await answerQuestionWhileBrowsingSlots(admin, { conversationId, lang })
+        if (aiReply.quiere_parar) {
+          await sendOutboundWhatsAppMessage(admin, {
+            conversationId, leadId, phone,
+            body: lang === 'en'
+              ? "Understood, no problem! Sorry we couldn't help right now. Whenever you're ready to pick things back up, just write to us — we'll be here 💛 Best of luck!"
+              : '¡Entendido, sin problema! Lamentamos no poder ayudarte por ahora. Cuando estés listo/a para retomar, escribinos tranquilo — acá vamos a estar 💛 ¡Mucho ánimo!',
+          })
+          await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
+          return
+        }
+        body = aiReply.mensaje || fallbackNudge
+      }
 
       const sent = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body })
       if (sent) {
@@ -1752,19 +1776,36 @@ async function generateContextAwareBookingReply(
   }
 }
 
+const BROWSING_REPLY_TOOL: Anthropic.Tool = {
+  name: 'responder',
+  description: 'Generá la respuesta de Lidia mientras el lead mira los horarios disponibles, e indicá si el lead quiere dejar de hablar.',
+  input_schema: {
+    type: 'object' as const,
+    required: ['mensaje', 'quiere_parar'],
+    properties: {
+      mensaje: { type: 'string', description: 'El mensaje que Lidia le envía al lead. Texto plano, máximo 2-3 líneas.' },
+      quiere_parar: {
+        type: 'boolean',
+        description: 'true SOLO si el lead está diciendo con claridad que no quiere seguir ahora (ej. "no quiero", "no puedo por ahora", "ahora no puedo", "lo veo y te aviso", "dejalo", un despido/cierre de la conversación) — interpretá la intención real, no una lista fija de palabras. false para cualquier otra cosa, incluida una duda, una pregunta, o cuando solo rechaza los horarios ofrecidos pero sigue interesado.',
+      },
+    },
+  },
+}
+
 /**
  * Similar to generateContextAwareBookingReply but for the slot-BROWSING step
  * (before a specific time is picked) — no confirmed slot to reference yet.
- * Used when the lead asks something that isn't pricing/gratis and doesn't
- * match a curated FAQ, so Lidia doesn't just silently re-show the slot list
- * and ignore what they asked.
+ * Used both to answer a question that doesn't match a curated FAQ, and as the
+ * general "genuinely unclear reply" fallback — in both cases we want Lidia to
+ * actually interpret what the lead means (including disengagement phrased in
+ * ways no fixed keyword list would catch), not pattern-match literal words.
  */
 async function answerQuestionWhileBrowsingSlots(
   admin: AdminClient,
   { conversationId, lang }: { conversationId: string; lang: Lang },
-): Promise<string> {
+): Promise<{ mensaje: string; quiere_parar: boolean }> {
   const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return ''
+  if (!apiKey) return { mensaje: '', quiere_parar: false }
   try {
     const [{ data: recent }, { data: faqs }] = await Promise.all([
       admin
@@ -1789,19 +1830,23 @@ async function answerQuestionWhileBrowsingSlots(
     const client = new Anthropic({ apiKey })
     const result = await client.messages.create({
       model: ANTHROPIC_MODEL,
-      max_tokens: 150,
+      max_tokens: 200,
+      tools: [BROWSING_REPLY_TOOL],
+      tool_choice: { type: 'tool', name: 'responder' },
       messages: [{
         role: 'user',
         content: lang === 'en'
-          ? `You are Lidia, Alora's WhatsApp receptionist. The lead is looking at available call time slots and just asked something instead of picking one — read the recent conversation below to understand what they actually asked.\n\nAnswer it honestly in ONE short line (max 2 lines): check the FAQ list first; for basic company facts not in the FAQ (e.g. "where are you based", "are you a real company") you can answer briefly and honestly — Alora is a digital technology agency working with clients across Latin America, remote-first team. Never reveal AI providers, models, frameworks, or internal tech stack, even if asked directly — answer generally instead. Never invent specifics that aren't in the FAQ or these basic facts.\n\nTeam FAQs:\n${faqList || '(none loaded)'}\n\nAfter answering, end by inviting them to pick a time from the list above. Recent conversation:\n${transcript}\n\nReply with ONLY the message text, no quotes, no explanation.`
-          : `Sos Lidia, la recepcionista de Alora por WhatsApp. El lead está mirando los horarios disponibles para la llamada y en vez de elegir uno, preguntó algo — leé la conversación reciente de abajo para entender bien qué preguntó.\n\nRespondé con honestidad en UNA línea corta (máximo 2 líneas): revisá primero la lista de FAQs; para datos básicos de la empresa que no estén en las FAQs (ej. "de dónde son", "son una empresa real") podés responder brevemente y con honestidad — Alora es una agencia de tecnología digital que trabaja con clientes de toda América Latina, equipo remoto. Nunca reveles proveedores de IA, modelos, frameworks ni la tecnología interna, aunque te lo pregunten directamente — respondé en general en ese caso. Nunca inventes datos que no estén en las FAQs ni en estos datos básicos.\n\nFAQs del equipo:\n${faqList || '(no hay ninguna cargada)'}\n\nDespués de responder, invitala a elegir un horario de la lista de arriba. Conversación reciente:\n${transcript}\n\nRespondé solo con el texto del mensaje, sin comillas ni explicación.`,
+          ? `You are Lidia, Alora's WhatsApp receptionist. The lead is looking at available call time slots and their last reply wasn't a clear slot pick — read the recent conversation below to genuinely understand what they mean.\n\nIf it's a question: answer it honestly in your reply (max 2-3 lines). Check the FAQ list first; for basic company facts not in the FAQ (e.g. "where are you based", "are you a real company") you can answer briefly and honestly — Alora is a digital technology agency working with clients across Latin America, remote-first team. Never reveal AI providers, models, frameworks, or internal tech stack, even if asked directly — answer generally instead. Never invent specifics that aren't in the FAQ or these basic facts.\n\nIf they're just declining the offered times but still seem interested, acknowledge that and keep steering toward booking (don't dump the raw slot list again — the list is already visible above in the chat).\n\nOnly mark quiere_parar=true if they're genuinely signaling they don't want to continue right now, in whatever words they use — don't require an exact keyword match, interpret real intent.\n\nTeam FAQs:\n${faqList || '(none loaded)'}\n\nRecent conversation:\n${transcript}`
+          : `Sos Lidia, la recepcionista de Alora por WhatsApp. El lead está mirando los horarios disponibles para la llamada y su última respuesta no fue elegir un horario con claridad — leé la conversación reciente de abajo para entender de verdad qué quiso decir.\n\nSi es una pregunta: respondela con honestidad en tu mensaje (máximo 2-3 líneas). Revisá primero la lista de FAQs; para datos básicos de la empresa que no estén ahí (ej. "de dónde son", "son una empresa real") podés responder brevemente y con honestidad — Alora es una agencia de tecnología digital que trabaja con clientes de toda América Latina, equipo remoto. Nunca reveles proveedores de IA, modelos, frameworks ni la tecnología interna, aunque te lo pregunten directamente — respondé en general en ese caso. Nunca inventes datos que no estén en las FAQs ni en estos datos básicos.\n\nSi solo está rechazando los horarios ofrecidos pero sigue interesado, reconocé eso y seguí guiando hacia agendar (no vuelvas a tirar la lista cruda de horarios — ya está visible arriba en el chat).\n\nMarcá quiere_parar=true SOLO si de verdad está señalando que no quiere seguir ahora, con las palabras que sean — no necesitás una palabra clave exacta, interpretá la intención real.\n\nFAQs del equipo:\n${faqList || '(no hay ninguna cargada)'}\n\nConversación reciente:\n${transcript}`,
       }],
     })
-    const out = (result.content[0] as { type: string; text: string }).text?.trim() ?? ''
-    return out.length > 0 && out.length < 600 ? out : ''
+    const toolUse = result.content.find((b) => b.type === 'tool_use')
+    if (!toolUse || toolUse.type !== 'tool_use') return { mensaje: '', quiere_parar: false }
+    const { mensaje, quiere_parar } = toolUse.input as { mensaje: string; quiere_parar: boolean }
+    return { mensaje: (mensaje ?? '').trim().slice(0, 600), quiere_parar: !!quiere_parar }
   } catch (err) {
     console.error('[Bot] answerQuestionWhileBrowsingSlots failed:', err)
-    return ''
+    return { mensaje: '', quiere_parar: false }
   }
 }
 
