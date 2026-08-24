@@ -1481,13 +1481,15 @@ async function handleBookingPhase(
         // list dumped again with zero acknowledgment of the question.
         const aiReply = await answerQuestionWhileBrowsingSlots(admin, { conversationId, lang })
         if (aiReply.quiere_parar) {
+          // Soft "not right now" — leave bot_active alone (don't pause) so the
+          // normal WhatsApp follow-up cron (30min/24h of silence) still checks
+          // back in later, same as any other conversation that goes quiet.
           await sendOutboundWhatsAppMessage(admin, {
             conversationId, leadId, phone,
             body: lang === 'en'
-              ? "Understood, no problem! Sorry we couldn't help right now. Whenever you're ready to pick things back up, just write to us — we'll be here 💛 Best of luck!"
-              : '¡Entendido, sin problema! Lamentamos no poder ayudarte por ahora. Cuando estés listo/a para retomar, escribinos tranquilo — acá vamos a estar 💛 ¡Mucho ánimo!',
+              ? "Understood, no problem! Whenever you're ready, just write to us — we'll be here 💛"
+              : '¡Entendido, sin problema! Cuando quieras retomar, escribinos tranquilo — acá vamos a estar 💛',
           })
-          await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
           return
         }
         questionAnswer = aiReply.mensaje
@@ -1532,13 +1534,15 @@ async function handleBookingPhase(
       if (attempt > 0) {
         const aiReply = await answerQuestionWhileBrowsingSlots(admin, { conversationId, lang })
         if (aiReply.quiere_parar) {
+          // Soft "not right now" — leave bot_active alone (don't pause) so the
+          // normal WhatsApp follow-up cron (30min/24h of silence) still checks
+          // back in later, same as any other conversation that goes quiet.
           await sendOutboundWhatsAppMessage(admin, {
             conversationId, leadId, phone,
             body: lang === 'en'
-              ? "Understood, no problem! Sorry we couldn't help right now. Whenever you're ready to pick things back up, just write to us — we'll be here 💛 Best of luck!"
-              : '¡Entendido, sin problema! Lamentamos no poder ayudarte por ahora. Cuando estés listo/a para retomar, escribinos tranquilo — acá vamos a estar 💛 ¡Mucho ánimo!',
+              ? "Understood, no problem! Whenever you're ready, just write to us — we'll be here 💛"
+              : '¡Entendido, sin problema! Cuando quieras retomar, escribinos tranquilo — acá vamos a estar 💛',
           })
-          await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
           return
         }
         body = aiReply.mensaje || fallbackNudge
