@@ -49,7 +49,7 @@ interface HoursData {
   horas_extra: number
   porcentaje: number
   tickets_resueltos: { numero: string; titulo: string; horas_reales: number | null; resolved_at: string }[]
-  tickets_abiertos:  { numero: string; titulo: string; horas_estimadas: number | null }[]
+  tickets_abiertos:  { numero: string; titulo: string; horas_estimadas: number | null; horas_aprobadas: boolean | null }[]
   mes: string
   historial: { mes: string; horas_consumidas: number; plan_horas_mensual: number; porcentaje: number }[]
 }
@@ -148,6 +148,26 @@ function HoursGauge({ data, accentColor, nombrePlan }: { data: HoursData; accent
         </span>
       </div>
 
+      {/* Pending approval notice */}
+      {(() => {
+        const pendingTickets = data.tickets_abiertos.filter(t => !t.horas_aprobadas && t.horas_estimadas != null)
+        const pendingHoras = pendingTickets.reduce((s, t) => s + Number(t.horas_estimadas), 0)
+        if (pendingHoras === 0) return null
+        const overage = Math.max(0, data.horas_consumidas + pendingHoras - data.plan_horas_mensual)
+        return (
+          <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 10, background: '#fffbeb', border: '1px solid #fde68a', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309' }}>
+              ⏳ {pendingHoras % 1 === 0 ? pendingHoras : pendingHoras.toFixed(1)} hs pendientes de aprobación
+            </span>
+            {overage > 0 && (
+              <span style={{ fontSize: 12, color: '#92400e' }}>
+                Si se aprueban, se excederá el plan por <strong>{overage % 1 === 0 ? overage : overage.toFixed(1)} hs</strong> que se facturarán.
+              </span>
+            )}
+          </div>
+        )
+      })()}
+
       {/* History accordion */}
       {data.historial && data.historial.length > 0 && (
         <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f1f5f9' }}>
@@ -196,8 +216,8 @@ function HoursGauge({ data, accentColor, nombrePlan }: { data: HoursData; accent
                     <span style={{ fontSize: 12, color: '#475569', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {t.titulo}
                     </span>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>
-                      {t.horas_estimadas != null ? `~${t.horas_estimadas} hs` : '—'}
+                    <span style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', color: t.horas_aprobadas ? '#64748b' : '#b45309' }}>
+                      {t.horas_estimadas != null ? `~${t.horas_estimadas} hs${!t.horas_aprobadas ? ' ⏳' : ''}` : '—'}
                     </span>
                   </div>
                 ))}
