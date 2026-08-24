@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
   const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString()
 
   const [{ data: resolved }, { data: open }] = await Promise.all([
-    admin.from('tickets').select('horas_reales').eq('client_email', email).in('estado', ['resuelto', 'cerrado']).gte('resolved_at', monthStart).lt('resolved_at', monthEnd).is('deleted_at', null),
+    admin.from('tickets').select('horas_reales').eq('client_email', email).in('estado', ['resuelto', 'cerrado']).or(`and(resolved_at.gte.${monthStart},resolved_at.lt.${monthEnd}),and(resolved_at.is.null,created_at.gte.${monthStart},created_at.lt.${monthEnd})`).is('deleted_at', null),
     admin.from('tickets').select('horas_estimadas, horas_reales, horas_aprobadas').eq('client_email', email).not('estado', 'in', '("resuelto","cerrado")').not('horas_estimadas', 'is', null).gte('created_at', monthStart).lt('created_at', monthEnd).is('deleted_at', null),
   ])
 

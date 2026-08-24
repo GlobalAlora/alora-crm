@@ -20,7 +20,7 @@ async function queryMonthHoras(
   monthEnd: string,
 ) {
   const [{ data: resolved }, { data: open }] = await Promise.all([
-    admin.from('tickets').select('horas_reales').eq('client_email', clientEmail).in('estado', ['resuelto', 'cerrado']).gte('resolved_at', monthStart).lt('resolved_at', monthEnd).is('deleted_at', null),
+    admin.from('tickets').select('horas_reales').eq('client_email', clientEmail).in('estado', ['resuelto', 'cerrado']).or(`and(resolved_at.gte.${monthStart},resolved_at.lt.${monthEnd}),and(resolved_at.is.null,created_at.gte.${monthStart},created_at.lt.${monthEnd})`).is('deleted_at', null),
     admin.from('tickets').select('horas_estimadas, horas_reales, horas_aprobadas').eq('client_email', clientEmail).not('estado', 'in', '("resuelto","cerrado")').not('horas_estimadas', 'is', null).gte('created_at', monthStart).lt('created_at', monthEnd).is('deleted_at', null),
   ])
   const consumidas = (resolved ?? []).reduce((s, t) => s + (Number(t.horas_reales) || 0), 0) + (open ?? []).reduce((s, t) => s + horasTicketAbierto(t), 0)
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient()
 
   const [{ data: resolvedTickets }, { data: openTickets }] = await Promise.all([
-    admin.from('tickets').select('id, numero, titulo, horas_estimadas, horas_reales, resolved_at, estado').eq('client_email', client.email).in('estado', ['resuelto', 'cerrado']).gte('resolved_at', monthStart).lt('resolved_at', monthEnd).is('deleted_at', null).order('resolved_at', { ascending: false }),
+    admin.from('tickets').select('id, numero, titulo, horas_estimadas, horas_reales, resolved_at, estado').eq('client_email', client.email).in('estado', ['resuelto', 'cerrado']).or(`and(resolved_at.gte.${monthStart},resolved_at.lt.${monthEnd}),and(resolved_at.is.null,created_at.gte.${monthStart},created_at.lt.${monthEnd})`).is('deleted_at', null).order('resolved_at', { ascending: false }),
     admin.from('tickets').select('id, numero, titulo, horas_estimadas, horas_reales, horas_aprobadas, estado').eq('client_email', client.email).not('estado', 'in', '("resuelto","cerrado")').not('horas_estimadas', 'is', null).gte('created_at', monthStart).lt('created_at', monthEnd).is('deleted_at', null).order('created_at', { ascending: false }),
   ])
 
