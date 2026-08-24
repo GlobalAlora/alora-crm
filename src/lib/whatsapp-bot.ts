@@ -1507,28 +1507,12 @@ async function handleBookingPhase(
         return
       }
 
-      // Genuinely unclear reply — ladder by consecutive attempt (persisted in
-      // bot_next_question, see the ATTEMPT parsing above), same shape as
-      // handleBookingConfirmation's ladder so both blocks behave the same way:
-      //   0 → simple nudge, no AI call
-      //   1 → about to repeat herself a 2nd time — that's the signal something's
-      //       not landing. Let Lidia actually read the conversation instead of
-      //       dumping the slot list again
-      //   2+ → still stuck after a real attempt — stop looping, hand off to the team
-      if (attempt >= 2) {
-        const sentHandoff = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: getHandoff(lang) })
-        if (!sentHandoff) return
-        await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
-        const { data: leadInfo } = await admin.from('leads').select('nombre, apellido').eq('id', leadId).maybeSingle()
-        const leadLabel = [leadInfo?.nombre, leadInfo?.apellido].filter(Boolean).join(' ') || `+${phone}`
-        notifyAll({
-          title: `🙋 ${leadLabel} se trabó eligiendo horario`,
-          body:  'Lidia no logró que elija un horario después de varios intentos — pausó la conversación.',
-          url:   `/leads/${leadId}`,
-        }).catch(() => {})
-        return
-      }
-
+      // Genuinely unclear reply — never escalate/pause here, LIDIA's job is to
+      // land the booking, not hand it off. First unclear reply gets a plain
+      // nudge; from the second one on, she reads the real conversation and
+      // responds to whatever they actually said, then insists on picking a
+      // time — repeats that (never the raw slot list again) for as long as it
+      // takes, instead of dead-ending in a human queue.
       const fallbackNudge = lang === 'en'
         ? 'Just reply with the number of the time that works best for you 😊 (or write *others* to see different options)'
         : 'Respondé con el número del horario que más te quede bien 😊 (o escribí *otros* para ver opciones diferentes)'
