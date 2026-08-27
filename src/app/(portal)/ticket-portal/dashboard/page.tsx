@@ -139,7 +139,7 @@ function HoursGauge({ data, accentColor, nombrePlan }: { data: HoursData; accent
           {data.horas_restantes > 0
             ? <><strong style={{ color: '#0f172a' }}>{data.horas_restantes % 1 === 0 ? data.horas_restantes : data.horas_restantes.toFixed(1)} hs</strong> restantes</>
             : data.horas_extra > 0
-              ? <><span style={{ color: '#ef4444', fontWeight: 600 }}>Plan agotado</span><span style={{ color: '#ef4444' }}> · {data.horas_extra % 1 === 0 ? data.horas_extra : data.horas_extra.toFixed(1)} hs adicionales · ${formatARS(extraHourPrice())} / hs</span></>
+              ? <><span style={{ color: '#ef4444', fontWeight: 600 }}>Plan agotado</span><span style={{ color: '#ef4444' }}> · {data.horas_extra % 1 === 0 ? data.horas_extra : data.horas_extra.toFixed(1)} hs adicionales · </span><span style={{ color: '#ef4444', fontWeight: 700 }}>${formatARS(data.horas_extra * extraHourPrice())} a facturar aparte</span><span style={{ color: '#94a3b8', fontSize: 11 }}> (${formatARS(extraHourPrice())}/hs)</span></>
               : <span style={{ color: '#ef4444', fontWeight: 600 }}>Plan agotado</span>
           }
         </span>
