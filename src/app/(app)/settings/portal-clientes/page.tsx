@@ -617,9 +617,10 @@ export default function PortalClientesPage() {
           </p>
           <div className="flex flex-col gap-2">
             {clients.filter(c => c.horas_extra_total > 0).map(c => {
-              const price    = extraHourPrice()
-              const fmt      = (n: number) => n % 1 === 0 ? String(n) : n.toFixed(1)
-              const totalARS = Math.round(c.horas_extra_total * price)
+              const price       = extraHourPrice()
+              const fmt         = (n: number) => n % 1 === 0 ? String(n) : n.toFixed(1)
+              const confirmedARS = Math.round(c.horas_extra * price)
+              const pendingARS   = Math.round(c.horas_pendientes * price)
               return (
                 <div key={c.id} className="bg-white dark:bg-red-950/60 border border-red-100 dark:border-red-800 rounded-xl px-4 py-3 flex flex-col gap-2">
                   <div className="flex items-center justify-between gap-4">
@@ -627,26 +628,23 @@ export default function PortalClientesPage() {
                       <span className="font-semibold text-foreground text-sm">{c.nombre}</span>
                       {c.empresa && <span className="text-xs text-muted-foreground ml-2">{c.empresa}</span>}
                     </div>
-                    <span className="font-bold text-foreground text-base tabular-nums">
-                      ${formatARS(totalARS)} a facturar
-                    </span>
+                    <div className="text-right">
+                      <p className="font-bold text-foreground text-base tabular-nums">
+                        ${formatARS(confirmedARS)} a facturar
+                      </p>
+                      {c.horas_pendientes > 0 && (
+                        <p className="text-xs text-orange-600 dark:text-orange-400 tabular-nums">
+                          +${formatARS(pendingARS)} si aprueban las {fmt(c.horas_pendientes)} hs pendientes
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-3 text-xs">
-                    <span className="text-muted-foreground">Plan: {c.plan_horas_mensual} hs</span>
-                    <span className="text-muted-foreground">·</span>
-                    <span className="text-muted-foreground">Confirmadas: <strong className="text-foreground">{fmt(c.horas_mes)} hs</strong></span>
-                    {c.horas_extra > 0 && (
-                      <>
-                        <span className="text-muted-foreground">·</span>
-                        <span className="text-red-600 dark:text-red-400 font-semibold">+{fmt(c.horas_extra)} hs excedidas ya</span>
-                      </>
-                    )}
-                    {c.horas_pendientes > 0 && (
-                      <>
-                        <span className="text-muted-foreground">·</span>
-                        <span className="text-orange-600 dark:text-orange-400 font-semibold">+{fmt(c.horas_pendientes)} hs pendientes de aprobación</span>
-                      </>
-                    )}
+                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                    <span>Plan: {c.plan_horas_mensual} hs</span>
+                    <span>·</span>
+                    <span>Consumidas: <strong className="text-foreground">{fmt(c.horas_mes)} hs</strong></span>
+                    <span>·</span>
+                    <span className="text-red-600 dark:text-red-400 font-semibold">+{fmt(c.horas_extra)} hs confirmadas</span>
                   </div>
                 </div>
               )
