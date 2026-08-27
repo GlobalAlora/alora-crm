@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { extraHourPrice, formatARS } from '@/lib/utils'
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -20,6 +21,7 @@ interface PortalClientRow {
   tickets_abiertos:    number
   tickets_total:       number
   horas_mes:           number
+  horas_extra:         number
   color_acento:        string | null
   nombre_plan:         string | null
   mensaje_bienvenida:  string | null
@@ -74,17 +76,25 @@ async function deleteClient(id: string) {
 
 // ─── Hours bar ───────────────────────────────────────────
 
-function HoursBar({ consumed, plan }: { consumed: number; plan: number }) {
-  const pct = plan > 0 ? Math.min(100, Math.round((consumed / plan) * 100)) : 0
+function HoursBar({ consumed, plan, extra }: { consumed: number; plan: number; extra: number }) {
+  const pct   = plan > 0 ? Math.min(100, Math.round((consumed / plan) * 100)) : 0
   const color = pct < 70 ? '#3b82f6' : pct < 90 ? '#f59e0b' : '#ef4444'
+  const fmt   = (n: number) => n % 1 === 0 ? String(n) : n.toFixed(1)
   return (
-    <div className="flex items-center gap-2 min-w-[120px]">
-      <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-        <div style={{ width: `${pct}%`, background: color, height: '100%', borderRadius: 99, transition: 'width .3s' }} />
+    <div className="flex flex-col gap-1 min-w-[140px]">
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+          <div style={{ width: `${pct}%`, background: color, height: '100%', borderRadius: 99, transition: 'width .3s' }} />
+        </div>
+        <span className="text-xs tabular-nums text-muted-foreground whitespace-nowrap">
+          {fmt(consumed)}/{plan}h
+        </span>
       </div>
-      <span className="text-xs tabular-nums text-muted-foreground whitespace-nowrap">
-        {consumed % 1 === 0 ? consumed : consumed.toFixed(1)}/{plan}h
-      </span>
+      {extra > 0 && (
+        <span className="text-xs font-semibold text-red-600 dark:text-red-400 whitespace-nowrap">
+          +{fmt(extra)} hs a facturar
+        </span>
+      )}
     </div>
   )
 }
@@ -592,6 +602,44 @@ export default function PortalClientesPage() {
         </button>
       </div>
 
+      {/* Overage alert */}
+      {clients.filter(c => c.horas_extra > 0).length > 0 && (
+        <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-2xl p-4">
+          <p className="text-sm font-semibold text-red-700 dark:text-red-400 mb-3">
+            ⚠️ Clientes con horas excedidas este mes — pendiente de facturación
+          </p>
+          <div className="flex flex-col gap-2">
+            {clients.filter(c => c.horas_extra > 0).map(c => {
+              const price = extraHourPrice()
+              const total = Math.round(c.horas_extra * price)
+              const fmt = (n: number) => n % 1 === 0 ? String(n) : n.toFixed(1)
+              return (
+                <div key={c.id} className="flex items-center justify-between bg-white dark:bg-red-950/60 border border-red-100 dark:border-red-800 rounded-xl px-4 py-2.5 gap-4">
+                  <div>
+                    <span className="font-medium text-foreground text-sm">{c.nombre}</span>
+                    {c.empresa && <span className="text-xs text-muted-foreground ml-2">{c.empresa}</span>}
+                  </div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="text-muted-foreground tabular-nums">
+                      {fmt(c.horas_mes)}/{c.plan_horas_mensual} hs usadas
+                    </span>
+                    <span className="font-semibold text-red-600 dark:text-red-400 tabular-nums">
+                      +{fmt(c.horas_extra)} hs extra
+                    </span>
+                    <span className="font-bold text-foreground tabular-nums">
+                      ${formatARS(total)}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            Precio hora extra: ${formatARS(extraHourPrice())} / hs (ajuste trimestral)
+          </p>
+        </div>
+      )}
+
       {/* Table card */}
       <div className="bg-card border border-card-border rounded-2xl overflow-hidden">
         {isLoading ? (
@@ -645,7 +693,7 @@ export default function PortalClientesPage() {
                       <EditablePlan client={c} onSave={(id, plan) => updatePlan.mutate({ id, plan })} />
                     </td>
                     <td className="px-5 py-3.5">
-                      <HoursBar consumed={c.horas_mes} plan={c.plan_horas_mensual} />
+                      <HoursBar consumed={c.horas_mes} plan={c.plan_horas_mensual} extra={c.horas_extra} />
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2">

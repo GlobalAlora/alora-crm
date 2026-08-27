@@ -33,19 +33,29 @@ export async function GET() {
   const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString()
 
   // Fetch tickets for all portal clients
-  const [{ data: allTickets }, { data: monthTickets }] = await Promise.all([
+  const [{ data: allTickets }, { data: resolvedTickets }, { data: openTickets }] = await Promise.all([
     admin
       .from('tickets')
       .select('client_email, estado')
       .in('client_email', emails)
       .is('deleted_at', null),
+    // Resolved: use created_at as fallback when resolved_at is null
     admin
       .from('tickets')
       .select('client_email, horas_reales')
       .in('client_email', emails)
       .in('estado', ['resuelto', 'cerrado'])
-      .gte('resolved_at', monthStart)
-      .lt('resolved_at', monthEnd)
+      .or(`and(resolved_at.gte.${monthStart},resolved_at.lt.${monthEnd}),and(resolved_at.is.null,created_at.gte.${monthStart},created_at.lt.${monthEnd})`)
+      .is('deleted_at', null),
+    // Open with hours (approved or pending estimation)
+    admin
+      .from('tickets')
+      .select('client_email, horas_estimadas, horas_reales, horas_aprobadas')
+      .in('client_email', emails)
+      .not('estado', 'in', '("resuelto","cerrado")')
+      .not('horas_estimadas', 'is', null)
+      .gte('created_at', monthStart)
+      .lt('created_at', monthEnd)
       .is('deleted_at', null),
   ])
 
@@ -61,17 +71,31 @@ export async function GET() {
   }
 
   const horasByEmail: Record<string, number> = {}
-  for (const t of monthTickets ?? []) {
+  for (const t of resolvedTickets ?? []) {
     if (!t.client_email) continue
     horasByEmail[t.client_email] = (horasByEmail[t.client_email] ?? 0) + (Number(t.horas_reales) || 0)
   }
+  for (const t of openTickets ?? []) {
+    if (!t.client_email) continue
+    const hs = t.horas_reales != null
+      ? Number(t.horas_reales)
+      : t.horas_aprobadas
+        ? Number(t.horas_estimadas)
+        : 0
+    horasByEmail[t.client_email] = (horasByEmail[t.client_email] ?? 0) + hs
+  }
 
-  const data = clients.map(c => ({
-    ...c,
-    tickets_abiertos: openByEmail[c.email] ?? 0,
-    tickets_total:    totalByEmail[c.email] ?? 0,
-    horas_mes:        horasByEmail[c.email] ?? 0,
-  }))
+  const data = clients.map(c => {
+    const horas_mes  = horasByEmail[c.email] ?? 0
+    const horas_extra = Math.max(0, horas_mes - (c.plan_horas_mensual || 0))
+    return {
+      ...c,
+      tickets_abiertos: openByEmail[c.email] ?? 0,
+      tickets_total:    totalByEmail[c.email] ?? 0,
+      horas_mes,
+      horas_extra,
+    }
+  })
 
   return NextResponse.json({ data })
 }
