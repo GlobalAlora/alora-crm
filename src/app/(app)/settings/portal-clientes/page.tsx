@@ -611,48 +611,67 @@ export default function PortalClientesPage() {
 
       {/* Overage alert */}
       {clients.filter(c => c.horas_extra_total > 0).length > 0 && (
-        <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-2xl p-4">
-          <p className="text-sm font-semibold text-red-700 dark:text-red-400 mb-3">
-            ⚠️ Clientes con horas excedidas este mes — pendiente de facturación
-          </p>
-          <div className="flex flex-col gap-2">
+        <div className="rounded-2xl border border-orange-200 dark:border-orange-800/60 overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center gap-2.5 px-5 py-3 bg-orange-50 dark:bg-orange-950/30 border-b border-orange-200 dark:border-orange-800/60">
+            <span className="text-base">💳</span>
+            <p className="text-sm font-semibold text-orange-800 dark:text-orange-300">
+              Horas excedidas este mes — pendiente de facturación
+            </p>
+            <span className="ml-auto text-xs text-orange-600 dark:text-orange-400 font-medium">
+              ${formatARS(extraHourPrice())} / hs extra
+            </span>
+          </div>
+          {/* Rows */}
+          <div className="divide-y divide-orange-100 dark:divide-orange-900/40 bg-white dark:bg-card">
             {clients.filter(c => c.horas_extra_total > 0).map(c => {
-              const price       = extraHourPrice()
-              const fmt         = (n: number) => n % 1 === 0 ? String(n) : n.toFixed(1)
+              const price        = extraHourPrice()
+              const fmt          = (n: number) => n % 1 === 0 ? String(n) : n.toFixed(1)
               const confirmedARS = Math.round(c.horas_extra * price)
               const pendingARS   = Math.round(c.horas_pendientes * price)
               return (
-                <div key={c.id} className="bg-white dark:bg-red-950/60 border border-red-100 dark:border-red-800 rounded-xl px-4 py-3 flex flex-col gap-2">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
+                <div key={c.id} className="flex items-center justify-between gap-6 px-5 py-4">
+                  {/* Left: client info + hours breakdown */}
+                  <div className="flex flex-col gap-1.5 min-w-0">
+                    <div className="flex items-center gap-2">
+                      {c.color_acento && <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.color_acento, flexShrink: 0, display: 'inline-block' }} />}
                       <span className="font-semibold text-foreground text-sm">{c.nombre}</span>
-                      {c.empresa && <span className="text-xs text-muted-foreground ml-2">{c.empresa}</span>}
+                      {c.empresa && <span className="text-xs text-muted-foreground">{c.empresa}</span>}
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-foreground text-base tabular-nums">
-                        ${formatARS(confirmedARS)} a facturar
-                      </p>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <span>Plan <strong className="text-foreground">{c.plan_horas_mensual} hs</strong></span>
+                      <span className="opacity-40">·</span>
+                      <span>Usadas <strong className="text-foreground">{fmt(c.horas_mes)} hs</strong></span>
+                      {c.horas_extra > 0 && (
+                        <>
+                          <span className="opacity-40">·</span>
+                          <span className="text-red-600 dark:text-red-400 font-medium">+{fmt(c.horas_extra)} hs excedidas</span>
+                        </>
+                      )}
                       {c.horas_pendientes > 0 && (
-                        <p className="text-xs text-orange-600 dark:text-orange-400 tabular-nums">
-                          +${formatARS(pendingARS)} si aprueban las {fmt(c.horas_pendientes)} hs pendientes
-                        </p>
+                        <>
+                          <span className="opacity-40">·</span>
+                          <span className="text-amber-600 dark:text-amber-400 font-medium">+{fmt(c.horas_pendientes)} hs pendientes aprobación</span>
+                        </>
                       )}
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                    <span>Plan: {c.plan_horas_mensual} hs</span>
-                    <span>·</span>
-                    <span>Consumidas: <strong className="text-foreground">{fmt(c.horas_mes)} hs</strong></span>
-                    <span>·</span>
-                    <span className="text-red-600 dark:text-red-400 font-semibold">+{fmt(c.horas_extra)} hs confirmadas</span>
+                  {/* Right: amounts */}
+                  <div className="flex flex-col items-end gap-0.5 shrink-0">
+                    <span className="text-base font-bold text-foreground tabular-nums">
+                      ${formatARS(confirmedARS)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">a facturar ahora</span>
+                    {c.horas_pendientes > 0 && (
+                      <span className="text-xs text-amber-600 dark:text-amber-400 tabular-nums mt-0.5">
+                        +${formatARS(pendingARS)} si aprueban
+                      </span>
+                    )}
                   </div>
                 </div>
               )
             })}
           </div>
-          <p className="text-xs text-muted-foreground mt-3">
-            Precio hora extra: ${formatARS(extraHourPrice())} / hs (ajuste trimestral)
-          </p>
         </div>
       )}
 
