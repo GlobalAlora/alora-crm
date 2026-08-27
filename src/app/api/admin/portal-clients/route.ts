@@ -70,30 +70,39 @@ export async function GET() {
     }
   }
 
-  const horasByEmail: Record<string, number> = {}
+  const horasByEmail:         Record<string, number> = {}
+  const horasPendientesByEmail: Record<string, number> = {}
+
   for (const t of resolvedTickets ?? []) {
     if (!t.client_email) continue
     horasByEmail[t.client_email] = (horasByEmail[t.client_email] ?? 0) + (Number(t.horas_reales) || 0)
   }
   for (const t of openTickets ?? []) {
     if (!t.client_email) continue
-    const hs = t.horas_reales != null
-      ? Number(t.horas_reales)
-      : t.horas_aprobadas
-        ? Number(t.horas_estimadas)
-        : 0
-    horasByEmail[t.client_email] = (horasByEmail[t.client_email] ?? 0) + hs
+    if (t.horas_reales != null) {
+      horasByEmail[t.client_email] = (horasByEmail[t.client_email] ?? 0) + Number(t.horas_reales)
+    } else if (t.horas_aprobadas) {
+      horasByEmail[t.client_email] = (horasByEmail[t.client_email] ?? 0) + (Number(t.horas_estimadas) || 0)
+    } else {
+      // Unapproved estimation — count as pending (not confirmed yet)
+      horasPendientesByEmail[t.client_email] = (horasPendientesByEmail[t.client_email] ?? 0) + (Number(t.horas_estimadas) || 0)
+    }
   }
 
   const data = clients.map(c => {
-    const horas_mes  = horasByEmail[c.email] ?? 0
-    const horas_extra = Math.max(0, horas_mes - (c.plan_horas_mensual || 0))
+    const horas_mes        = horasByEmail[c.email] ?? 0
+    const horas_pendientes = horasPendientesByEmail[c.email] ?? 0
+    const plan             = c.plan_horas_mensual || 0
+    const horas_extra      = Math.max(0, horas_mes - plan)
+    const horas_extra_total = Math.max(0, horas_mes + horas_pendientes - plan)
     return {
       ...c,
       tickets_abiertos: openByEmail[c.email] ?? 0,
       tickets_total:    totalByEmail[c.email] ?? 0,
       horas_mes,
+      horas_pendientes,
       horas_extra,
+      horas_extra_total,
     }
   })
 

@@ -21,7 +21,9 @@ interface PortalClientRow {
   tickets_abiertos:    number
   tickets_total:       number
   horas_mes:           number
+  horas_pendientes:    number
   horas_extra:         number
+  horas_extra_total:   number
   color_acento:        string | null
   nombre_plan:         string | null
   mensaje_bienvenida:  string | null
@@ -76,7 +78,7 @@ async function deleteClient(id: string) {
 
 // ─── Hours bar ───────────────────────────────────────────
 
-function HoursBar({ consumed, plan, extra }: { consumed: number; plan: number; extra: number }) {
+function HoursBar({ consumed, plan, extra, pending }: { consumed: number; plan: number; extra: number; pending: number }) {
   const pct   = plan > 0 ? Math.min(100, Math.round((consumed / plan) * 100)) : 0
   const color = pct < 70 ? '#3b82f6' : pct < 90 ? '#f59e0b' : '#ef4444'
   const fmt   = (n: number) => n % 1 === 0 ? String(n) : n.toFixed(1)
@@ -92,7 +94,12 @@ function HoursBar({ consumed, plan, extra }: { consumed: number; plan: number; e
       </div>
       {extra > 0 && (
         <span className="text-xs font-semibold text-red-600 dark:text-red-400 whitespace-nowrap">
-          +{fmt(extra)} hs a facturar
+          +{fmt(extra)} hs confirmadas
+        </span>
+      )}
+      {pending > 0 && (
+        <span className="text-xs font-semibold text-orange-500 dark:text-orange-400 whitespace-nowrap">
+          +{fmt(pending)} hs pendientes
         </span>
       )}
     </div>
@@ -603,32 +610,43 @@ export default function PortalClientesPage() {
       </div>
 
       {/* Overage alert */}
-      {clients.filter(c => c.horas_extra > 0).length > 0 && (
+      {clients.filter(c => c.horas_extra_total > 0).length > 0 && (
         <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-2xl p-4">
           <p className="text-sm font-semibold text-red-700 dark:text-red-400 mb-3">
             ⚠️ Clientes con horas excedidas este mes — pendiente de facturación
           </p>
           <div className="flex flex-col gap-2">
-            {clients.filter(c => c.horas_extra > 0).map(c => {
-              const price = extraHourPrice()
-              const total = Math.round(c.horas_extra * price)
-              const fmt = (n: number) => n % 1 === 0 ? String(n) : n.toFixed(1)
+            {clients.filter(c => c.horas_extra_total > 0).map(c => {
+              const price    = extraHourPrice()
+              const fmt      = (n: number) => n % 1 === 0 ? String(n) : n.toFixed(1)
+              const totalARS = Math.round(c.horas_extra_total * price)
               return (
-                <div key={c.id} className="flex items-center justify-between bg-white dark:bg-red-950/60 border border-red-100 dark:border-red-800 rounded-xl px-4 py-2.5 gap-4">
-                  <div>
-                    <span className="font-medium text-foreground text-sm">{c.nombre}</span>
-                    {c.empresa && <span className="text-xs text-muted-foreground ml-2">{c.empresa}</span>}
+                <div key={c.id} className="bg-white dark:bg-red-950/60 border border-red-100 dark:border-red-800 rounded-xl px-4 py-3 flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <span className="font-semibold text-foreground text-sm">{c.nombre}</span>
+                      {c.empresa && <span className="text-xs text-muted-foreground ml-2">{c.empresa}</span>}
+                    </div>
+                    <span className="font-bold text-foreground text-base tabular-nums">
+                      ${formatARS(totalARS)} a facturar
+                    </span>
                   </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <span className="text-muted-foreground tabular-nums">
-                      {fmt(c.horas_mes)}/{c.plan_horas_mensual} hs usadas
-                    </span>
-                    <span className="font-semibold text-red-600 dark:text-red-400 tabular-nums">
-                      +{fmt(c.horas_extra)} hs extra
-                    </span>
-                    <span className="font-bold text-foreground tabular-nums">
-                      ${formatARS(total)}
-                    </span>
+                  <div className="flex flex-wrap gap-3 text-xs">
+                    <span className="text-muted-foreground">Plan: {c.plan_horas_mensual} hs</span>
+                    <span className="text-muted-foreground">·</span>
+                    <span className="text-muted-foreground">Confirmadas: <strong className="text-foreground">{fmt(c.horas_mes)} hs</strong></span>
+                    {c.horas_extra > 0 && (
+                      <>
+                        <span className="text-muted-foreground">·</span>
+                        <span className="text-red-600 dark:text-red-400 font-semibold">+{fmt(c.horas_extra)} hs excedidas ya</span>
+                      </>
+                    )}
+                    {c.horas_pendientes > 0 && (
+                      <>
+                        <span className="text-muted-foreground">·</span>
+                        <span className="text-orange-600 dark:text-orange-400 font-semibold">+{fmt(c.horas_pendientes)} hs pendientes de aprobación</span>
+                      </>
+                    )}
                   </div>
                 </div>
               )
@@ -693,7 +711,7 @@ export default function PortalClientesPage() {
                       <EditablePlan client={c} onSave={(id, plan) => updatePlan.mutate({ id, plan })} />
                     </td>
                     <td className="px-5 py-3.5">
-                      <HoursBar consumed={c.horas_mes} plan={c.plan_horas_mensual} extra={c.horas_extra} />
+                      <HoursBar consumed={c.horas_mes} plan={c.plan_horas_mensual} extra={c.horas_extra} pending={c.horas_pendientes} />
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2">
