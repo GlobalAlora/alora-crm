@@ -22,7 +22,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const { admin } = auth
 
   const body = await req.json()
-  const ALLOWED = ['nombre', 'empresa', 'plan_horas_mensual', 'password', 'color_acento', 'nombre_plan', 'mensaje_bienvenida', 'logo_url', 'manager_nombre', 'manager_avatar', 'project_id']
+  const ALLOWED = ['nombre', 'empresa', 'plan_horas_mensual', 'dia_renovacion', 'password', 'color_acento', 'nombre_plan', 'mensaje_bienvenida', 'logo_url', 'manager_nombre', 'manager_avatar', 'project_id']
   const updates: Record<string, unknown> = {}
 
   for (const key of ALLOWED) {

@@ -21,7 +21,7 @@ export async function GET() {
 
   const { data: clients, error } = await admin
     .from('portal_clients')
-    .select('id, email, nombre, empresa, plan_horas_mensual, color_acento, nombre_plan, mensaje_bienvenida, logo_url, manager_nombre, manager_avatar, project_id, created_at')
+    .select('id, email, nombre, empresa, plan_horas_mensual, dia_renovacion, color_acento, nombre_plan, mensaje_bienvenida, logo_url, manager_nombre, manager_avatar, project_id, created_at')
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -29,35 +29,54 @@ export async function GET() {
 
   const emails = clients.map(c => c.email)
   const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString()
+
+  // Each client may have a different billing period (dia_renovacion).
+  // To cover all possible periods in one query, fetch tickets from the last
+  // 35 days (max possible period lookback) and filter per client in JS.
+  const lookbackStart = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate() - 7).toISOString()
 
   // Fetch tickets for all portal clients
-  const [{ data: allTickets }, { data: resolvedTickets }, { data: openTickets }] = await Promise.all([
+  const [{ data: allTickets }, { data: recentResolved }, { data: recentOpen }] = await Promise.all([
     admin
       .from('tickets')
       .select('client_email, estado')
       .in('client_email', emails)
       .is('deleted_at', null),
-    // Resolved: use created_at as fallback when resolved_at is null
+    // Resolved in the lookback window
     admin
       .from('tickets')
-      .select('client_email, horas_reales')
+      .select('client_email, horas_reales, resolved_at, created_at')
       .in('client_email', emails)
       .in('estado', ['resuelto', 'cerrado'])
-      .or(`and(resolved_at.gte.${monthStart},resolved_at.lt.${monthEnd}),and(resolved_at.is.null,created_at.gte.${monthStart},created_at.lt.${monthEnd})`)
+      .or(`and(resolved_at.gte.${lookbackStart}),and(resolved_at.is.null,created_at.gte.${lookbackStart})`)
       .is('deleted_at', null),
-    // Open with hours (approved or pending estimation)
+    // Open with hours in the lookback window
     admin
       .from('tickets')
-      .select('client_email, horas_estimadas, horas_reales, horas_aprobadas')
+      .select('client_email, horas_estimadas, horas_reales, horas_aprobadas, created_at')
       .in('client_email', emails)
       .not('estado', 'in', '("resuelto","cerrado")')
       .not('horas_estimadas', 'is', null)
-      .gte('created_at', monthStart)
-      .lt('created_at', monthEnd)
+      .gte('created_at', lookbackStart)
       .is('deleted_at', null),
   ])
+
+  // Build billing period per client email
+  function clientBillingPeriod(dia: number) {
+    let startYear  = now.getFullYear()
+    let startMonth = now.getMonth()
+    if (now.getDate() < dia) startMonth -= 1
+    while (startMonth < 0) { startMonth += 12; startYear -= 1 }
+    const start = new Date(startYear, startMonth, dia)
+    const end   = new Date(startYear, startMonth + 1, dia)
+    return { start, end }
+  }
+
+  const periodByEmail: Record<string, { start: Date; end: Date }> = {}
+  for (const c of clients) {
+    const dia = (c as { dia_renovacion?: number }).dia_renovacion ?? 1
+    periodByEmail[c.email] = clientBillingPeriod(dia)
+  }
 
   // Aggregate per email
   const openByEmail: Record<string, number> = {}
@@ -70,21 +89,29 @@ export async function GET() {
     }
   }
 
-  const horasByEmail:         Record<string, number> = {}
+  const horasByEmail:           Record<string, number> = {}
   const horasPendientesByEmail: Record<string, number> = {}
 
-  for (const t of resolvedTickets ?? []) {
+  for (const t of recentResolved ?? []) {
     if (!t.client_email) continue
+    const period = periodByEmail[t.client_email]
+    if (!period) continue
+    // Use resolved_at if set, else created_at as fallback
+    const tDate = new Date(t.resolved_at ?? t.created_at)
+    if (tDate < period.start || tDate >= period.end) continue
     horasByEmail[t.client_email] = (horasByEmail[t.client_email] ?? 0) + (Number(t.horas_reales) || 0)
   }
-  for (const t of openTickets ?? []) {
+  for (const t of recentOpen ?? []) {
     if (!t.client_email) continue
+    const period = periodByEmail[t.client_email]
+    if (!period) continue
+    const tDate = new Date(t.created_at)
+    if (tDate < period.start || tDate >= period.end) continue
     if (t.horas_reales != null) {
       horasByEmail[t.client_email] = (horasByEmail[t.client_email] ?? 0) + Number(t.horas_reales)
     } else if (t.horas_aprobadas) {
       horasByEmail[t.client_email] = (horasByEmail[t.client_email] ?? 0) + (Number(t.horas_estimadas) || 0)
     } else {
-      // Unapproved estimation — count as pending (not confirmed yet)
       horasPendientesByEmail[t.client_email] = (horasPendientesByEmail[t.client_email] ?? 0) + (Number(t.horas_estimadas) || 0)
     }
   }

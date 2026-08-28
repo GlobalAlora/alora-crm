@@ -17,6 +17,7 @@ interface PortalClientRow {
   nombre:              string
   empresa:             string | null
   plan_horas_mensual:  number
+  dia_renovacion:      number
   created_at:          string
   tickets_abiertos:    number
   tickets_total:       number
@@ -162,6 +163,7 @@ function PersonalizeModal({
   const [color,          setColor]          = useState(client.color_acento ?? '#0f172a')
   const [nombrePlan,     setNombrePlan]     = useState(client.nombre_plan ?? '')
   const [planHoras,      setPlanHoras]      = useState(client.plan_horas_mensual)
+  const [diaRenovacion,  setDiaRenovacion]  = useState(client.dia_renovacion ?? 1)
   const [mensaje,        setMensaje]        = useState(client.mensaje_bienvenida ?? '')
   const [logoUrl,        setLogoUrl]        = useState(client.logo_url ?? '')
   const [managerNombre,  setManagerNombre]  = useState(client.manager_nombre ?? '')
@@ -194,6 +196,7 @@ function PersonalizeModal({
         color_acento:       color,
         nombre_plan:        nombrePlan.trim() || null,
         plan_horas_mensual: planHoras,
+        dia_renovacion:     diaRenovacion,
         mensaje_bienvenida: mensaje.trim() || null,
         logo_url:           logoUrl.trim() || null,
         manager_nombre:     managerNombre.trim() || null,
@@ -204,6 +207,7 @@ function PersonalizeModal({
         color_acento:       color,
         nombre_plan:        nombrePlan.trim() || null,
         plan_horas_mensual: planHoras,
+        dia_renovacion:     diaRenovacion,
         mensaje_bienvenida: mensaje.trim() || null,
         logo_url:           logoUrl.trim() || null,
         manager_nombre:     managerNombre.trim() || null,
@@ -319,6 +323,28 @@ function PersonalizeModal({
                 />
                 <span className="text-xs text-muted-foreground">hs/mes</span>
               </div>
+            </div>
+          </div>
+
+          {/* Día de renovación */}
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+              Día de renovación mensual
+            </label>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-muted border border-card-border">
+                <span className="text-xs text-muted-foreground">Día</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={28}
+                  value={diaRenovacion}
+                  onChange={e => setDiaRenovacion(Math.min(28, Math.max(1, Number(e.target.value))))}
+                  className="w-8 bg-transparent text-sm text-foreground text-center focus:outline-none"
+                />
+                <span className="text-xs text-muted-foreground">de cada mes</span>
+              </div>
+              <span className="text-xs text-muted-foreground">El período va del día {diaRenovacion} al {diaRenovacion} del mes siguiente.</span>
             </div>
           </div>
 
@@ -718,6 +744,7 @@ export default function PortalClientesPage() {
                         <div>
                           <p className="font-medium text-foreground">{c.nombre}</p>
                           {c.empresa && <p className="text-xs text-muted-foreground">{c.empresa}</p>}
+                          <p className="text-xs text-muted-foreground/60">Renueva día {c.dia_renovacion ?? 1}</p>
                         </div>
                       </div>
                     </td>
