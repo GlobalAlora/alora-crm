@@ -744,7 +744,9 @@ export default function PortalClientesPage() {
                         <div>
                           <p className="font-medium text-foreground">{c.nombre}</p>
                           {c.empresa && <p className="text-xs text-muted-foreground">{c.empresa}</p>}
-                          <p className="text-xs text-muted-foreground/60">Renueva día {c.dia_renovacion ?? 1}</p>
+                          <span className="inline-block mt-0.5 text-[11px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-card-border">
+                            Renueva día {c.dia_renovacion ?? 1}
+                          </span>
                         </div>
                       </div>
                     </td>
