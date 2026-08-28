@@ -87,11 +87,17 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Format period dates for display, e.g. "6 ago – 6 sep 2026"
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
+  const periodoLabel = `${fmtDate(periodStart)} – ${fmtDate(periodEnd)} ${new Date(periodEnd).getFullYear()}`
+
   // History: previous 2 billing periods
   const historial = await Promise.all([-2, -1].map(async (offset) => {
-    const { start, end, label } = billingPeriod(dia, offset)
+    const { start, end } = billingPeriod(dia, offset)
     const consumidas = await queryPeriodHoras(admin, client.email, start, end)
-    return { mes: label, horas_consumidas: consumidas, plan_horas_mensual: plan, porcentaje: plan > 0 ? Math.min(100, Math.round((consumidas / plan) * 100)) : 0 }
+    const periodoH = `${fmtDate(start)} – ${fmtDate(end)} ${new Date(end).getFullYear()}`
+    return { mes: periodoH, horas_consumidas: consumidas, plan_horas_mensual: plan, porcentaje: plan > 0 ? Math.min(100, Math.round((consumidas / plan) * 100)) : 0 }
   }))
 
   return NextResponse.json({
@@ -103,7 +109,7 @@ export async function GET(req: NextRequest) {
       porcentaje,
       tickets_resueltos:  resolvedTickets ?? [],
       tickets_abiertos:   openTickets ?? [],
-      mes:                mesLabel,
+      mes:                periodoLabel,
       historial,
     },
   })
