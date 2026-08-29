@@ -1173,6 +1173,54 @@ async function parseSlotFromNaturalLanguage(text: string, slots: Date[]): Promis
 
 const SLOT_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣']
 
+// ─── Timezone helpers ──────────────────────────────────────────────────────
+
+/** Maps phone country prefix → IANA timezone. Defaults to Argentina. */
+function timezoneFromPhone(phone: string): string {
+  const p = phone.replace(/\D/g, '')
+  if (p.startsWith('598')) return 'America/Montevideo'
+  if (p.startsWith('595')) return 'America/Asuncion'
+  if (p.startsWith('591')) return 'America/La_Paz'
+  if (p.startsWith('593')) return 'America/Guayaquil'
+  if (p.startsWith('592')) return 'America/Guyana'
+  if (p.startsWith('597')) return 'America/Paramaribo'
+  if (p.startsWith('56'))  return 'America/Santiago'
+  if (p.startsWith('57'))  return 'America/Bogota'
+  if (p.startsWith('51'))  return 'America/Lima'
+  if (p.startsWith('58'))  return 'America/Caracas'
+  if (p.startsWith('52'))  return 'America/Mexico_City'
+  if (p.startsWith('54'))  return 'America/Argentina/Buenos_Aires'
+  if (p.startsWith('55'))  return 'America/Sao_Paulo'
+  if (p.startsWith('34'))  return 'Europe/Madrid'
+  if (p.startsWith('44'))  return 'Europe/London'
+  if (p.startsWith('351')) return 'Europe/Lisbon'
+  if (p.startsWith('1'))   return 'America/New_York'
+  return 'America/Argentina/Buenos_Aires'
+}
+
+/** Returns a Date whose UTC fields equal the local time in `tz` for the given UTC instant. */
+function slotLocalParts(utcDate: Date, tz: string): Date {
+  return new Date(utcDate.toLocaleString('en-US', { timeZone: tz }))
+}
+
+const _DAYS_ES   = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado']
+const _MONTHS_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+
+function localHora(utcDate: Date, tz: string): string {
+  const d = slotLocalParts(utcDate, tz)
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+}
+
+function localDateKey(utcDate: Date, tz: string): string {
+  const d = slotLocalParts(utcDate, tz)
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
+
+function localDateLabel(utcDate: Date, tz: string): string {
+  const d = slotLocalParts(utcDate, tz)
+  return `${_DAYS_ES[d.getDay()]} ${d.getDate()} ${_MONTHS_ES[d.getMonth()]}`
+}
+
 /**
  * Offers calendar slots grouped by day (up to 2 days, 4 slots each: 2 morning + 2 afternoon).
  * skipDays lets subsequent calls skip already-shown days so the lead can see new options.
@@ -1193,14 +1241,24 @@ async function startBookingFlow(
     return
   }
 
+  const tz = timezoneFromPhone(phone)
   const allSlots: Date[] = []
   const dayLines: string[] = []
 
+  // Regroup slots by local date in the lead's timezone (may differ from AR date for non-AR leads)
+  const byLocalDate = new Map<string, Date[]>()
   for (const day of days) {
-    dayLines.push(`📅 *${day.dateLabel}*`)
     for (const slot of day.slots) {
-      const { hora } = formatSlotAR(slot)
-      dayLines.push(`${SLOT_EMOJIS[allSlots.length]} ${hora} hs`)
+      const key = localDateKey(slot, tz)
+      if (!byLocalDate.has(key)) byLocalDate.set(key, [])
+      byLocalDate.get(key)!.push(slot)
+    }
+  }
+
+  for (const slotList of byLocalDate.values()) {
+    dayLines.push(`📅 *${localDateLabel(slotList[0], tz)}*`)
+    for (const slot of slotList) {
+      dayLines.push(`${SLOT_EMOJIS[allSlots.length]} ${localHora(slot, tz)} hs`)
       allSlots.push(slot)
     }
     dayLines.push('')
@@ -1237,7 +1295,7 @@ async function startBookingFlow(
  * E.g. "viernes 24 15hs", "el lunes a las 15:30", "15h".
  * Returns -1 if no match found.
  */
-function findSlotByDayTime(trimmed: string, slots: Date[]): number {
+function findSlotByDayTime(trimmed: string, slots: Date[], tz: string): number {
   // Match "15:30hs", "15hs", "15h30" — or plain "15:30" without suffix
   const timeMatch = trimmed.match(/\b(\d{1,2})(?:[:.h](\d{2}))?\s*h(?:s|oras?)?\b/i)
     ?? trimmed.match(/\b(\d{1,2}):(\d{2})\b/)
@@ -1264,10 +1322,10 @@ function findSlotByDayTime(trimmed: string, slots: Date[]): number {
   if (dateNums.length > 0) targetDate = dateNums[0]
 
   for (let i = 0; i < slots.length; i++) {
-    const ar = new Date(slots[i].getTime() - 3 * 60 * 60 * 1000) // AR UTC-3
-    if (ar.getHours() !== targetHour || ar.getMinutes() !== targetMin) continue
-    if (targetDay !== null && ar.getDay() !== targetDay) continue
-    if (targetDate !== null && ar.getDate() !== targetDate) continue
+    const local = slotLocalParts(slots[i], tz)
+    if (local.getHours() !== targetHour || local.getMinutes() !== targetMin) continue
+    if (targetDay !== null && local.getDay() !== targetDay) continue
+    if (targetDate !== null && local.getDate() !== targetDate) continue
     return i
   }
   return -1
@@ -1287,6 +1345,7 @@ async function handleBookingPhase(
   },
 ): Promise<void> {
   const trimmedEarly = text?.trim() ?? ''
+  const tz = timezoneFromPhone(phone)
 
   // Detect disengagement before anything else — same as in qualifying
   if (trimmedEarly && (DISENGAGEMENT_RE.test(trimmedEarly) || DISENGAGEMENT_RE_EN.test(trimmedEarly))) {
@@ -1389,7 +1448,7 @@ async function handleBookingPhase(
 
   // If still not a valid slot, try matching by day name and/or time ("viernes 24 15hs")
   if (isNaN(num) || idx < 0 || idx >= slots.length) {
-    const textIdx = findSlotByDayTime(trimmed, slots)
+    const textIdx = findSlotByDayTime(trimmed, slots, tz)
     if (textIdx >= 0) idx = textIdx
   }
 
