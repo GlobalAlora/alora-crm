@@ -1238,9 +1238,9 @@ async function startBookingFlow(
  * Returns -1 if no match found.
  */
 function findSlotByDayTime(trimmed: string, slots: Date[]): number {
-  // Extract hour and optional minutes from text like "15hs", "15:30hs", "15h30", "15.30"
-  const timeRe = /\b(\d{1,2})(?:[:.h](\d{2}))?\s*h(?:s|oras?)?\b/i
-  const timeMatch = trimmed.match(timeRe)
+  // Match "15:30hs", "15hs", "15h30" — or plain "15:30" without suffix
+  const timeMatch = trimmed.match(/\b(\d{1,2})(?:[:.h](\d{2}))?\s*h(?:s|oras?)?\b/i)
+    ?? trimmed.match(/\b(\d{1,2}):(\d{2})\b/)
   if (!timeMatch) return -1
   const targetHour = parseInt(timeMatch[1], 10)
   const targetMin  = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0
@@ -1379,23 +1379,6 @@ async function handleBookingPhase(
     return
   }
 
-  // Lead is expressing a specific time (e.g. "22:00", "10 de la noche", "24 horas")
-  // that likely doesn't match any available slot — explain and re-offer
-  const expressesOutOfHoursTime =
-    /\b(\d{1,2})[:.]\d{2}\b/.test(trimmed) ||
-    /\b(noche|madrugada|medianoche|nocturno|de noche|por la noche|a la noche|tarde noche)\b/i.test(trimmed) ||
-    /\b(24\s*hora|toda(s)? la(s)? noche|cualquier hora|a las? \d{1,2})\b/i.test(trimmed)
-
-  if (expressesOutOfHoursTime) {
-    await startBookingFlow(admin, { leadId, conversationId, phone }, nextSkip,
-      lang === 'en'
-        ? 'Our calls are scheduled during business hours 🕘 Here are the available times:\n\n'
-        : 'Las llamadas son en horario comercial 🕘 Estos son los horarios disponibles:\n\n',
-      lang,
-    )
-    return
-  }
-
   let num = parseInt(trimmed, 10)
   if (isNaN(num)) {
     // Handle "Viernes 24 1" — extract the last standalone number
@@ -1414,6 +1397,24 @@ async function handleBookingPhase(
   if (isNaN(num) || idx < 0 || idx >= slots.length) {
     const nlIdx = await parseSlotFromNaturalLanguage(trimmed, slots)
     if (nlIdx >= 0) idx = nlIdx
+  }
+
+  // Lead mentioned a time but it didn't match any available slot — explain business hours and re-offer
+  if (isNaN(num) || idx < 0 || idx >= slots.length) {
+    const expressesOutOfHoursTime =
+      /\b(\d{1,2})[:.]\d{2}\b/.test(trimmed) ||
+      /\b(noche|madrugada|medianoche|nocturno|de noche|por la noche|a la noche|tarde noche)\b/i.test(trimmed) ||
+      /\b(24\s*hora|toda(s)? la(s)? noche|cualquier hora|a las? \d{1,2})\b/i.test(trimmed)
+
+    if (expressesOutOfHoursTime) {
+      await startBookingFlow(admin, { leadId, conversationId, phone }, nextSkip,
+        lang === 'en'
+          ? 'Our calls are scheduled during business hours 🕘 Here are the available times:\n\n'
+          : 'Las llamadas son en horario comercial 🕘 Estos son los horarios disponibles:\n\n',
+        lang,
+      )
+      return
+    }
   }
 
   // Lead is objecting to the call format itself ("sin realizar llamadas", "prefiero por escrito")
