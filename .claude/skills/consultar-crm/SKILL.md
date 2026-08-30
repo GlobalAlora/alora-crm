@@ -33,7 +33,11 @@ Columnas clave:
 - Pipeline: `estado_pipeline` (ver etapas abajo), `kanban_position`, `stage_updated_at`, `fuente`
 - Fechas de cada hito: `fecha_ingreso`, `fecha_contacto`, `fecha_reunion`, `fecha_propuesta`,
   `fecha_followup`, `fecha_cierre`, `fecha_inicio_proyecto`, `fecha_cierre_proyecto`
-- Reunión: `reunion_hora`, `reunion_link`, `reunion_asistencia` (`se_presento` / `no_se_presento` / `reagendo`)
+- Reunión: `reunion_hora`, `reunion_link`, `reunion_asistencia` (`se_presento` / `no_se_presento` /
+  `reagendo` / `cancelada_alora` — esta última es cuando ALORA decide no dar una reunión ya
+  agendada, ej. tras más charla por WhatsApp el lead no da la talla; no cuenta como "no show" del
+  lead), `reunion_asistencia_at` (cuándo se marcó ese estado — útil para filtrar "reuniones
+  canceladas hoy" por fecha de la acción, no por `fecha_ingreso` del lead)
 - Dinero (legacy, hoy vive mejor en `propuestas`): `valor_propuesta_usd`, `valor_propuesta_ars`, `valor_propuesta_moneda`
 - Responsables: `responsable_id` → `users` (comercial interno), `lider_tecnico_id` / `dev_id` → `team_members` (equipo técnico)
 - Proyecto: `avance_proyecto` (0-100)
@@ -44,6 +48,12 @@ Columnas clave:
 ### `estado_pipeline` — etapas (en orden del embudo)
 `lead_entrante` → `lead_contactado` → `sin_respuesta` → `reunion_reservada` → `reunion_realizada`
 → `propuesta_en_armado` → `propuesta_enviada` → `follow_up` → `cliente_ganado` / `cliente_perdido` / `no_cualificado`
+
+Además de esas (fijas en el código), el equipo agregó etapas custom vía Configuración → Pipeline
+(tabla `pipeline_stages`, no un enum): `basura` (ni siquiera es una consulta real, no un lead),
+`ghosting` (hubo reunión/propuesta real y después silencio) y
+`no_asistio_a_reunion__follow_up`. Si contás leads por `estado_pipeline`, tenelas en cuenta —
+`basura` y `no_cualificado` no son "leads cualificados" para métricas de conversión.
 
 ### `fuente` (de dónde vino el lead)
 `formulario`, `referido`, `linkedin`, `instagram`, `whatsapp`, `chatbot`, `mail`, `otro`
@@ -72,8 +82,14 @@ Tareas por lead: `titulo`, `descripcion`, `vencimiento`, `completada`, `asignado
   loguea al CRM). Aparece en `leads.lider_tecnico_id` y `leads.dev_id`.
 
 ### WhatsApp: `whatsapp_conversations`, `wa_messages`, `whatsapp_faqs`
-Inbox de WhatsApp conectado a leads. `whatsapp_conversations.bot_active` / `bot_phase`
-(`qualifying`/`faq`/`booking`) indica si el bot está atendiendo esa conversación.
+Inbox de WhatsApp conectado a leads vía `whatsapp_conversations.lead_id` → `leads.id`.
+`bot_active` / `bot_phase` (`qualifying`/`faq`/`booking`) indica si el bot (Lidia) está
+atendiendo esa conversación. `followup_count` (0-2) cuenta los recordatorios automáticos que
+Lidia mandó cuando el lead quedó en silencio (se resetea a 0 si el lead responde) —
+`src/lib/whatsapp-followup.ts` tiene el texto exacto de esos 2 mensajes, útil para contarlos en
+`wa_messages` por `body`. `whatsapp_faqs` (`pregunta`/`respuesta`/`activo`/`orden`) es la lista
+de preguntas frecuentes reales que Lidia usa para responder — no son datos hardcodeados en el
+prompt, así que reflejan lo que el equipo carga ahí.
 
 ### Segmentación y marketing: `lead_tags`, `lead_tag_relations`, `lists`, `list_leads`, `campaigns`, `campaign_recipients`
 Tags y listas para segmentar leads; campañas de email marketing enviadas sobre esos segmentos.
@@ -95,6 +111,9 @@ del sitio web), `channel_configs`, `embed_events` (tracking de formularios), `pu
   `propuestas.estado = 'aceptada'`, sumado por moneda.
 - **"tareas vencidas"** → `tasks.completada = false AND vencimiento < now()`.
 - **"reuniones de esta semana"** → `leads.fecha_reunion` dentro del rango, con `reunion_asistencia`.
+- **"reuniones canceladas por ALORA"** → `reunion_asistencia = 'cancelada_alora'`, filtrando por
+  fecha con `reunion_asistencia_at` (cuándo se canceló), no `fecha_ingreso` del lead.
+- **"servicios más pedidos"** → `servicios_interesados` (array) de `leads`, aplanar y contar frecuencia.
 - **"actividad reciente de fulano"** → `activities` filtrado por `user_id`, orden `created_at desc`.
 
 ## Ejemplos de queries
