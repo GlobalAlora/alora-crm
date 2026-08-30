@@ -10,6 +10,7 @@ import { es } from 'date-fns/locale'
 import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils'
 import { MessageBubble, DateSeparator } from './MessageBubble'
+import { StageSelector } from '@/components/shared/StageSelector'
 import type { WhatsAppConversation, WhatsAppMessage } from '@/types'
 
 interface Props {
@@ -218,6 +219,10 @@ export function ChatView({ phone, conversation, onClose }: Props) {
             <MailOpen size={12} />
             No leído
           </button>
+        )}
+
+        {conversation?.lead_id && conversation.lead && (
+          <StageSelector leadId={conversation.lead_id} estadoPipeline={conversation.lead.estado_pipeline} />
         )}
 
         {conversation?.lead_id && (

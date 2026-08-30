@@ -6,15 +6,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   X, Mail, Building2, Tag as TagIcon, Globe, Calendar,
   MessageSquare, FileText, History, ExternalLink,
-  Check, AlertCircle, MessageCircle, ChevronDown, Users,
+  Check, AlertCircle, MessageCircle, Users,
   Edit2, List as ListIcon,
 } from 'lucide-react'
 import { leadsApi, usersApi } from '@/lib/api'
 import { cn, formatUSD, formatARS, timeAgo, getProjectStatus, getDaysUntil } from '@/lib/utils'
 import { FUENTES, PAISES, IDIOMAS } from '@/types'
-import type { Lead, PipelineStage, TeamMember, User } from '@/types'
-import { useActivePipelineStages } from '@/hooks/usePipelineStages'
-import { StatusBadge } from '@/components/shared/StatusBadge'
+import type { Lead, TeamMember, User } from '@/types'
+import { StageSelector } from '@/components/shared/StageSelector'
 import { UserAvatar } from '@/components/shared/UserAvatar'
 import { UnifiedTimeline } from './UnifiedTimeline'
 import { EmailsSection } from './EmailsSection'
@@ -121,68 +120,6 @@ function EditableField({
   )
 }
 
-// ── Stage selector ────────────────────────────────────────────────────────────
-
-function StageSelector({ lead, onStageChange }: { lead: Lead; onStageChange?: (l: Lead) => void }) {
-  const qc = useQueryClient()
-  const [open, setOpen] = useState(false)
-
-  const stageMutation = useMutation({
-    mutationFn: (stage: PipelineStage) => leadsApi.moveStage(lead.id, stage),
-    onSuccess: (updated) => {
-      qc.invalidateQueries({ queryKey: ['leads'] })
-      qc.invalidateQueries({ queryKey: ['lead', lead.id] })
-      onStageChange?.(updated)
-      toast.success('Estado actualizado')
-    },
-    onError: () => toast.error('Error al cambiar estado'),
-  })
-
-  const activeStages = useActivePipelineStages()
-
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors bg-white"
-      >
-        <StatusBadge stage={lead.estado_pipeline} />
-        <ChevronDown size={13} className="text-slate-400" />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-slate-200 rounded-xl shadow-lg py-1 w-64 max-h-72 overflow-y-auto">
-            {activeStages.map((s) => (
-              <button
-                key={s.value}
-                onClick={() => {
-                  stageMutation.mutate(s.value)
-                  setOpen(false)
-                }}
-                className={cn(
-                  'w-full text-left px-4 py-2 text-sm transition-colors hover:bg-slate-50',
-                  lead.estado_pipeline === s.value && 'font-semibold'
-                )}
-              >
-                <div className="flex items-center">
-                  <span
-                    className="inline-block w-2 h-2 rounded-full mr-2 flex-shrink-0"
-                    style={{ background: s.color }}
-                  />
-                  {s.label}
-                </div>
-                {s.descripcion && (
-                  <p className="text-xs text-slate-400 font-normal mt-0.5 ml-4 leading-snug">{s.descripcion}</p>
-                )}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -385,7 +322,7 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
 
             {/* Stage selector + valor + fuente */}
             <div className="flex items-center gap-2 flex-wrap">
-              <StageSelector lead={lead} onStageChange={onStageChange} />
+              <StageSelector leadId={lead.id} estadoPipeline={lead.estado_pipeline} onStageChange={onStageChange} />
               {valor && (
                 <span className="text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2.5 py-1">
                   {valor}

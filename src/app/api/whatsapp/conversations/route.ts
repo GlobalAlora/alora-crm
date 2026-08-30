@@ -13,7 +13,7 @@ export async function GET() {
       .from('whatsapp_conversations')
       .select(`
         *,
-        lead:leads(id, nombre, apellido, email)
+        lead:leads(id, nombre, apellido, email, estado_pipeline)
       `)
       .order('last_message_at', { ascending: false })
 

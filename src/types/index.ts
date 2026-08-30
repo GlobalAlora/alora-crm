@@ -272,6 +272,7 @@ export interface WhatsAppConversation {
     nombre: string
     apellido: string | null
     email: string | null
+    estado_pipeline: PipelineStage
   } | null
 }
 
