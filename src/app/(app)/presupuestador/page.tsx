@@ -28,6 +28,14 @@ interface ReunionEncontrada {
   coincideConFechaReunion: boolean | null
 }
 
+interface RecentPropuesta {
+  id: string
+  descripcion: string
+  contenido: Draft
+  created_at: string
+  lead: LeadResult | LeadResult[] | null
+}
+
 export default function PresupuestadorPage() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<LeadResult[]>([])
@@ -45,6 +53,16 @@ export default function PresupuestadorPage() {
   const [reunion, setReunion] = useState<ReunionEncontrada | null>(null)
   const [reunionChecked, setReunionChecked] = useState(false)
   const [previewTab, setPreviewTab] = useState<'resumen' | 'detallada'>('resumen')
+  const [recientes, setRecientes] = useState<RecentPropuesta[]>([])
+  const [loadingRecientes, setLoadingRecientes] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/propuestas/recientes')
+      .then((r) => r.json())
+      .then((json) => setRecientes(json.data ?? []))
+      .catch(() => {})
+      .finally(() => setLoadingRecientes(false))
+  }, [])
 
   const logEndRef = useRef<HTMLDivElement>(null)
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [log, loading])
@@ -106,6 +124,21 @@ export default function PresupuestadorPage() {
     void sendToAgent(inicial, 'resumen', l)
   }
 
+  function handleLoadRecent(p: RecentPropuesta) {
+    const leadData = Array.isArray(p.lead) ? p.lead[0] : p.lead
+    if (!leadData) return
+    setLead(leadData)
+    setQuery('')
+    setResults([])
+    setDraft(p.contenido)
+    setLog([])
+    setMensajes([])
+    setSavedUrl(`/propuesta/${p.id}`)
+    setSavedId(p.id)
+    setReunion(null)
+    setReunionChecked(false)
+  }
+
   function handleSend() {
     if (!input.trim() || loading) return
     const text = input.trim()
@@ -143,6 +176,7 @@ export default function PresupuestadorPage() {
 
       setSavedUrl(link)
       setSavedId(propuestaId)
+      setRecientes((r) => [{ id: propuestaId, descripcion: draft.detallada.titulo, contenido: draft, created_at: new Date().toISOString(), lead }, ...r])
       toast.success('Propuesta guardada')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Error al guardar')
@@ -185,6 +219,40 @@ export default function PresupuestadorPage() {
                   {r.empresa && <p className="text-xs text-slate-500">{r.empresa}</p>}
                 </button>
               ))}
+            </div>
+          )}
+
+          {!query && (
+            <div className="mt-8">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 px-1">Propuestas recientes</p>
+              {loadingRecientes ? (
+                <p className="text-xs text-slate-400 px-1">Cargando...</p>
+              ) : recientes.length === 0 ? (
+                <p className="text-xs text-slate-400 px-1">Todavía no generaste ninguna.</p>
+              ) : (
+                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-50">
+                  {recientes.map((p) => {
+                    const l = Array.isArray(p.lead) ? p.lead[0] : p.lead
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => handleLoadRecent(p)}
+                        className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors flex items-center justify-between gap-3"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-800 truncate">{p.descripcion}</p>
+                          <p className="text-xs text-slate-500 truncate">
+                            {l ? [l.nombre, l.apellido].filter(Boolean).join(' ') : 'Lead eliminado'}
+                          </p>
+                        </div>
+                        <span className="text-xs text-slate-400 flex-shrink-0">
+                          {new Date(p.created_at).toLocaleDateString('es-AR')}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
