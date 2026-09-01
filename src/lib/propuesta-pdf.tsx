@@ -126,25 +126,49 @@ function PropuestaPdf({ titulo, cliente, bloques, inversion, mantenimiento }: Pr
   const cierreBloque = cierreIdx >= 0 ? bloques[cierreIdx] : null
 
   function renderBloque(bloque: PropuestaContenido['bloques'][number], num: number) {
-    // Bloques sin subsecciones (párrafo(s) + una lista plana de items) son
-    // cortos por naturaleza -- forzarlos como unidad atómica evita que un
-    // header quede "huérfano" con uno o dos items sueltos antes de un salto
-    // de página. Los bloques CON subsecciones (ej. alcance técnico
-    // desglosado) pueden ser largos de verdad, así que esos siguen fluyendo
-    // libremente -- forzarlos atómicos es lo que originalmente rompía la
-    // paginación (bloques enteros saltando de página con huecos enormes).
-    const compacto = !bloque.subsecciones || bloque.subsecciones.length === 0
-    return (
-      <View key={bloque.id} style={styles.block} wrap={!compacto}>
-        <SectionHeader n={num} label={bloque.titulo} />
+    // Un SectionHeader nunca puede quedar solo al final de una página (con
+    // el contenido entero empujado a la siguiente, footer pegado al header)
+    // -- eso es lo que rompía "18 INVERSIÓN" y bloques largos como Objetivo.
+    // Pero forzar el BLOQUE ENTERO como unidad atómica reproduce el bug
+    // original (huecos enormes cuando el bloque es largo). La solución: el
+    // header va pegado SOLO al primer párrafo/item/subsección -- lo mínimo
+    // para que nunca esté huérfano -- y el resto sigue fluyendo libre.
+    const parrafos = bloque.parrafos ?? []
+    const items = bloque.items ?? []
+    const subsecciones = bloque.subsecciones ?? []
 
-        {bloque.parrafos?.map((p, i) => (
+    const primerParrafo = parrafos[0]
+    const restoParrafos = parrafos.slice(1)
+
+    const pegarPrimerItem = parrafos.length === 0 && items.length > 0
+    const primerItem = pegarPrimerItem ? items[0] : null
+    const restoItems = pegarPrimerItem ? items.slice(1) : items
+
+    const pegarPrimeraSub = parrafos.length === 0 && items.length === 0 && subsecciones.length > 0
+    const primeraSub = pegarPrimeraSub ? subsecciones[0] : null
+    const restoSubs = pegarPrimeraSub ? subsecciones.slice(1) : subsecciones
+
+    return (
+      <View key={bloque.id} style={styles.block}>
+        <View wrap={false}>
+          <SectionHeader n={num} label={bloque.titulo} />
+          {primerParrafo && <BoldText text={primerParrafo} style={styles.parrafo} boldColor={BRAND.ink} />}
+          {primerItem && <BulletRow text={primerItem} />}
+          {primeraSub && (
+            <View style={styles.subCard}>
+              <Text style={styles.subTitle}>{primeraSub.titulo}</Text>
+              {primeraSub.items.map((item, j) => <BulletRow key={j} text={item} muted />)}
+            </View>
+          )}
+        </View>
+
+        {restoParrafos.map((p, i) => (
           <BoldText key={i} text={p} style={styles.parrafo} boldColor={BRAND.ink} />
         ))}
 
-        {bloque.items?.map((item, i) => <BulletRow key={i} text={item} />)}
+        {restoItems.map((item, i) => <BulletRow key={i} text={item} />)}
 
-        {bloque.subsecciones?.map((sub, i) => (
+        {restoSubs.map((sub, i) => (
           <View key={i} style={styles.subCard} wrap={false}>
             <Text style={styles.subTitle}>{sub.titulo}</Text>
             {sub.items.map((item, j) => <BulletRow key={j} text={item} muted />)}
@@ -175,9 +199,9 @@ function PropuestaPdf({ titulo, cliente, bloques, inversion, mantenimiento }: Pr
 
           {mainBloques.map((bloque) => renderBloque(bloque, ++n))}
 
-          <View style={styles.block}>
+          <View style={styles.block} wrap={false}>
             <SectionHeader n={++n} label="Inversión" />
-            <View style={styles.invCard} wrap={false}>
+            <View style={styles.invCard}>
               <Text style={styles.invPaquete}>{inversion.paquete}</Text>
               <Text style={styles.invMonto}>{formatMonto(inversion.monto, inversion.moneda)}</Text>
               <Text style={styles.invFormaPago}>{inversion.forma_pago}</Text>
@@ -185,9 +209,9 @@ function PropuestaPdf({ titulo, cliente, bloques, inversion, mantenimiento }: Pr
           </View>
 
           {mantenimiento && (
-            <View style={styles.block}>
+            <View style={styles.block} wrap={false}>
               <SectionHeader n={++n} label="Mantenimiento (opcional)" />
-              <View style={styles.mantCard} wrap={false}>
+              <View style={styles.mantCard}>
                 <Text style={styles.mantMonto}>{formatMonto(mantenimiento.monto_mensual, mantenimiento.moneda)} <Text style={{ fontSize: 10, fontFamily: 'Helvetica', color: BRAND.textMuted }}>/ mes</Text></Text>
                 {mantenimiento.incluye.map((item, i) => <BulletRow key={i} text={item} />)}
               </View>

@@ -57,7 +57,16 @@ function loadWorkspace(): Partial<PersistedWorkspace> {
   if (typeof window === 'undefined') return {}
   try {
     const raw = sessionStorage.getItem(WORKSPACE_KEY)
-    return raw ? JSON.parse(raw) : {}
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as Partial<PersistedWorkspace>
+    // Restos de una versión anterior que sí persistía propuestas ya
+    // guardadas -- no restaurarlos, o el Presupuestador queda pegado a un
+    // lead viejo para siempre en vez de abrir en la pantalla de búsqueda.
+    if (parsed.savedId) {
+      sessionStorage.removeItem(WORKSPACE_KEY)
+      return {}
+    }
+    return parsed
   } catch {
     return {}
   }
@@ -89,7 +98,11 @@ export default function PresupuestadorPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
-      if (!lead) {
+      // Una vez guardada (savedId), la propuesta ya está a salvo en "Propuestas
+      // recientes" -- no tiene sentido seguir clavando al Presupuestador en
+      // ese lead para siempre. Solo persiste mientras hay trabajo SIN guardar
+      // que se perdería al navegar a otra pantalla.
+      if (!lead || savedId) {
         sessionStorage.removeItem(WORKSPACE_KEY)
         return
       }
