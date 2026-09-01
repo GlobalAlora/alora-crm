@@ -154,6 +154,18 @@ interface ChatMessage {
   content: string
 }
 
+interface ReunionArchivo {
+  nombre: string
+  fecha: string | null
+  url: string
+  tipo: 'notas' | 'transcripcion'
+}
+
+interface ReunionEncontrada {
+  archivos: ReunionArchivo[]
+  coincideConFechaReunion: boolean | null
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -172,7 +184,7 @@ export async function POST(req: NextRequest) {
 
   const { data: lead } = await supabase
     .from('leads')
-    .select('nombre, apellido, empresa, pais, sitio_web, servicios_interesados, consulta_detallada')
+    .select('nombre, apellido, empresa, pais, sitio_web, servicios_interesados, consulta_detallada, fecha_reunion')
     .eq('id', leadId)
     .is('deleted_at', null)
     .single()
@@ -201,16 +213,38 @@ export async function POST(req: NextRequest) {
 
   // Notas y transcripción de Google Meet (carpeta "Meet Recordings", si está
   // compartida con la cuenta de servicio) — mejor esfuerzo, nunca bloquea la
-  // generación si Drive falla o no encuentra nada.
+  // generación si Drive falla o no encuentra nada. El matching es por nombre
+  // de archivo (no 100% confiable), así que devolvemos qué archivos se
+  // usaron + su fecha para que el equipo pueda confirmar que es la reunión
+  // correcta antes de confiar en el contenido generado.
   let meetNotes = ''
+  let reunionEncontrada: ReunionEncontrada | null = null
   try {
     const searchTerms = [lead.nombre, lead.empresa].filter((t): t is string => !!t)
     const found = await findMeetNotesForLead(searchTerms)
     if (found) {
       const parts: string[] = []
-      for (const doc of found.notas) parts.push(`[Notas de la reunión — ${doc.name}]\n${doc.text}`)
-      for (const doc of found.transcripciones) parts.push(`[Transcripción de la reunión — ${doc.name}]\n${doc.text}`)
+      const archivos: ReunionArchivo[] = []
+      for (const doc of found.notas) {
+        parts.push(`[Notas de la reunión — ${doc.name} — ${doc.fecha ?? 'fecha desconocida'}]\n${doc.text}`)
+        archivos.push({ nombre: doc.name, fecha: doc.fecha, url: doc.url, tipo: 'notas' })
+      }
+      for (const doc of found.transcripciones) {
+        parts.push(`[Transcripción de la reunión — ${doc.name} — ${doc.fecha ?? 'fecha desconocida'}]\n${doc.text}`)
+        archivos.push({ nombre: doc.name, fecha: doc.fecha, url: doc.url, tipo: 'transcripcion' })
+      }
       meetNotes = parts.join('\n\n')
+
+      let coincideConFechaReunion: boolean | null = null
+      if (lead.fecha_reunion) {
+        const fechaReunionMs = new Date(lead.fecha_reunion).getTime()
+        coincideConFechaReunion = archivos.some(a => {
+          if (!a.fecha) return false
+          const diffDias = Math.abs(new Date(a.fecha).getTime() - fechaReunionMs) / 86_400_000
+          return diffDias <= 2
+        })
+      }
+      reunionEncontrada = { archivos, coincideConFechaReunion }
     }
   } catch (err) {
     console.error('[Propuestas Agente] Drive lookup failed:', err)
@@ -248,7 +282,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Sin respuesta de IA' }, { status: 500 })
     }
 
-    return NextResponse.json({ data: toolUse.input })
+    return NextResponse.json({ data: toolUse.input, reunion_encontrada: reunionEncontrada })
   } catch (err) {
     console.error('[Propuestas Agente] Error:', err)
     return NextResponse.json({ error: 'Error generando la propuesta' }, { status: 500 })

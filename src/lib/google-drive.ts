@@ -138,6 +138,7 @@ export interface MeetDoc {
   name: string
   url: string
   text: string
+  fecha: string | null
 }
 
 export interface MeetNotesResult {
@@ -175,7 +176,7 @@ export async function findMeetNotesForLead(searchTerms: string[]): Promise<MeetN
   const nameQuery = terms.map(t => `name contains '${t.replace(/'/g, "\\'")}'`).join(' or ')
   const { data } = await drive.files.list({
     q: `'${folderId}' in parents and trashed = false and (${nameQuery})`,
-    fields: 'files(id, name, mimeType, webViewLink)',
+    fields: 'files(id, name, mimeType, webViewLink, createdTime)',
     spaces: 'drive',
     orderBy: 'createdTime desc',
     pageSize: 10,
@@ -198,6 +199,7 @@ export async function findMeetNotesForLead(searchTerms: string[]): Promise<MeetN
         name: file.name ?? 'Documento',
         url: file.webViewLink ?? `https://drive.google.com/file/d/${file.id}/view`,
         text: String(exported).slice(0, 20_000),
+        fecha: file.createdTime ?? null,
       }
       if (TRANSCRIPT_RE.test(file.name ?? '')) transcripciones.push(doc)
       else if (NOTAS_RE.test(file.name ?? '')) notas.push(doc)

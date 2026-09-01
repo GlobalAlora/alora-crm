@@ -22,6 +22,11 @@ interface ChatMessage {
 
 type Draft = PropuestaContenido
 
+interface ReunionEncontrada {
+  archivos: { nombre: string; fecha: string | null; url: string; tipo: 'notas' | 'transcripcion' }[]
+  coincideConFechaReunion: boolean | null
+}
+
 export default function PresupuestadorPage() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<LeadResult[]>([])
@@ -36,6 +41,8 @@ export default function PresupuestadorPage() {
   const [savedUrl, setSavedUrl] = useState<string | null>(null)
   const [savedId, setSavedId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [reunion, setReunion] = useState<ReunionEncontrada | null>(null)
+  const [reunionChecked, setReunionChecked] = useState(false)
 
   const logEndRef = useRef<HTMLDivElement>(null)
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [log, loading])
@@ -70,6 +77,8 @@ export default function PresupuestadorPage() {
       if (!res.ok) throw new Error(json.error || 'Error')
       const { mensaje_agente, propuesta } = json.data as { mensaje_agente: string; propuesta: Draft }
       setDraft(propuesta)
+      setReunion(json.reunion_encontrada ?? null)
+      setReunionChecked(true)
       setLog((l) => [...l, { role: 'assistant', text: mensaje_agente }])
       setMensajes([...newMensajes, { role: 'assistant', content: mensaje_agente }])
     } catch (e) {
@@ -86,6 +95,9 @@ export default function PresupuestadorPage() {
     setDraft(null)
     setLog([])
     setSavedUrl(null)
+    setSavedId(null)
+    setReunion(null)
+    setReunionChecked(false)
     const inicial: ChatMessage[] = [{ role: 'user', content: 'Generá una propuesta inicial para este lead, con la información que tenés.' }]
     setMensajes(inicial)
     void sendToAgent(inicial)
@@ -186,6 +198,36 @@ export default function PresupuestadorPage() {
                 Cambiar lead
               </button>
             </div>
+
+            {reunionChecked && (
+              <div className={cn(
+                'mx-4 mt-3 px-3 py-2 rounded-lg text-xs',
+                !reunion ? 'bg-slate-50 text-slate-500' :
+                reunion.coincideConFechaReunion === false ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
+              )}>
+                {!reunion ? (
+                  'No encontramos notas ni transcripción de reunión para este lead en Drive.'
+                ) : (
+                  <>
+                    <p className="font-medium">
+                      {reunion.coincideConFechaReunion === false && '⚠️ '}
+                      Reunión usada como contexto:
+                    </p>
+                    <ul className="mt-1 space-y-0.5">
+                      {reunion.archivos.map((a, i) => (
+                        <li key={i}>
+                          <a href={a.url} target="_blank" rel="noreferrer" className="underline">{a.nombre}</a>
+                          {a.fecha && ` — ${new Date(a.fecha).toLocaleDateString('es-AR')}`}
+                        </li>
+                      ))}
+                    </ul>
+                    {reunion.coincideConFechaReunion === false && (
+                      <p className="mt-1">La fecha no coincide con la reunión registrada en la ficha — confirmá que es el lead correcto.</p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
               {log.map((m, i) => (
