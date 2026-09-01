@@ -216,7 +216,7 @@ export async function POST(req: NextRequest) {
 
   const { data: lead } = await supabase
     .from('leads')
-    .select('nombre, apellido, empresa, pais, sitio_web, servicios_interesados, consulta_detallada, fecha_reunion')
+    .select('nombre, apellido, empresa, pais, sitio_web, servicios_interesados, consulta_detallada, fecha_reunion, notas, presupuesto_estimado, fuente, idioma')
     .eq('id', leadId)
     .is('deleted_at', null)
     .single()
@@ -231,13 +231,15 @@ export async function POST(req: NextRequest) {
 
   let transcript = ''
   if (convo?.id) {
+    // Sin límite artificial de mensajes -- 300 cubre de sobra hasta una
+    // conversación de venta larga, es solo un techo de seguridad.
     const { data: waMessages } = await supabase
       .from('wa_messages')
       .select('direction, body')
       .eq('conversation_id', convo.id)
       .not('body', 'is', null)
       .order('created_at', { ascending: true })
-      .limit(40)
+      .limit(300)
     transcript = (waMessages ?? [])
       .map(m => `${m.direction === 'inbound' ? 'Lead' : 'Alora'}: ${m.body}`)
       .join('\n')
@@ -290,8 +292,12 @@ export async function POST(req: NextRequest) {
   if (lead.sitio_web) contextParts.push(`Sitio web actual: ${lead.sitio_web}`)
   if (lead.servicios_interesados?.length) contextParts.push(`Servicios de interés: ${lead.servicios_interesados.join(', ')}`)
   if (lead.consulta_detallada) contextParts.push(`Proyecto (según la ficha): ${lead.consulta_detallada}`)
+  if (lead.presupuesto_estimado) contextParts.push(`Presupuesto que mencionó el lead: ${lead.presupuesto_estimado}`)
+  if (lead.fuente) contextParts.push(`Fuente del lead: ${lead.fuente}`)
+  if (lead.idioma) contextParts.push(`Idioma del lead: ${lead.idioma} — escribí la propuesta en este idioma si no es español.`)
 
   const contextBlock = `INFO DEL LEAD:\n${contextParts.join('\n')}`
+    + (lead.notas ? `\n\nNOTAS DE LA FICHA (pueden ser notas internas del equipo o la transcripción del bot de captación — usá criterio):\n${lead.notas}` : '')
     + (transcript ? `\n\nCONVERSACIÓN DE WHATSAPP:\n${transcript}` : '')
     + (meetNotes ? `\n\nNOTAS Y TRANSCRIPCIÓN DE LA REUNIÓN (Google Meet):\n${meetNotes}` : '')
 
