@@ -48,6 +48,50 @@ export function PropuestaDocument({ contenido, propuestaId }: PropuestaDocumentP
   const { titulo, cliente, bloques, inversion, mantenimiento } = contenido
   let n = 0
 
+  // El cierre va al final de todo el documento (después de inversión y
+  // mantenimiento) aunque el agente lo devuelva como un bloque más — un
+  // cierre cálido después del precio es mejor que uno en el medio.
+  const cierreIdx = bloques.findIndex((b) => b.id === 'cierre')
+  const mainBloques = cierreIdx >= 0 ? bloques.filter((_, i) => i !== cierreIdx) : bloques
+  const cierreBloque = cierreIdx >= 0 ? bloques[cierreIdx] : null
+
+  function renderBloque(bloque: PropuestaContenido['bloques'][number], num: number) {
+    return (
+      <div key={bloque.id} className="mb-9">
+        <SectionHeader n={num} label={bloque.titulo} />
+
+        {bloque.parrafos?.map((p, i) => (
+          <p key={i} style={{ fontSize: 14, lineHeight: 1.75, color: '#2A2E34', marginBottom: 14 }}>{renderBoldText(p)}</p>
+        ))}
+
+        {bloque.items && bloque.items.length > 0 && (
+          <div className="grid gap-2.5 mt-2">
+            {bloque.items.map((item, i) => (
+              <div key={i} className="keep flex items-start gap-2.5 rounded-xl px-4 py-3" style={{ background: BRAND.surface, border: `1px solid ${BRAND.border}` }}>
+                <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND.turquesa }} />
+                <span style={{ fontSize: 13, lineHeight: 1.6, color: '#2A2E34' }}>{renderBoldText(item)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {bloque.subsecciones?.map((sub, i) => (
+          <div key={i} className={`keep rounded-2xl p-6 bg-white ${i > 0 ? 'mt-3' : 'mt-2'}`} style={{ border: `1px solid ${BRAND.border}` }}>
+            <p className="font-bold mb-3" style={{ fontSize: 14, color: BRAND.ink, letterSpacing: '-0.01em' }}>{sub.titulo}</p>
+            <div className="grid gap-2">
+              {sub.items.map((item, j) => (
+                <div key={j} className="flex items-start gap-2.5">
+                  <span className="mt-1.5 w-1 h-1 rounded-full flex-shrink-0" style={{ background: BRAND.electric }} />
+                  <span style={{ fontSize: 12.5, lineHeight: 1.6, color: BRAND.textMuted }}>{renderBoldText(item)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className={inter.className} style={{ background: '#ffffff' }}>
       {propuestaId && (
@@ -95,44 +139,8 @@ export function PropuestaDocument({ contenido, propuestaId }: PropuestaDocumentP
           )}
         </div>
 
-        {/* Bloques */}
-        {bloques.map((bloque) => {
-          n++
-          return (
-            <div key={bloque.id} className="mb-9">
-              <SectionHeader n={n} label={bloque.titulo} />
-
-              {bloque.parrafos?.map((p, i) => (
-                <p key={i} style={{ fontSize: 14, lineHeight: 1.75, color: '#2A2E34', marginBottom: 14 }}>{renderBoldText(p)}</p>
-              ))}
-
-              {bloque.items && bloque.items.length > 0 && (
-                <div className="grid gap-2.5 mt-2">
-                  {bloque.items.map((item, i) => (
-                    <div key={i} className="keep flex items-start gap-2.5 rounded-xl px-4 py-3" style={{ background: BRAND.surface, border: `1px solid ${BRAND.border}` }}>
-                      <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND.turquesa }} />
-                      <span style={{ fontSize: 13, lineHeight: 1.6, color: '#2A2E34' }}>{renderBoldText(item)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {bloque.subsecciones?.map((sub, i) => (
-                <div key={i} className={`keep rounded-2xl p-6 bg-white ${i > 0 ? 'mt-3' : 'mt-2'}`} style={{ border: `1px solid ${BRAND.border}` }}>
-                  <p className="font-bold mb-3" style={{ fontSize: 14, color: BRAND.ink, letterSpacing: '-0.01em' }}>{sub.titulo}</p>
-                  <div className="grid gap-2">
-                    {sub.items.map((item, j) => (
-                      <div key={j} className="flex items-start gap-2.5">
-                        <span className="mt-1.5 w-1 h-1 rounded-full flex-shrink-0" style={{ background: BRAND.electric }} />
-                        <span style={{ fontSize: 12.5, lineHeight: 1.6, color: BRAND.textMuted }}>{renderBoldText(item)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
-        })}
+        {/* Bloques (excepto cierre, que va al final) */}
+        {mainBloques.map((bloque) => renderBloque(bloque, ++n))}
 
         {/* Inversión */}
         <div className="mb-9">
@@ -171,6 +179,9 @@ export function PropuestaDocument({ contenido, propuestaId }: PropuestaDocumentP
             </div>
           </div>
         )}
+
+        {/* Cierre (siempre al final) */}
+        {cierreBloque && renderBloque(cierreBloque, ++n)}
 
         {/* Footer */}
         <div

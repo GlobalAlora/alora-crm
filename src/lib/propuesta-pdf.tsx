@@ -118,6 +118,42 @@ function Footer() {
 
 function PropuestaPdf({ titulo, cliente, bloques, inversion, mantenimiento }: PropuestaContenido) {
   let n = 0
+
+  // Mismo criterio que el render web: el cierre va al final del documento,
+  // después de inversión y mantenimiento, no en el medio.
+  const cierreIdx = bloques.findIndex((b) => b.id === 'cierre')
+  const mainBloques = cierreIdx >= 0 ? bloques.filter((_, i) => i !== cierreIdx) : bloques
+  const cierreBloque = cierreIdx >= 0 ? bloques[cierreIdx] : null
+
+  function renderBloque(bloque: PropuestaContenido['bloques'][number], num: number) {
+    // Bloques sin subsecciones (párrafo(s) + una lista plana de items) son
+    // cortos por naturaleza -- forzarlos como unidad atómica evita que un
+    // header quede "huérfano" con uno o dos items sueltos antes de un salto
+    // de página. Los bloques CON subsecciones (ej. alcance técnico
+    // desglosado) pueden ser largos de verdad, así que esos siguen fluyendo
+    // libremente -- forzarlos atómicos es lo que originalmente rompía la
+    // paginación (bloques enteros saltando de página con huecos enormes).
+    const compacto = !bloque.subsecciones || bloque.subsecciones.length === 0
+    return (
+      <View key={bloque.id} style={styles.block} wrap={!compacto}>
+        <SectionHeader n={num} label={bloque.titulo} />
+
+        {bloque.parrafos?.map((p, i) => (
+          <BoldText key={i} text={p} style={styles.parrafo} boldColor={BRAND.ink} />
+        ))}
+
+        {bloque.items?.map((item, i) => <BulletRow key={i} text={item} />)}
+
+        {bloque.subsecciones?.map((sub, i) => (
+          <View key={i} style={styles.subCard} wrap={false}>
+            <Text style={styles.subTitle}>{sub.titulo}</Text>
+            {sub.items.map((item, j) => <BulletRow key={j} text={item} muted />)}
+          </View>
+        ))}
+      </View>
+    )
+  }
+
   return (
     <Document>
       <Page size="A4" style={styles.page} wrap>
@@ -137,27 +173,7 @@ function PropuestaPdf({ titulo, cliente, bloques, inversion, mantenimiento }: Pr
             )}
           </View>
 
-          {bloques.map((bloque) => {
-            n++
-            return (
-              <View key={bloque.id} style={styles.block}>
-                <SectionHeader n={n} label={bloque.titulo} />
-
-                {bloque.parrafos?.map((p, i) => (
-                  <BoldText key={i} text={p} style={styles.parrafo} boldColor={BRAND.ink} />
-                ))}
-
-                {bloque.items?.map((item, i) => <BulletRow key={i} text={item} />)}
-
-                {bloque.subsecciones?.map((sub, i) => (
-                  <View key={i} style={styles.subCard} wrap={false}>
-                    <Text style={styles.subTitle}>{sub.titulo}</Text>
-                    {sub.items.map((item, j) => <BulletRow key={j} text={item} muted />)}
-                  </View>
-                ))}
-              </View>
-            )
-          })}
+          {mainBloques.map((bloque) => renderBloque(bloque, ++n))}
 
           <View style={styles.block}>
             <SectionHeader n={++n} label="Inversión" />
@@ -177,6 +193,8 @@ function PropuestaPdf({ titulo, cliente, bloques, inversion, mantenimiento }: Pr
               </View>
             </View>
           )}
+
+          {cierreBloque && renderBloque(cierreBloque, ++n)}
         </View>
 
         <Footer />

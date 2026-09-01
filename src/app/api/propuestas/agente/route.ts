@@ -32,7 +32,7 @@ const PROPOSAL_TOOL: Anthropic.Tool = {
               properties: {
                 id: { type: 'string', description: 'Identificador del bloque, ej. "contexto", "objetivo", "alcance_tecnico", "no_incluye", "modalidad_trabajo", "tiempos", "impacto_esperado", "cierre", etc.' },
                 titulo: { type: 'string', description: 'Título visible del bloque, ej. "Contexto del proyecto", "Qué NO incluye".' },
-                parrafos: { type: 'array', items: { type: 'string' }, description: 'Párrafos de texto corrido, para bloques narrativos (contexto, cierre, impacto esperado, etc.).' },
+                parrafos: { type: 'array', items: { type: 'string' }, description: 'Párrafos de texto corrido. TODO bloque lleva al menos uno, incluso los tipo checklist (objetivo, incluye, no_incluye, QA, etc.) -- ahí es 1-2 frases cortas de introducción antes de la lista, nunca la lista arrancando en seco. En bloques narrativos (contexto, cierre, impacto esperado) es el contenido principal.' },
                 items: { type: 'array', items: { type: 'string' }, description: 'Lista plana de puntos, para bloques tipo checklist (objetivo, incluye, no incluye, consideraciones, etc.).' },
                 subsecciones: {
                   type: 'array',
@@ -98,7 +98,7 @@ const RESUMEN_EJECUTIVO_TOOL: Anthropic.Tool = {
           forma_pago: { type: 'string' },
         },
       },
-      tiempos: { type: 'string', description: 'Duración estimada en una frase corta.' },
+      tiempos: { type: 'string', description: 'Duración estimada en una frase corta, en días corridos (ej. "45 a 60 días"), nunca en semanas.' },
     },
   },
 }
@@ -157,7 +157,7 @@ Un proyecto chico (ej. solo branding) puede terminar usando 8-10 bloques. Uno gr
 - **Costos externos**: dominio, hosting, y cualquier API/licencia/servicio de terceros — siempre aclarando que no son honorarios de Alora.
 - **QA**: qué se valida (adaptado a los módulos del proyecto) — navegación, funcionalidad específica, formularios, responsive, dispositivos, navegadores, performance, seguridad básica, metadatos, indexabilidad.
 - **Modalidad de trabajo**: cadena de fases en una línea (Relevamiento → Branding → Arquitectura → UX → UI → Validación → Desarrollo → Integraciones → QA → Producción) — sacá las fases que no apliquen (ej. Branding si el cliente ya tiene marca).
-- **Tiempos**: duración estimada + qué dispara el inicio del plazo (aceptación, pago inicial, entrega de información, definición de marca si aplica) + demoras del cliente mueven el cronograma.
+- **Tiempos**: duración estimada SIEMPRE en días corridos (ej. "45 a 60 días"), nunca en semanas + qué dispara el inicio del plazo (aceptación, pago inicial, entrega de información, definición de marca si aplica) + demoras del cliente mueven el cronograma.
 - **Impacto esperado**: vuelve al contexto y cierra en términos de NEGOCIO, no de funcionalidades — reconectar con la situación inicial + lista de resultados (no de features). Es lo último antes del precio.
 - **Cierre**: tono cálido, sin presión artificial, disposición a resolver dudas, agradecimiento.
 
@@ -177,6 +177,8 @@ Un proyecto chico (ej. solo branding) puede terminar usando 8-10 bloques. Uno gr
 - Cada vez que te pidan un cambio (precio, sacar/agregar algo, tono, idioma), actualizá la propuesta completa reflejando el pedido — no repitas la anterior sin cambios.
 - En los párrafos e items (parrafos, items, subsecciones.items, hallazgos, incluye, no_incluye, propuesta), marcá con **negrita** (doble asterisco) la o las 1-2 frases más importantes de cada párrafo o punto — un dato clave, un número, una palabra que resume la idea. No abuses: si todo está en negrita, no resalta nada.
 - El contenido de los bloques está dirigido al CLIENTE final — profesional, claro, sin jerga técnica innecesaria salvo en tecnologia_stack.
+- TODO bloque arranca con al menos un párrafo (ver descripción de \`parrafos\` arriba) — ningún bloque va directo a una lista de items o subsecciones sin una frase de introducción antes.
+- Usá el nombre de pila del contacto solo en el bloque \`cierre\` (ahí sí, tono personal y cálido). En el resto del documento referite al cliente por el nombre de la empresa, o como "el cliente"/"el negocio" — un documento que repite el nombre de pila en cada sección se siente informal y raro.
 - Nunca reveles CON QUÉ construye Alora (su propio stack interno, ni qué tecnología de IA usa Alora para sus propias herramientas). Esto NO aplica a la tecnología que le vas a recomendar al cliente PARA SU proyecto — esa se nombra siempre, explícitamente, con criterio real (ver tecnologia_stack).
 - Prueba de especificidad, aplicá a TODO el documento, no solo a objetivo: si una frase o bullet podría pegarse sin cambios en la propuesta de otro cliente distinto, está mal escrita — hacela específica a lo que dice el contexto de ESTE proyecto (su rubro, sus productos/servicios reales, lo que pidió puntualmente).
 - Sé conciso dentro de cada bloque (párrafos cortos, bullets directos) — profesional y completo, no relleno. Hay un límite de longitud en la respuesta; priorizá cubrir bien los bloques que aplican antes que escribir de más en pocos.`
