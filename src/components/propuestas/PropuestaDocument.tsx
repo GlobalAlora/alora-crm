@@ -8,7 +8,7 @@ interface PropuestaDocumentProps {
   monto: number | null
   leadNombre?: string
   leadEmpresa?: string | null
-  showDownload?: boolean
+  propuestaId?: string
 }
 
 const BRAND = '#1B4040'
@@ -21,21 +21,22 @@ function formatMonto(monto: number | null, moneda: 'USD' | 'ARS') {
   return `${moneda} ${formatted}`
 }
 
-export function PropuestaDocument({ contenido, moneda, monto, leadNombre, leadEmpresa, showDownload }: PropuestaDocumentProps) {
+export function PropuestaDocument({ contenido, moneda, monto, leadNombre, leadEmpresa, propuestaId }: PropuestaDocumentProps) {
   return (
     <div
       className="propuesta-doc mx-auto max-w-2xl print:max-w-none"
       style={{ background: BRAND_BG }}
     >
-      {showDownload && (
+      {propuestaId && (
         <div className="print:hidden flex justify-end p-4">
-          <button
-            onClick={() => window.print()}
+          <a
+            href={`/api/propuesta/${propuestaId}/pdf`}
+            download
             className="px-4 py-2 text-sm font-medium rounded-lg text-white hover:opacity-90 transition-opacity"
             style={{ background: BRAND }}
           >
             Descargar PDF
-          </button>
+          </a>
         </div>
       )}
 

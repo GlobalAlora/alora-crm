@@ -56,7 +56,7 @@ export default function PropuestaPublicaPage() {
         monto={monto}
         leadNombre={lead ? [lead.nombre, lead.apellido].filter(Boolean).join(' ') : undefined}
         leadEmpresa={lead?.empresa}
-        showDownload
+        propuestaId={data.id}
       />
     </div>
   )

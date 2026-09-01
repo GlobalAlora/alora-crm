@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Search, Send, Loader2, Copy, ExternalLink, Sparkles } from 'lucide-react'
+import { Search, Send, Loader2, Copy, ExternalLink, Sparkles, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PropuestaDocument } from '@/components/propuestas/PropuestaDocument'
 import type { PropuestaContenido } from '@/types'
@@ -43,6 +43,7 @@ export default function PresupuestadorPage() {
   const [loading, setLoading] = useState(false)
   const [input, setInput] = useState('')
   const [savedUrl, setSavedUrl] = useState<string | null>(null)
+  const [savedId, setSavedId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   const logEndRef = useRef<HTMLDivElement>(null)
@@ -142,6 +143,7 @@ export default function PresupuestadorPage() {
       })
 
       setSavedUrl(link)
+      setSavedId(propuestaId)
       toast.success('Propuesta guardada')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Error al guardar')
@@ -255,6 +257,15 @@ export default function PresupuestadorPage() {
                     >
                       <ExternalLink size={12} /> Abrir
                     </a>
+                    {savedId && (
+                      <a
+                        href={`/api/propuesta/${savedId}/pdf`}
+                        download
+                        className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700"
+                      >
+                        <Download size={12} /> PDF
+                      </a>
+                    )}
                   </div>
                 ) : (
                   <button
