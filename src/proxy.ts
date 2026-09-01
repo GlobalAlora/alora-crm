@@ -67,6 +67,7 @@ export async function proxy(req: NextRequest) {
     path.startsWith('/api/') ||
     path.startsWith('/embed/') ||
     path.startsWith('/ticket-portal') ||
+    path.startsWith('/propuesta/') ||
     path.endsWith('.html') ||
     path.endsWith('.js') ||
     path.endsWith('.css')

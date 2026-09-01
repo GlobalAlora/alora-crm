@@ -21,12 +21,12 @@ function formatMonto(monto: number, moneda: 'USD' | 'ARS') {
 
 function SectionHeader({ n, label }: { n: number; label: string }) {
   return (
-    <div className="flex items-center gap-3 mb-3">
-      <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', color: BRAND.textMuted }}>
+    <div className="flex items-center gap-3 mb-4">
+      <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', color: BRAND.turquesa }}>
         {String(n).padStart(2, '0')}
       </span>
-      <span className="w-[26px] h-px" style={{ background: BRAND.border }} />
-      <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: BRAND.textMuted }}>
+      <span className="w-[26px] h-px flex-shrink-0" style={{ background: BRAND.border }} />
+      <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: BRAND.ink }}>
         {label}
       </span>
     </div>
@@ -34,6 +34,17 @@ function SectionHeader({ n, label }: { n: number; label: string }) {
 }
 
 export function PropuestaDocument({ contenido, propuestaId }: PropuestaDocumentProps) {
+  // Defensa contra propuestas guardadas en un formato anterior (antes del
+  // split detallada/resumen) -- mejor un mensaje claro que un crash de
+  // toda la pantalla por un .map() sobre algo que no existe en esa forma.
+  if (!contenido || !Array.isArray(contenido.bloques) || !contenido.inversion) {
+    return (
+      <div className={`${inter.className} flex items-center justify-center py-20 text-sm text-slate-400`}>
+        Esta propuesta se guardó en un formato anterior y no se puede previsualizar acá.
+      </div>
+    )
+  }
+
   const { titulo, cliente, bloques, inversion, mantenimiento } = contenido
   let n = 0
 

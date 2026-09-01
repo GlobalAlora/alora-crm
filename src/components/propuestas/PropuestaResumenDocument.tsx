@@ -21,13 +21,23 @@ function formatMonto(monto: number, moneda: 'USD' | 'ARS') {
 
 function Label({ children }: { children: string }) {
   return (
-    <p style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: BRAND.textMuted, marginBottom: 10 }}>
+    <p style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: BRAND.ink, marginBottom: 10 }}>
       {children}
     </p>
   )
 }
 
 export function PropuestaResumenDocument({ contenido, propuestaId }: Props) {
+  // Defensa contra propuestas guardadas en un formato anterior -- mejor un
+  // mensaje claro que un crash de toda la pantalla.
+  if (!contenido || !Array.isArray(contenido.hallazgos) || !Array.isArray(contenido.incluye) || !contenido.inversion) {
+    return (
+      <div className={`${inter.className} flex items-center justify-center py-20 text-sm text-slate-400`}>
+        Este resumen se guardó en un formato anterior y no se puede previsualizar acá.
+      </div>
+    )
+  }
+
   const { titulo, cliente, hallazgos, propuesta, incluye, no_incluye, inversion, tiempos } = contenido
 
   return (

@@ -37,9 +37,9 @@ const styles = StyleSheet.create({
   coverSubtitlePlain: { color: 'rgba(255,255,255,0.7)', fontSize: 10.5, marginTop: 4 },
 
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, marginTop: 4 },
-  sectionN: { fontSize: 8.5, color: BRAND.textMuted, marginRight: 8 },
+  sectionN: { fontSize: 9.5, color: BRAND.turquesa, marginRight: 8, fontFamily: 'Helvetica-Bold' },
   sectionLine: { width: 20, height: 1, backgroundColor: BRAND.border, marginRight: 8 },
-  sectionLabel: { fontSize: 8.5, letterSpacing: 1.2, textTransform: 'uppercase', color: BRAND.textMuted, fontFamily: 'Helvetica-Bold' },
+  sectionLabel: { fontSize: 9.5, letterSpacing: 1.2, textTransform: 'uppercase', color: BRAND.ink, fontFamily: 'Helvetica-Bold' },
 
   block: { marginBottom: 20 },
   parrafo: { lineHeight: 1.65, marginBottom: 8, fontSize: 10 },
@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
   footerWordmark: { fontSize: 7.5, letterSpacing: 1.5, fontFamily: 'Helvetica-Bold', color: BRAND.ink },
   footerText: { fontSize: 7, color: BRAND.textMuted },
 
-  label: { fontSize: 8.5, letterSpacing: 1.2, textTransform: 'uppercase', color: BRAND.textMuted, marginBottom: 9, fontFamily: 'Helvetica-Bold' },
+  label: { fontSize: 9.5, letterSpacing: 1.2, textTransform: 'uppercase', color: BRAND.ink, marginBottom: 9, fontFamily: 'Helvetica-Bold' },
   twoCol: { flexDirection: 'row', gap: 20 },
   col: { flex: 1 },
   resumenInvCard: { backgroundColor: BRAND.ink, borderRadius: 14, padding: 20, flexDirection: 'row', gap: 24 },
