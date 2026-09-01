@@ -61,6 +61,15 @@ export type PropuestaEstado = 'pendiente' | 'aceptada' | 'rechazada'
 
 export type TipoPago = 'unica_vez' | 'mensual'
 
+export interface PropuestaContenido {
+  titulo: string
+  resumen: string
+  alcance: string[]
+  entregables: string[]
+  cronograma: string
+  notas: string
+}
+
 export interface Propuesta {
   id: string
   lead_id: string
@@ -71,6 +80,7 @@ export interface Propuesta {
   tipo_pago: TipoPago
   estado: PropuestaEstado
   link: string | null
+  contenido: PropuestaContenido | null
   created_at: string
   updated_at: string
 }
