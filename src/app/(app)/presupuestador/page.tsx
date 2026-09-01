@@ -64,19 +64,19 @@ export default function PresupuestadorPage() {
     return () => clearTimeout(t)
   }, [query])
 
-  async function sendToAgent(newMensajes: ChatMessage[]) {
+  async function sendToAgent(newMensajes: ChatMessage[], modo: 'resumen' | 'propuesta') {
     if (!lead) return
     setLoading(true)
     try {
       const res = await fetch('/api/propuestas/agente', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId: lead.id, mensajes: newMensajes }),
+        body: JSON.stringify({ leadId: lead.id, mensajes: newMensajes, modo }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Error')
-      const { mensaje_agente, propuesta } = json.data as { mensaje_agente: string; propuesta: Draft }
-      setDraft(propuesta)
+      const { mensaje_agente, propuesta } = json.data as { mensaje_agente: string; propuesta: Draft | null }
+      if (propuesta) setDraft(propuesta)
       setReunion(json.reunion_encontrada ?? null)
       setReunionChecked(true)
       setLog((l) => [...l, { role: 'assistant', text: mensaje_agente }])
@@ -98,9 +98,9 @@ export default function PresupuestadorPage() {
     setSavedId(null)
     setReunion(null)
     setReunionChecked(false)
-    const inicial: ChatMessage[] = [{ role: 'user', content: 'Generá una propuesta inicial para este lead, con la información que tenés.' }]
+    const inicial: ChatMessage[] = [{ role: 'user', content: 'Contame qué encontraste sobre este lead antes de armar la propuesta.' }]
     setMensajes(inicial)
-    void sendToAgent(inicial)
+    void sendToAgent(inicial, 'resumen')
   }
 
   function handleSend() {
@@ -108,7 +108,7 @@ export default function PresupuestadorPage() {
     const text = input.trim()
     setInput('')
     setLog((l) => [...l, { role: 'user', text }])
-    void sendToAgent([...mensajes, { role: 'user', content: text }])
+    void sendToAgent([...mensajes, { role: 'user', content: text }], 'propuesta')
   }
 
   async function handleGuardar() {
@@ -248,7 +248,7 @@ export default function PresupuestadorPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleSend() }}
-                placeholder="Pedile cambios: bajá el precio, sacá tal cosa, agregá..."
+                placeholder={draft ? 'Pedile cambios: bajá el precio, sacá tal cosa, agregá...' : 'Confirmá, corregí o agregá info — después escribí "dale" para generar la propuesta'}
                 disabled={loading}
                 className="flex-1 px-3.5 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
               />

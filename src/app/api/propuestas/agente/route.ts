@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { leadId, mensajes } = body as { leadId: string; mensajes: ChatMessage[] }
+  const { leadId, mensajes, modo } = body as { leadId: string; mensajes: ChatMessage[]; modo?: 'resumen' | 'propuesta' }
 
   if (!leadId || !Array.isArray(mensajes) || mensajes.length === 0) {
     return NextResponse.json({ error: 'leadId y mensajes son requeridos' }, { status: 400 })
@@ -266,6 +266,26 @@ export async function POST(req: NextRequest) {
 
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+    // Modo "resumen": antes de escribir nada, el agente cuenta qué encontró
+    // (proyecto, reunión, qué falta) y espera confirmación del equipo — no
+    // fuerza el tool call ni escribe la propuesta todavía.
+    if (modo === 'resumen') {
+      const result = await client.messages.create({
+        model: MODEL,
+        max_tokens: 500,
+        system: [
+          { type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } },
+          { type: 'text', text: contextBlock },
+          { type: 'text', text: 'Antes de escribir la propuesta, contale al equipo en 4-6 líneas qué encontraste sobre este lead: de qué se trata el proyecto, qué se habló en la reunión (si hay notas o transcripción de Meet), y qué datos importantes todavía faltan para presupuestar bien. NO generes la propuesta todavía — terminá preguntando si avanzás con eso o si quieren agregar/corregir algo antes.' },
+        ],
+        messages: mensajes,
+      })
+      const text = result.content.find((b) => b.type === 'text')
+      const mensaje_agente = text && text.type === 'text' ? text.text.trim() : 'No pude leer la info de este lead.'
+      return NextResponse.json({ data: { mensaje_agente, propuesta: null }, reunion_encontrada: reunionEncontrada })
+    }
+
     const result = await client.messages.create({
       model: MODEL,
       max_tokens: 8000,
