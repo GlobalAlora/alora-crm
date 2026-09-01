@@ -70,7 +70,7 @@ export function PropuestasSection({ leadId, propuestas: initialPropuestas }: Pro
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/leads/${leadId}/propuestas/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/propuestas/${id}`, { method: 'DELETE' })
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
         throw new Error(json.error ?? 'Error al eliminar propuesta')
