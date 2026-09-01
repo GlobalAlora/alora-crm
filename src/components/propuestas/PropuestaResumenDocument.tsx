@@ -3,6 +3,7 @@
 import { Inter } from 'next/font/google'
 import type { PropuestaResumenEjecutivo } from '@/types'
 import { BRAND } from '@/lib/alora-brand'
+import { renderBoldText } from '@/lib/propuesta-format'
 
 const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800'] })
 
@@ -30,7 +31,7 @@ export function PropuestaResumenDocument({ contenido, propuestaId }: Props) {
   const { titulo, cliente, hallazgos, propuesta, incluye, no_incluye, inversion, tiempos } = contenido
 
   return (
-    <div className={inter.className} style={{ background: BRAND.surfaceSoft }}>
+    <div className={inter.className} style={{ background: '#ffffff' }}>
       {propuestaId && (
         <div className="print:hidden flex justify-end p-4">
           <a
@@ -71,9 +72,9 @@ export function PropuestaResumenDocument({ contenido, propuestaId }: Props) {
           <Label>Lo que encontramos</Label>
           <div className="grid gap-2">
             {hallazgos.map((h, i) => (
-              <div key={i} className="keep flex items-start gap-2.5 rounded-xl px-4 py-2.5 bg-white" style={{ border: `1px solid ${BRAND.border}` }}>
+              <div key={i} className="keep flex items-start gap-2.5 rounded-xl px-4 py-3 bg-white" style={{ border: `1px solid ${BRAND.border}` }}>
                 <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND.electric }} />
-                <span style={{ fontSize: 13, lineHeight: 1.55 }}>{h}</span>
+                <span style={{ fontSize: 13, lineHeight: 1.6 }}>{renderBoldText(h)}</span>
               </div>
             ))}
           </div>
@@ -82,29 +83,29 @@ export function PropuestaResumenDocument({ contenido, propuestaId }: Props) {
         {/* Propuesta */}
         <div className="mb-8">
           <Label>Lo que proponemos</Label>
-          <p style={{ fontSize: 14, lineHeight: 1.68 }}>{propuesta}</p>
+          <p style={{ fontSize: 14, lineHeight: 1.75 }}>{renderBoldText(propuesta)}</p>
         </div>
 
         {/* Incluye / No incluye */}
         <div className="grid grid-cols-2 gap-4 mb-8">
           <div>
             <Label>Incluye</Label>
-            <div className="grid gap-1.5">
+            <div className="grid gap-2">
               {incluye.map((item, i) => (
                 <div key={i} className="flex items-start gap-2">
                   <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND.turquesa }} />
-                  <span style={{ fontSize: 12.5, lineHeight: 1.5 }}>{item}</span>
+                  <span style={{ fontSize: 12.5, lineHeight: 1.55 }}>{renderBoldText(item)}</span>
                 </div>
               ))}
             </div>
           </div>
           <div>
             <Label>No incluye</Label>
-            <div className="grid gap-1.5">
+            <div className="grid gap-2">
               {no_incluye.map((item, i) => (
                 <div key={i} className="flex items-start gap-2">
                   <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND.textMuted }} />
-                  <span style={{ fontSize: 12.5, lineHeight: 1.5, color: BRAND.textMuted }}>{item}</span>
+                  <span style={{ fontSize: 12.5, lineHeight: 1.55, color: BRAND.textMuted }}>{renderBoldText(item)}</span>
                 </div>
               ))}
             </div>
@@ -124,7 +125,7 @@ export function PropuestaResumenDocument({ contenido, propuestaId }: Props) {
               <div className="font-extrabold text-white mb-2" style={{ fontSize: 28, letterSpacing: '-0.02em' }}>
                 {formatMonto(inversion.monto, inversion.moneda)}
               </div>
-              <p style={{ fontSize: 11.5, lineHeight: 1.5, color: '#B7BDC6' }}>{inversion.forma_pago}</p>
+              <p style={{ fontSize: 11.5, lineHeight: 1.5, color: '#B7BDC6' }}>{renderBoldText(inversion.forma_pago)}</p>
             </div>
             <div>
               <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: BRAND.electric, marginBottom: 8 }}>

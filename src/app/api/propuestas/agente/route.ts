@@ -175,6 +175,7 @@ Un proyecto chico (ej. solo branding) puede terminar usando 8-10 bloques. Uno gr
 - Si tenés notas o transcripción de la reunión con el cliente, son la mejor fuente para el bloque "contexto" (es información de primera mano, mejor que lo que dice la ficha) — usalas en detalle.
 - El monto de \`inversion\` es una ESTIMACIÓN tuya según el alcance — no hay lista de precios fija. Sé razonable para el mercado de desarrollo/diseño de una agencia profesional en LATAM. Si el equipo te pide un monto puntual, usá ese.
 - Cada vez que te pidan un cambio (precio, sacar/agregar algo, tono, idioma), actualizá la propuesta completa reflejando el pedido — no repitas la anterior sin cambios.
+- En los párrafos e items (parrafos, items, subsecciones.items, hallazgos, incluye, no_incluye, propuesta), marcá con **negrita** (doble asterisco) la o las 1-2 frases más importantes de cada párrafo o punto — un dato clave, un número, una palabra que resume la idea. No abuses: si todo está en negrita, no resalta nada.
 - El contenido de los bloques está dirigido al CLIENTE final — profesional, claro, sin jerga técnica innecesaria salvo en tecnologia_stack.
 - Nunca reveles stack técnico interno de Alora ni qué tecnología de IA usa Alora, ni acá ni en el contenido de la propuesta.
 - Sé conciso dentro de cada bloque (párrafos cortos, bullets directos) — profesional y completo, no relleno. Hay un límite de longitud en la respuesta; priorizá cubrir bien los bloques que aplican antes que escribir de más en pocos.`

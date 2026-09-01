@@ -3,6 +3,7 @@
 import { Inter } from 'next/font/google'
 import type { PropuestaContenido } from '@/types'
 import { BRAND } from '@/lib/alora-brand'
+import { renderBoldText } from '@/lib/propuesta-format'
 
 const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800'] })
 
@@ -37,7 +38,7 @@ export function PropuestaDocument({ contenido, propuestaId }: PropuestaDocumentP
   let n = 0
 
   return (
-    <div className={inter.className} style={{ background: BRAND.surfaceSoft }}>
+    <div className={inter.className} style={{ background: '#ffffff' }}>
       {propuestaId && (
         <div className="print:hidden flex justify-end p-4">
           <a
@@ -91,28 +92,28 @@ export function PropuestaDocument({ contenido, propuestaId }: PropuestaDocumentP
               <SectionHeader n={n} label={bloque.titulo} />
 
               {bloque.parrafos?.map((p, i) => (
-                <p key={i} style={{ fontSize: 14, lineHeight: 1.68, color: '#2A2E34', marginBottom: 10 }}>{p}</p>
+                <p key={i} style={{ fontSize: 14, lineHeight: 1.75, color: '#2A2E34', marginBottom: 14 }}>{renderBoldText(p)}</p>
               ))}
 
               {bloque.items && bloque.items.length > 0 && (
-                <div className="grid gap-2 mt-2">
+                <div className="grid gap-2.5 mt-2">
                   {bloque.items.map((item, i) => (
-                    <div key={i} className="keep flex items-start gap-2.5 rounded-xl px-4 py-2.5" style={{ background: BRAND.surface, border: `1px solid ${BRAND.border}` }}>
+                    <div key={i} className="keep flex items-start gap-2.5 rounded-xl px-4 py-3" style={{ background: BRAND.surface, border: `1px solid ${BRAND.border}` }}>
                       <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND.turquesa }} />
-                      <span style={{ fontSize: 13, lineHeight: 1.55, color: '#2A2E34' }}>{item}</span>
+                      <span style={{ fontSize: 13, lineHeight: 1.6, color: '#2A2E34' }}>{renderBoldText(item)}</span>
                     </div>
                   ))}
                 </div>
               )}
 
               {bloque.subsecciones?.map((sub, i) => (
-                <div key={i} className={`keep rounded-2xl p-5 bg-white ${i > 0 ? 'mt-2.5' : 'mt-2'}`} style={{ border: `1px solid ${BRAND.border}` }}>
-                  <p className="font-bold mb-2.5" style={{ fontSize: 14, color: BRAND.ink, letterSpacing: '-0.01em' }}>{sub.titulo}</p>
-                  <div className="grid gap-1.5">
+                <div key={i} className={`keep rounded-2xl p-6 bg-white ${i > 0 ? 'mt-3' : 'mt-2'}`} style={{ border: `1px solid ${BRAND.border}` }}>
+                  <p className="font-bold mb-3" style={{ fontSize: 14, color: BRAND.ink, letterSpacing: '-0.01em' }}>{sub.titulo}</p>
+                  <div className="grid gap-2">
                     {sub.items.map((item, j) => (
                       <div key={j} className="flex items-start gap-2.5">
                         <span className="mt-1.5 w-1 h-1 rounded-full flex-shrink-0" style={{ background: BRAND.electric }} />
-                        <span style={{ fontSize: 12.5, lineHeight: 1.55, color: BRAND.textMuted }}>{item}</span>
+                        <span style={{ fontSize: 12.5, lineHeight: 1.6, color: BRAND.textMuted }}>{renderBoldText(item)}</span>
                       </div>
                     ))}
                   </div>
@@ -135,7 +136,7 @@ export function PropuestaDocument({ contenido, propuestaId }: PropuestaDocumentP
             <div className="font-extrabold text-white mb-3" style={{ fontSize: 34, letterSpacing: '-0.02em' }}>
               {formatMonto(inversion.monto, inversion.moneda)}
             </div>
-            <p style={{ fontSize: 12.5, lineHeight: 1.6, color: '#B7BDC6' }}>{inversion.forma_pago}</p>
+            <p style={{ fontSize: 12.5, lineHeight: 1.6, color: '#B7BDC6' }}>{renderBoldText(inversion.forma_pago)}</p>
           </div>
         </div>
 
@@ -152,7 +153,7 @@ export function PropuestaDocument({ contenido, propuestaId }: PropuestaDocumentP
                 {mantenimiento.incluye.map((item, i) => (
                   <div key={i} className="flex items-start gap-2.5">
                     <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND.violeta }} />
-                    <span style={{ fontSize: 12.5, lineHeight: 1.55, color: BRAND.textMuted }}>{item}</span>
+                    <span style={{ fontSize: 12.5, lineHeight: 1.55, color: BRAND.textMuted }}>{renderBoldText(item)}</span>
                   </div>
                 ))}
               </div>
