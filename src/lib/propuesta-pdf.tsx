@@ -62,13 +62,16 @@ Font.registerHyphenationCallback((word) => [word])
 // on the page before it. That is what blew this document out to 8 pages
 // with empty voids — confirmed from a real render.
 const styles = StyleSheet.create({
-  page: { fontSize: 10, fontFamily: BODY_FONT, color: '#2A2E34', backgroundColor: '#ffffff' },
+  // El padding tiene que vivir en el propio <Page>, no en un <View> interno
+  // -- react-pdf decide DÓNDE cortar cada página según la caja del Page,
+  // no según el padding de un View hijo (ese padding solo afecta el final
+  // del documento entero, no cada salto). Confirmado con coordenadas reales:
+  // con el padding en el View interno, el texto seguía renderizando hasta
+  // ~816pt en una página de 842pt, pisando el footer (que arranca ~803pt).
   // paddingBottom tiene que ser mayor que el alto real del footer fijo (~38:
-  // borde + paddingTop 8 + línea de texto) -- si no, react-pdf calcula el
-  // salto de página sin saber que el footer necesita ese espacio, y
-  // cualquier texto que llegue justo al borde inferior termina pisándolo
-  // (visto en un render real: un bullet largo tapado por "Página X de Y").
-  content: { padding: 28, paddingBottom: 52 },
+  // borde + paddingTop 8 + línea de texto).
+  page: { fontSize: 10, fontFamily: BODY_FONT, color: '#2A2E34', backgroundColor: '#ffffff', paddingTop: 28, paddingLeft: 28, paddingRight: 28, paddingBottom: 52 },
+  content: {},
 
   cover: { backgroundColor: BRAND.ink, borderRadius: 20, padding: 28, paddingBottom: 24, marginBottom: 24 },
   coverWordmark: { color: '#ffffff', fontSize: 16, fontFamily: BODY_FONT, fontWeight: 800, letterSpacing: 4, marginBottom: 16 },
