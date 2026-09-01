@@ -60,7 +60,7 @@ export function LeadTable({ onLeadClick }: LeadTableProps) {
     filters,
     queryFilters,
     setBuscar,
-    toggleEstado,
+    setEstado,
     setResponsableId,
     setFuente,
     setPais,
@@ -78,7 +78,7 @@ export function LeadTable({ onLeadClick }: LeadTableProps) {
   const setFilter = (key: string, value: unknown) => {
     setPage(1)
     if (key === 'buscar') setBuscar(value as string)
-    else if (key === 'estado') toggleEstado(value as import('@/types').PipelineStage)
+    else if (key === 'estado') setEstado(value as import('@/types').PipelineStage | '')
     else if (key === 'responsableId') setResponsableId(value as string)
     else if (key === 'fuente') setFuente(value as string)
     else if (key === 'pais') setPais(value as string)

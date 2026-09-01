@@ -147,6 +147,14 @@ export function useLeadFilters() {
     }))
   }, [])
 
+  // El filtro de estado en LeadFilters es un <select> de una sola opción, no
+  // un multi-select -- necesita REEMPLAZAR la selección, no acumularla como
+  // toggleEstado (eso hacía que quedaran varios estados sumados en el filtro
+  // aunque el desplegable solo mostrara el último elegido).
+  const setEstado = useCallback((estado: PipelineStage | '') => {
+    setFilters((f) => ({ ...f, estados: estado ? [estado] : [] }))
+  }, [])
+
   const clearEstados = useCallback(() => {
     setFilters((f) => ({ ...f, estados: [] }))
   }, [])
@@ -232,6 +240,7 @@ export function useLeadFilters() {
     queryFilters,
     setBuscar,
     toggleEstado,
+    setEstado,
     clearEstados,
     setResponsableId,
     setFuente,
