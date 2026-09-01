@@ -63,7 +63,12 @@ Font.registerHyphenationCallback((word) => [word])
 // with empty voids — confirmed from a real render.
 const styles = StyleSheet.create({
   page: { fontSize: 10, fontFamily: BODY_FONT, color: '#2A2E34', backgroundColor: '#ffffff' },
-  content: { padding: 28 },
+  // paddingBottom tiene que ser mayor que el alto real del footer fijo (~38:
+  // borde + paddingTop 8 + línea de texto) -- si no, react-pdf calcula el
+  // salto de página sin saber que el footer necesita ese espacio, y
+  // cualquier texto que llegue justo al borde inferior termina pisándolo
+  // (visto en un render real: un bullet largo tapado por "Página X de Y").
+  content: { padding: 28, paddingBottom: 52 },
 
   cover: { backgroundColor: BRAND.ink, borderRadius: 20, padding: 28, paddingBottom: 24, marginBottom: 24 },
   coverWordmark: { color: '#ffffff', fontSize: 16, fontFamily: BODY_FONT, fontWeight: 800, letterSpacing: 4, marginBottom: 16 },
