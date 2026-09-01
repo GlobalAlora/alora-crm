@@ -107,8 +107,14 @@ export function PropuestaDocument({ contenido, moneda, monto, leadNombre, leadEm
 
       <style jsx global>{`
         @media print {
-          body { background: white !important; }
-          .propuesta-doc { padding: 0 !important; }
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+          @page { margin: 0; }
+          body { background: white !important; margin: 0 !important; }
+          .propuesta-doc { padding: 0 !important; background: white !important; }
         }
       `}</style>
     </div>
