@@ -5,85 +5,98 @@ const BRAND = '#1B4040'
 const BRAND_LT = '#E0EEEE'
 
 const styles = StyleSheet.create({
-  page: { fontSize: 11, color: '#334155', fontFamily: 'Helvetica' },
-  header: { backgroundColor: BRAND, paddingVertical: 36, paddingHorizontal: 32, alignItems: 'center' },
-  logo: { height: 22, marginBottom: 12 },
-  title: { color: '#ffffff', fontSize: 20, fontFamily: 'Helvetica-Bold', textAlign: 'center' },
-  subtitle: { color: 'rgba(255,255,255,0.7)', fontSize: 10, marginTop: 8, textAlign: 'center' },
-  body: { padding: 32, paddingTop: 28 },
-  resumen: { lineHeight: 1.5, marginBottom: 22 },
-  sectionTitle: { color: BRAND, fontSize: 10, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  page: { fontSize: 10.5, color: '#334155', fontFamily: 'Helvetica' },
+  header: { backgroundColor: BRAND, paddingVertical: 32, paddingHorizontal: 32, alignItems: 'center' },
+  logo: { height: 20, marginBottom: 12 },
+  title: { color: '#ffffff', fontSize: 18, fontFamily: 'Helvetica-Bold', textAlign: 'center' },
+  subtitle: { color: 'rgba(255,255,255,0.7)', fontSize: 9, marginTop: 8, textAlign: 'center' },
+  body: { padding: 32, paddingTop: 26 },
+  section: { marginBottom: 18 },
+  sectionTitle: { color: BRAND, fontSize: 9.5, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 7 },
+  parrafo: { lineHeight: 1.5, marginBottom: 6 },
   bulletRow: { flexDirection: 'row', marginBottom: 5, alignItems: 'flex-start' },
   bulletDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: BRAND, marginTop: 5, marginRight: 8 },
+  bulletDotSub: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#94a3b8', marginTop: 5, marginRight: 8 },
   bulletText: { flex: 1, lineHeight: 1.4 },
-  section: { marginBottom: 20 },
-  boxesRow: { flexDirection: 'row', gap: 12, marginTop: 6 },
-  box: { flex: 1, backgroundColor: BRAND_LT, borderRadius: 8, padding: 14 },
-  boxLabel: { color: BRAND, fontSize: 9, marginBottom: 4 },
-  boxValueSm: { fontSize: 12, fontFamily: 'Helvetica-Bold', color: '#0f172a' },
-  boxValueLg: { fontSize: 16, fontFamily: 'Helvetica-Bold', color: '#0f172a' },
-  footer: { marginTop: 28, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#f1f5f9', textAlign: 'center', color: '#94a3b8', fontSize: 8 },
+  subTitle: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#1e293b', marginBottom: 5, marginTop: 8 },
+  invBox: { backgroundColor: BRAND_LT, borderRadius: 8, padding: 16 },
+  invPaquete: { color: BRAND, fontSize: 9, marginBottom: 4 },
+  invMonto: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: '#0f172a', marginBottom: 8 },
+  invFormaPago: { fontSize: 9, color: '#475569' },
+  mantBox: { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 16 },
+  mantMonto: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: '#0f172a', marginBottom: 8 },
+  footer: { marginTop: 24, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#f1f5f9', textAlign: 'center', color: '#94a3b8', fontSize: 8 },
 })
 
-function formatMonto(monto: number | null, moneda: 'USD' | 'ARS') {
-  if (monto == null) return '—'
+function formatMonto(monto: number, moneda: 'USD' | 'ARS') {
   const formatted = new Intl.NumberFormat(moneda === 'ARS' ? 'es-AR' : 'en-US', { maximumFractionDigits: 0 }).format(monto)
   return `${moneda} ${formatted}`
 }
 
-interface Props {
-  contenido: PropuestaContenido
-  moneda: 'USD' | 'ARS'
-  monto: number | null
-  leadNombre?: string
-  leadEmpresa?: string | null
-}
-
-function PropuestaPdf({ contenido, moneda, monto, leadNombre, leadEmpresa }: Props) {
-  const preparadoPara = [leadNombre, leadEmpresa].filter(Boolean).join(' — ')
+function PropuestaPdf({ titulo, cliente, bloques, inversion, mantenimiento }: PropuestaContenido) {
   return (
     <Document>
-      <Page size="A4" style={styles.page}>
+      <Page size="A4" style={styles.page} wrap>
         <View style={styles.header}>
           {/* eslint-disable-next-line jsx-a11y/alt-text */}
           <Image src="https://globalalora.com/logo-web.png" style={styles.logo} />
-          <Text style={styles.title}>{contenido.titulo}</Text>
-          {preparadoPara && <Text style={styles.subtitle}>Preparado para {preparadoPara}</Text>}
+          <Text style={styles.title}>{titulo}</Text>
+          {cliente && <Text style={styles.subtitle}>Preparado para {cliente}</Text>}
         </View>
 
         <View style={styles.body}>
-          <Text style={styles.resumen}>{contenido.resumen}</Text>
+          {bloques.map((bloque) => (
+            <View key={bloque.id} style={styles.section} wrap={false}>
+              <Text style={styles.sectionTitle}>{bloque.titulo}</Text>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Alcance</Text>
-            {contenido.alcance.map((item, i) => (
-              <View key={i} style={styles.bulletRow}>
-                <View style={styles.bulletDot} />
-                <Text style={styles.bulletText}>{item}</Text>
-              </View>
-            ))}
-          </View>
+              {bloque.parrafos?.map((p, i) => (
+                <Text key={i} style={styles.parrafo}>{p}</Text>
+              ))}
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Entregables</Text>
-            {contenido.entregables.map((item, i) => (
-              <View key={i} style={styles.bulletRow}>
-                <View style={styles.bulletDot} />
-                <Text style={styles.bulletText}>{item}</Text>
-              </View>
-            ))}
-          </View>
+              {bloque.items?.map((item, i) => (
+                <View key={i} style={styles.bulletRow}>
+                  <View style={styles.bulletDot} />
+                  <Text style={styles.bulletText}>{item}</Text>
+                </View>
+              ))}
 
-          <View style={styles.boxesRow}>
-            <View style={styles.box}>
-              <Text style={styles.boxLabel}>Cronograma estimado</Text>
-              <Text style={styles.boxValueSm}>{contenido.cronograma}</Text>
+              {bloque.subsecciones?.map((sub, i) => (
+                <View key={i}>
+                  <Text style={styles.subTitle}>{sub.titulo}</Text>
+                  {sub.items.map((item, j) => (
+                    <View key={j} style={styles.bulletRow}>
+                      <View style={styles.bulletDotSub} />
+                      <Text style={styles.bulletText}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+              ))}
             </View>
-            <View style={styles.box}>
-              <Text style={styles.boxLabel}>Inversión estimada</Text>
-              <Text style={styles.boxValueLg}>{formatMonto(monto, moneda)}</Text>
+          ))}
+
+          <View style={styles.section} wrap={false}>
+            <Text style={styles.sectionTitle}>Inversión</Text>
+            <View style={styles.invBox}>
+              <Text style={styles.invPaquete}>{inversion.paquete}</Text>
+              <Text style={styles.invMonto}>{formatMonto(inversion.monto, inversion.moneda)}</Text>
+              <Text style={styles.invFormaPago}>{inversion.forma_pago}</Text>
             </View>
           </View>
+
+          {mantenimiento && (
+            <View style={styles.section} wrap={false}>
+              <Text style={styles.sectionTitle}>Mantenimiento (opcional)</Text>
+              <View style={styles.mantBox}>
+                <Text style={styles.mantMonto}>{formatMonto(mantenimiento.monto_mensual, mantenimiento.moneda)} / mes</Text>
+                {mantenimiento.incluye.map((item, i) => (
+                  <View key={i} style={styles.bulletRow}>
+                    <View style={styles.bulletDotSub} />
+                    <Text style={styles.bulletText}>{item}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
 
           <Text style={styles.footer}>Alora — agencia de tecnología digital · globalalora.com</Text>
         </View>
@@ -92,6 +105,6 @@ function PropuestaPdf({ contenido, moneda, monto, leadNombre, leadEmpresa }: Pro
   )
 }
 
-export async function renderPropuestaPdf(props: Props): Promise<Buffer> {
-  return renderToBuffer(<PropuestaPdf {...props} />)
+export async function renderPropuestaPdf(contenido: PropuestaContenido): Promise<Buffer> {
+  return renderToBuffer(<PropuestaPdf {...contenido} />)
 }

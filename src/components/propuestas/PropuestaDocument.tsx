@@ -4,10 +4,6 @@ import type { PropuestaContenido } from '@/types'
 
 interface PropuestaDocumentProps {
   contenido: PropuestaContenido
-  moneda: 'USD' | 'ARS'
-  monto: number | null
-  leadNombre?: string
-  leadEmpresa?: string | null
   propuestaId?: string
 }
 
@@ -15,18 +11,16 @@ const BRAND = '#1B4040'
 const BRAND_BG = '#EEF4F4'
 const BRAND_LT = '#E0EEEE'
 
-function formatMonto(monto: number | null, moneda: 'USD' | 'ARS') {
-  if (monto == null) return '—'
+function formatMonto(monto: number, moneda: 'USD' | 'ARS') {
   const formatted = new Intl.NumberFormat(moneda === 'ARS' ? 'es-AR' : 'en-US', { maximumFractionDigits: 0 }).format(monto)
   return `${moneda} ${formatted}`
 }
 
-export function PropuestaDocument({ contenido, moneda, monto, leadNombre, leadEmpresa, propuestaId }: PropuestaDocumentProps) {
+export function PropuestaDocument({ contenido, propuestaId }: PropuestaDocumentProps) {
+  const { titulo, cliente, bloques, inversion, mantenimiento } = contenido
+
   return (
-    <div
-      className="propuesta-doc mx-auto max-w-2xl print:max-w-none"
-      style={{ background: BRAND_BG }}
-    >
+    <div className="propuesta-doc mx-auto max-w-2xl print:max-w-none" style={{ background: BRAND_BG }}>
       {propuestaId && (
         <div className="print:hidden flex justify-end p-4">
           <a
@@ -52,52 +46,78 @@ export function PropuestaDocument({ contenido, moneda, monto, leadNombre, leadEm
               style={{ filter: 'brightness(0) invert(1)' }}
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
             />
-            <h1 className="text-white text-2xl font-bold">{contenido.titulo}</h1>
-            {(leadNombre || leadEmpresa) && (
-              <p className="text-white/70 text-sm mt-2">
-                Preparado para {[leadNombre, leadEmpresa].filter(Boolean).join(' — ')}
-              </p>
-            )}
+            <h1 className="text-white text-2xl font-bold">{titulo}</h1>
+            {cliente && <p className="text-white/70 text-sm mt-2">Preparado para {cliente}</p>}
           </div>
 
           {/* Body */}
           <div className="bg-white px-6 py-8 md:px-10 md:py-10 space-y-8">
-            <p className="text-slate-700 leading-relaxed">{contenido.resumen}</p>
+            {bloques.map((bloque) => (
+              <div key={bloque.id}>
+                <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: BRAND }}>
+                  {bloque.titulo}
+                </h2>
 
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: BRAND }}>Alcance</h2>
-              <ul className="space-y-2">
-                {contenido.alcance.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2.5 text-slate-700">
-                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND }} />
-                    <span>{item}</span>
-                  </li>
+                {bloque.parrafos?.map((p, i) => (
+                  <p key={i} className="text-slate-700 leading-relaxed mb-3 last:mb-0">{p}</p>
                 ))}
-              </ul>
-            </div>
 
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: BRAND }}>Entregables</h2>
-              <ul className="space-y-2">
-                {contenido.entregables.map((item, i) => (
-                  <li key={i} className="flex items-start gap-2.5 text-slate-700">
-                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND }} />
-                    <span>{item}</span>
-                  </li>
+                {bloque.items && bloque.items.length > 0 && (
+                  <ul className="space-y-2">
+                    {bloque.items.map((item, i) => (
+                      <li key={i} className="flex items-start gap-2.5 text-slate-700">
+                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND }} />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {bloque.subsecciones?.map((sub, i) => (
+                  <div key={i} className={i > 0 ? 'mt-4' : ''}>
+                    <p className="text-sm font-medium text-slate-800 mb-2">{sub.titulo}</p>
+                    <ul className="space-y-1.5">
+                      {sub.items.map((item, j) => (
+                        <li key={j} className="flex items-start gap-2.5 text-slate-600 text-sm">
+                          <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND }} />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ))}
-              </ul>
+              </div>
+            ))}
+
+            {/* Inversión */}
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: BRAND }}>Inversión</h2>
+              <div className="rounded-xl p-5" style={{ background: BRAND_LT }}>
+                <p className="text-xs mb-1" style={{ color: BRAND }}>{inversion.paquete}</p>
+                <p className="text-2xl font-bold text-slate-900 mb-3">{formatMonto(inversion.monto, inversion.moneda)}</p>
+                <p className="text-xs text-slate-600">{inversion.forma_pago}</p>
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-xl p-5" style={{ background: BRAND_LT }}>
-                <p className="text-xs mb-1" style={{ color: BRAND }}>Cronograma estimado</p>
-                <p className="text-base font-semibold text-slate-800">{contenido.cronograma}</p>
+            {/* Mantenimiento opcional */}
+            {mantenimiento && (
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: BRAND }}>Mantenimiento (opcional)</h2>
+                <div className="rounded-xl p-5 border border-slate-200">
+                  <p className="text-lg font-bold text-slate-900 mb-3">
+                    {formatMonto(mantenimiento.monto_mensual, mantenimiento.moneda)} <span className="text-sm font-normal text-slate-500">/ mes</span>
+                  </p>
+                  <ul className="space-y-1.5">
+                    {mantenimiento.incluye.map((item, i) => (
+                      <li key={i} className="flex items-start gap-2.5 text-slate-600 text-sm">
+                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 bg-slate-400" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
-              <div className="rounded-xl p-5" style={{ background: BRAND_LT }}>
-                <p className="text-xs mb-1" style={{ color: BRAND }}>Inversión estimada</p>
-                <p className="text-xl font-bold text-slate-900">{formatMonto(monto, moneda)}</p>
-              </div>
-            </div>
+            )}
 
             <p className="text-xs text-slate-400 text-center pt-4 border-t border-slate-100">
               Alora — agencia de tecnología digital · globalalora.com

@@ -10,7 +10,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const { data, error } = await admin
     .from('propuestas')
-    .select('id, descripcion, valor_usd, valor_ars, moneda, estado, contenido, created_at, lead:leads(nombre, apellido, empresa)')
+    .select('id, contenido')
     .eq('id', id)
     .single()
 

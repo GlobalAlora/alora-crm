@@ -12,7 +12,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const { data, error } = await admin
     .from('propuestas')
-    .select('valor_usd, valor_ars, moneda, contenido, lead:leads(nombre, apellido, empresa)')
+    .select('contenido')
     .eq('id', id)
     .single()
 
@@ -20,17 +20,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Propuesta no encontrada' }, { status: 404 })
   }
 
-  const lead = Array.isArray(data.lead) ? data.lead[0] : data.lead
-  const monto = data.moneda === 'ARS' ? data.valor_ars : data.valor_usd
-
   try {
-    const buffer = await renderPropuestaPdf({
-      contenido: data.contenido,
-      moneda: data.moneda,
-      monto,
-      leadNombre: lead ? [lead.nombre, lead.apellido].filter(Boolean).join(' ') : undefined,
-      leadEmpresa: lead?.empresa,
-    })
+    const buffer = await renderPropuestaPdf(data.contenido)
 
     return new NextResponse(new Uint8Array(buffer), {
       headers: {

@@ -7,11 +7,7 @@ import type { PropuestaContenido } from '@/types'
 
 interface PropuestaData {
   id: string
-  moneda: 'USD' | 'ARS'
-  valor_usd: number | null
-  valor_ars: number | null
   contenido: PropuestaContenido
-  lead: { nombre: string; apellido: string | null; empresa: string | null } | { nombre: string; apellido: string | null; empresa: string | null }[] | null
 }
 
 export default function PropuestaPublicaPage() {
@@ -45,19 +41,9 @@ export default function PropuestaPublicaPage() {
     )
   }
 
-  const lead = Array.isArray(data.lead) ? data.lead[0] : data.lead
-  const monto = data.moneda === 'ARS' ? data.valor_ars : data.valor_usd
-
   return (
     <div className="min-h-screen py-8">
-      <PropuestaDocument
-        contenido={data.contenido}
-        moneda={data.moneda}
-        monto={monto}
-        leadNombre={lead ? [lead.nombre, lead.apellido].filter(Boolean).join(' ') : undefined}
-        leadEmpresa={lead?.empresa}
-        propuestaId={data.id}
-      />
+      <PropuestaDocument contenido={data.contenido} propuestaId={data.id} />
     </div>
   )
 }

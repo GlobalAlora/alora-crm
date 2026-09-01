@@ -61,12 +61,38 @@ export type PropuestaEstado = 'pendiente' | 'aceptada' | 'rechazada'
 
 export type TipoPago = 'unica_vez' | 'mensual'
 
+export interface PropuestaSubseccion {
+  titulo: string
+  items: string[]
+}
+
+export interface PropuestaBloque {
+  id: string
+  titulo: string
+  parrafos?: string[]
+  items?: string[]
+  subsecciones?: PropuestaSubseccion[]
+}
+
+export interface PropuestaInversion {
+  paquete: string
+  moneda: 'USD' | 'ARS'
+  monto: number
+  forma_pago: string
+}
+
+export interface PropuestaMantenimiento {
+  moneda: 'USD' | 'ARS'
+  monto_mensual: number
+  incluye: string[]
+}
+
 export interface PropuestaContenido {
   titulo: string
-  resumen: string
-  alcance: string[]
-  entregables: string[]
-  cronograma: string
+  cliente: string
+  bloques: PropuestaBloque[]
+  inversion: PropuestaInversion
+  mantenimiento: PropuestaMantenimiento | null
   notas: string
 }
 

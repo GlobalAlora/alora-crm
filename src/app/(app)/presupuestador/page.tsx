@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Search, Send, Loader2, Copy, ExternalLink, Sparkles, Download } from 'lucide-react'
+import { Search, Send, Loader2, Copy, ExternalLink, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PropuestaDocument } from '@/components/propuestas/PropuestaDocument'
 import type { PropuestaContenido } from '@/types'
@@ -20,16 +20,7 @@ interface ChatMessage {
   content: string
 }
 
-interface Draft {
-  titulo: string
-  resumen: string
-  alcance: string[]
-  entregables: string[]
-  cronograma: string
-  moneda: 'USD' | 'ARS'
-  monto: number
-  notas: string
-}
+type Draft = PropuestaContenido
 
 export default function PresupuestadorPage() {
   const [query, setQuery] = useState('')
@@ -112,23 +103,16 @@ export default function PresupuestadorPage() {
     if (!lead || !draft) return
     setSaving(true)
     try {
-      const contenido: PropuestaContenido = {
-        titulo: draft.titulo,
-        resumen: draft.resumen,
-        alcance: draft.alcance,
-        entregables: draft.entregables,
-        cronograma: draft.cronograma,
-        notas: draft.notas,
-      }
+      const { moneda, monto } = draft.inversion
       const createRes = await fetch(`/api/leads/${lead.id}/propuestas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           descripcion: draft.titulo,
-          moneda: draft.moneda,
-          valor_usd: draft.moneda === 'USD' ? draft.monto : null,
-          valor_ars: draft.moneda === 'ARS' ? draft.monto : null,
-          contenido,
+          moneda,
+          valor_usd: moneda === 'USD' ? monto : null,
+          valor_ars: moneda === 'ARS' ? monto : null,
+          contenido: draft,
         }),
       })
       const createJson = await createRes.json()
@@ -257,15 +241,6 @@ export default function PresupuestadorPage() {
                     >
                       <ExternalLink size={12} /> Abrir
                     </a>
-                    {savedId && (
-                      <a
-                        href={`/api/propuesta/${savedId}/pdf`}
-                        download
-                        className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700"
-                      >
-                        <Download size={12} /> PDF
-                      </a>
-                    )}
                   </div>
                 ) : (
                   <button
@@ -280,13 +255,7 @@ export default function PresupuestadorPage() {
             </div>
             <div className="flex-1 overflow-y-auto">
               {draft ? (
-                <PropuestaDocument
-                  contenido={draft}
-                  moneda={draft.moneda}
-                  monto={draft.monto}
-                  leadNombre={`${lead.nombre} ${lead.apellido || ''}`.trim()}
-                  leadEmpresa={lead.empresa}
-                />
+                <PropuestaDocument contenido={draft} propuestaId={savedId ?? undefined} />
               ) : (
                 <div className="h-full flex items-center justify-center text-sm text-slate-400">
                   {loading ? 'Generando el primer borrador...' : 'Sin propuesta todavía'}
