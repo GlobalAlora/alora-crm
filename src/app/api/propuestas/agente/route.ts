@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { findMeetNotesForLead } from '@/lib/google-drive'
 
 const MODEL = process.env.ANTHROPIC_QUALIFYING_MODEL || 'claude-sonnet-5'
 
@@ -142,6 +143,7 @@ Un proyecto chico (ej. solo branding) puede terminar usando 8-10 bloques. Uno gr
 ## Reglas generales
 
 - No inventes datos del lead que no te dieron — si falta información clave de negocio para el contexto, decilo en \`notas\`/\`mensaje_agente\` y hacé el mejor trabajo posible con lo que hay; no le pidas al equipo que actúe como si fuera el cliente.
+- Si tenés notas o transcripción de la reunión con el cliente, son la mejor fuente para el bloque "contexto" (es información de primera mano, mejor que lo que dice la ficha) — usalas en detalle.
 - El monto de \`inversion\` es una ESTIMACIÓN tuya según el alcance — no hay lista de precios fija. Sé razonable para el mercado de desarrollo/diseño de una agencia profesional en LATAM. Si el equipo te pide un monto puntual, usá ese.
 - Cada vez que te pidan un cambio (precio, sacar/agregar algo, tono, idioma), actualizá la propuesta completa reflejando el pedido — no repitas la anterior sin cambios.
 - El contenido de los bloques está dirigido al CLIENTE final — profesional, claro, sin jerga técnica innecesaria salvo en tecnologia_stack.
@@ -197,6 +199,23 @@ export async function POST(req: NextRequest) {
       .join('\n')
   }
 
+  // Notas y transcripción de Google Meet (carpeta "Meet Recordings", si está
+  // compartida con la cuenta de servicio) — mejor esfuerzo, nunca bloquea la
+  // generación si Drive falla o no encuentra nada.
+  let meetNotes = ''
+  try {
+    const searchTerms = [lead.nombre, lead.empresa].filter((t): t is string => !!t)
+    const found = await findMeetNotesForLead(searchTerms)
+    if (found) {
+      const parts: string[] = []
+      for (const doc of found.notas) parts.push(`[Notas de la reunión — ${doc.name}]\n${doc.text}`)
+      for (const doc of found.transcripciones) parts.push(`[Transcripción de la reunión — ${doc.name}]\n${doc.text}`)
+      meetNotes = parts.join('\n\n')
+    }
+  } catch (err) {
+    console.error('[Propuestas Agente] Drive lookup failed:', err)
+  }
+
   const contextParts: string[] = [
     `Nombre: ${[lead.nombre, lead.apellido].filter(Boolean).join(' ')}`,
   ]
@@ -208,6 +227,7 @@ export async function POST(req: NextRequest) {
 
   const contextBlock = `INFO DEL LEAD:\n${contextParts.join('\n')}`
     + (transcript ? `\n\nCONVERSACIÓN DE WHATSAPP:\n${transcript}` : '')
+    + (meetNotes ? `\n\nNOTAS Y TRANSCRIPCIÓN DE LA REUNIÓN (Google Meet):\n${meetNotes}` : '')
 
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })

@@ -125,3 +125,87 @@ export async function ensureLeadDriveFolder(lead: {
     alreadyExisted: false,
   }
 }
+
+// ── Meet notes/transcripts (for the Presupuestador agent) ──────────────────────
+
+/**
+ * Google Workspace auto-saves Meet notes ("Notes by Gemini") and transcripts
+ * into a "Meet Recordings" folder in the organizer's own Drive. That folder
+ * has to be shared with the service account (Viewer is enough) for this to
+ * find anything — it is NOT the same as the per-lead PROPUESTAS folder above.
+ */
+export interface MeetDoc {
+  name: string
+  url: string
+  text: string
+}
+
+export interface MeetNotesResult {
+  notas: MeetDoc[]
+  transcripciones: MeetDoc[]
+}
+
+const NOTAS_RE = /notes? by gemini|\bnotas?\b/i
+const TRANSCRIPT_RE = /transcript|transcripci[oó]n/i
+
+async function findMeetRecordingsFolderId(drive: ReturnType<typeof google.drive>): Promise<string | null> {
+  const { data } = await drive.files.list({
+    q: `name = 'Meet Recordings' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: 'files(id, name)',
+    spaces: 'drive',
+  })
+  return data.files?.[0]?.id ?? null
+}
+
+/**
+ * Searches the "Meet Recordings" folder for docs whose filename mentions any
+ * of the given search terms (lead name, empresa) and returns their text
+ * content, split into "notas" (Gemini summary) vs "transcripciones" (full
+ * transcript) by filename. Returns null if the folder isn't shared with the
+ * service account, or if nothing matches.
+ */
+export async function findMeetNotesForLead(searchTerms: string[]): Promise<MeetNotesResult | null> {
+  const terms = searchTerms.map(t => t.trim()).filter(Boolean)
+  if (!terms.length) return null
+
+  const { drive } = getDriveClient()
+  const folderId = await findMeetRecordingsFolderId(drive)
+  if (!folderId) return null
+
+  const nameQuery = terms.map(t => `name contains '${t.replace(/'/g, "\\'")}'`).join(' or ')
+  const { data } = await drive.files.list({
+    q: `'${folderId}' in parents and trashed = false and (${nameQuery})`,
+    fields: 'files(id, name, mimeType, webViewLink)',
+    spaces: 'drive',
+    orderBy: 'createdTime desc',
+    pageSize: 10,
+  })
+
+  const files = data.files ?? []
+  if (!files.length) return null
+
+  const notas: MeetDoc[] = []
+  const transcripciones: MeetDoc[] = []
+
+  for (const file of files) {
+    if (!file.id || file.mimeType !== 'application/vnd.google-apps.document') continue
+    try {
+      const { data: exported } = await drive.files.export(
+        { fileId: file.id, mimeType: 'text/plain' },
+        { responseType: 'text' },
+      )
+      const doc: MeetDoc = {
+        name: file.name ?? 'Documento',
+        url: file.webViewLink ?? `https://drive.google.com/file/d/${file.id}/view`,
+        text: String(exported).slice(0, 20_000),
+      }
+      if (TRANSCRIPT_RE.test(file.name ?? '')) transcripciones.push(doc)
+      else if (NOTAS_RE.test(file.name ?? '')) notas.push(doc)
+    } catch (err) {
+      console.error(`[Drive] Failed to export "${file.name}":`, err)
+    }
+  }
+
+  if (!notas.length && !transcripciones.length) return null
+  return { notas, transcripciones }
+}
