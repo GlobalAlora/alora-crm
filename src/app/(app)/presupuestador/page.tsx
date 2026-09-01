@@ -238,12 +238,9 @@ export default function PresupuestadorPage() {
       if (!createRes.ok) throw new Error(createJson.error || 'Error al guardar')
 
       const propuestaId = createJson.data.id as string
-      const link = `/propuesta/${propuestaId}`
-      await fetch(`/api/propuestas/${propuestaId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ link }),
-      })
+      // El link (con slug legible) ya viene armado desde el POST -- no hace
+      // falta un PATCH aparte.
+      const link = createJson.data.link as string
 
       setSavedUrl(link)
       setSavedId(propuestaId)

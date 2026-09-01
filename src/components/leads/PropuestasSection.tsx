@@ -11,6 +11,43 @@ import type { Propuesta } from '@/types'
 
 const INPUT = 'w-full border border-slate-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white'
 
+interface EventosResumen {
+  vistas: number
+  ultima_vista: string | null
+  acepto: string | null
+  dudas: string | null
+  contacto: string | null
+}
+
+// Solo las propuestas generadas por el Presupuestador (tienen contenido, y
+// por lo tanto un link público real) registran actividad -- las cargadas a
+// mano con un link externo no tienen nada que trackear acá.
+function PropuestaActividad({ propuestaId }: { propuestaId: string }) {
+  const { data } = useQuery({
+    queryKey: ['propuesta-eventos', propuestaId],
+    queryFn: async () => {
+      const res = await fetch(`/api/propuestas/${propuestaId}/eventos`)
+      const json = await res.json()
+      return json.data as EventosResumen
+    },
+    staleTime: 60_000,
+  })
+
+  if (!data) return null
+  if (data.vistas === 0 && !data.acepto && !data.dudas && !data.contacto) {
+    return <span className="text-xs text-slate-300">Sin abrir todavía</span>
+  }
+
+  return (
+    <span className="text-xs text-slate-500 flex items-center gap-2 flex-wrap">
+      {data.vistas > 0 && <span>👁 {data.vistas} {data.vistas === 1 ? 'vista' : 'vistas'} · {timeAgo(data.ultima_vista!)}</span>}
+      {data.acepto && <span className="text-green-600 font-medium">✓ Aceptó</span>}
+      {data.dudas && <span className="text-amber-600 font-medium">? Tiene dudas</span>}
+      {data.contacto && <span className="text-blue-600 font-medium">💬 Escribió</span>}
+    </span>
+  )
+}
+
 const ESTADO_CONFIG: Record<string, { icon: React.ElementType; color: string; label: string }> = {
   pendiente: { icon: Clock,         color: 'text-orange-500', label: 'Pendiente' },
   aceptada:  { icon: CheckCircle2,  color: 'text-green-600',  label: 'Aceptada'  },
@@ -316,6 +353,11 @@ export function PropuestasSection({ leadId, propuestas: initialPropuestas }: Pro
                   </a>
                 )}
               </div>
+              {p.contenido && (
+                <div className="flex items-center">
+                  <PropuestaActividad propuestaId={p.id} />
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 {(['pendiente', 'aceptada', 'rechazada'] as const).map((estado) => {
                   const cfg = ESTADO_CONFIG[estado]

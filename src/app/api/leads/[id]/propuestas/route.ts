@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { syncLeadValorPropuesta } from '@/lib/propuestas-sync'
+import { slugify } from '@/lib/slug'
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+// Genera un slug único para el link público -- si el slug base ya existe
+// (otra propuesta con un título similar), le agrega un sufijo numérico.
+async function uniqueSlug(supabase: SupabaseClient, base: string): Promise<string> {
+  const root = slugify(base) || 'propuesta'
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const candidate = attempt === 0 ? root : `${root}-${attempt + 1}`
+    const { data } = await supabase.from('propuestas').select('id').eq('slug', candidate).maybeSingle()
+    if (!data) return candidate
+  }
+  return `${root}-${Date.now()}`
+}
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -42,6 +56,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   const resolvedValorUsd = resolvedMoneda === 'USD' ? (valor_usd || null) : null
   const resolvedValorArs = resolvedMoneda === 'ARS' ? (valor_ars || null) : null
 
+  // Si viene contenido (guardado desde el Presupuestador) generamos un slug
+  // legible a partir del título para el link público -- en vez del UUID
+  // crudo. Si no viene contenido (creación manual sin link), no hace falta.
+  const slug = contenido ? await uniqueSlug(supabase, descripcion) : null
+
   const { data, error } = await supabase
     .from('propuestas')
     .insert({
@@ -52,7 +71,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       moneda: resolvedMoneda,
       tipo_pago: tipo_pago || 'unica_vez',
       estado: 'pendiente',
-      link: link || null,
+      link: slug ? `/propuesta/${slug}` : (link || null),
+      slug,
       contenido: contenido || null,
     })
     .select()

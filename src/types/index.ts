@@ -124,6 +124,7 @@ export interface Propuesta {
   tipo_pago: TipoPago
   estado: PropuestaEstado
   link: string | null
+  slug: string | null
   contenido: PropuestaDocumentos | null
   created_at: string
   updated_at: string

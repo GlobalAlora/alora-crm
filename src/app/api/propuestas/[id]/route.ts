@@ -12,7 +12,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const body = await req.json()
-  const { estado, descripcion, valor_usd, valor_ars, moneda, tipo_pago, link } = body
+  const { estado, descripcion, valor_usd, valor_ars, moneda, tipo_pago, link, contenido } = body
 
   const updateData: Record<string, unknown> = {}
   if (estado !== undefined) updateData.estado = estado
@@ -20,6 +20,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (moneda !== undefined) updateData.moneda = moneda
   if (tipo_pago !== undefined) updateData.tipo_pago = tipo_pago
   if (link !== undefined) updateData.link = link
+  if (contenido !== undefined) updateData.contenido = contenido
 
   // Enforce single-currency integrity when moneda is being set or when values change
   if (moneda === 'USD') {

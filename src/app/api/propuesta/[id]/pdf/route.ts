@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { renderPropuestaPdf, renderResumenPdf } from '@/lib/propuesta-pdf'
+import { slugOrIdColumn } from '@/lib/propuesta-lookup'
 
 type Params = { params: Promise<{ id: string }> }
 
 // Public, unauthenticated — same data as /api/propuesta/[id], rendered as a
 // downloadable PDF (real server-side render, not a browser print-to-PDF).
 // ?doc=resumen (default) or ?doc=detallada picks which of the two documents.
+// [id] can be the real UUID or the readable slug.
 export async function GET(req: NextRequest, { params }: Params) {
   const { id } = await params
   const doc = req.nextUrl.searchParams.get('doc') === 'detallada' ? 'detallada' : 'resumen'
@@ -15,7 +17,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   const { data, error } = await admin
     .from('propuestas')
     .select('contenido')
-    .eq('id', id)
+    .eq(slugOrIdColumn(id), id)
     .single()
 
   if (error || !data || !data.contenido?.detallada) {
