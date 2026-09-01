@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Search, Send, Loader2, Copy, ExternalLink, Sparkles } from 'lucide-react'
+import { Search, Send, Loader2, Copy, ExternalLink, Sparkles, Pencil, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PropuestaDocument } from '@/components/propuestas/PropuestaDocument'
 import { PropuestaResumenDocument } from '@/components/propuestas/PropuestaResumenDocument'
-import type { PropuestaDocumentos } from '@/types'
+import type { PropuestaDocumentos, PropuestaContenido, PropuestaResumenEjecutivo } from '@/types'
 import toast from 'react-hot-toast'
 
 interface LeadResult {
@@ -82,6 +82,7 @@ export default function PresupuestadorPage() {
   const [reunion, setReunion] = useState<ReunionEncontrada | null>(persisted.reunion ?? null)
   const [reunionChecked, setReunionChecked] = useState(persisted.reunionChecked ?? false)
   const [previewTab, setPreviewTab] = useState<'resumen' | 'detallada'>(persisted.previewTab ?? 'resumen')
+  const [editMode, setEditMode] = useState(false)
   const [recientes, setRecientes] = useState<RecentPropuesta[]>([])
   const [loadingRecientes, setLoadingRecientes] = useState(true)
 
@@ -177,6 +178,7 @@ export default function PresupuestadorPage() {
     setReunion(null)
     setReunionChecked(false)
     setPreviewTab('resumen')
+    setEditMode(false)
     if (typeof window !== 'undefined') sessionStorage.removeItem(WORKSPACE_KEY)
   }
 
@@ -255,6 +257,30 @@ export default function PresupuestadorPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  // Si ya está guardada (savedId), cada edición se persiste al toque -- si
+  // todavía no, solo actualiza el borrador local hasta que se guarde.
+  function persistEdit(id: string, contenido: Draft) {
+    fetch(`/api/propuestas/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contenido }),
+    }).catch(() => {})
+  }
+
+  function handleEditDetallada(next: PropuestaContenido) {
+    if (!draft) return
+    const updated = { ...draft, detallada: next }
+    setDraft(updated)
+    if (savedId) persistEdit(savedId, updated)
+  }
+
+  function handleEditResumen(next: PropuestaResumenEjecutivo) {
+    if (!draft) return
+    const updated = { ...draft, resumen: next }
+    setDraft(updated)
+    if (savedId) persistEdit(savedId, updated)
   }
 
   return (
@@ -438,40 +464,51 @@ export default function PresupuestadorPage() {
                 <p className="text-sm font-semibold text-slate-800">Vista previa</p>
               )}
               {draft && (
-                savedUrl ? (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => { navigator.clipboard.writeText(`${window.location.origin}${savedUrl}`); toast.success('Link copiado') }}
-                      className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600"
-                    >
-                      <Copy size={12} /> Copiar link
-                    </button>
-                    <a
-                      href={savedUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700"
-                    >
-                      <ExternalLink size={12} /> Abrir
-                    </a>
-                  </div>
-                ) : (
+                <div className="flex items-center gap-2">
                   <button
-                    onClick={handleGuardar}
-                    disabled={saving}
-                    className="text-xs px-3 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                    onClick={() => setEditMode((v) => !v)}
+                    className={cn(
+                      'flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md transition-colors',
+                      editMode ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                    )}
                   >
-                    {saving ? 'Guardando...' : 'Guardar y generar link'}
+                    {editMode ? <><Check size={12} /> Listo</> : <><Pencil size={12} /> Editar texto</>}
                   </button>
-                )
+                  {savedUrl ? (
+                    <>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(`${window.location.origin}${savedUrl}`); toast.success('Link copiado') }}
+                        className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600"
+                      >
+                        <Copy size={12} /> Copiar link
+                      </button>
+                      <a
+                        href={savedUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700"
+                      >
+                        <ExternalLink size={12} /> Abrir
+                      </a>
+                    </>
+                  ) : (
+                    <button
+                      onClick={handleGuardar}
+                      disabled={saving}
+                      className="text-xs px-3 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                    >
+                      {saving ? 'Guardando...' : 'Guardar y generar link'}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
             <div className="flex-1 overflow-y-auto">
               {draft ? (
                 previewTab === 'resumen' && draft.resumen ? (
-                  <PropuestaResumenDocument contenido={draft.resumen} propuestaId={savedId ?? undefined} />
+                  <PropuestaResumenDocument contenido={draft.resumen} propuestaId={savedId ?? undefined} editable={editMode} onChange={handleEditResumen} />
                 ) : (
-                  <PropuestaDocument contenido={draft.detallada} propuestaId={savedId ?? undefined} />
+                  <PropuestaDocument contenido={draft.detallada} propuestaId={savedId ?? undefined} editable={editMode} onChange={handleEditDetallada} />
                 )
               ) : (
                 <div className="h-full flex items-center justify-center text-sm text-slate-400">

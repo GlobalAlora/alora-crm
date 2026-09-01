@@ -3,13 +3,15 @@
 import { Inter } from 'next/font/google'
 import type { PropuestaResumenEjecutivo } from '@/types'
 import { BRAND } from '@/lib/alora-brand'
-import { renderBoldText } from '@/lib/propuesta-format'
+import { EditableText } from '@/lib/propuesta-format'
 
 const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800'] })
 
 interface Props {
   contenido: PropuestaResumenEjecutivo
   propuestaId?: string
+  editable?: boolean
+  onChange?: (next: PropuestaResumenEjecutivo) => void
 }
 
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
@@ -27,7 +29,7 @@ function Label({ children }: { children: string }) {
   )
 }
 
-export function PropuestaResumenDocument({ contenido, propuestaId }: Props) {
+export function PropuestaResumenDocument({ contenido, propuestaId, editable, onChange }: Props) {
   // Defensa contra propuestas guardadas en un formato anterior -- mejor un
   // mensaje claro que un crash de toda la pantalla.
   if (!contenido || !Array.isArray(contenido.hallazgos) || !Array.isArray(contenido.incluye) || !contenido.inversion) {
@@ -39,6 +41,7 @@ export function PropuestaResumenDocument({ contenido, propuestaId }: Props) {
   }
 
   const { titulo, cliente, hallazgos, propuesta, incluye, no_incluye, inversion, tiempos } = contenido
+  const isEditable = !!(editable && onChange)
 
   return (
     <div className={inter.className} style={{ background: '#ffffff' }}>
@@ -72,9 +75,22 @@ export function PropuestaResumenDocument({ contenido, propuestaId }: Props) {
             </span>
           </div>
           <h1 className="font-extrabold text-white mb-3" style={{ fontSize: 30, lineHeight: 1.15, letterSpacing: '-0.02em' }}>
-            {titulo}
+            <EditableText
+              value={titulo}
+              editable={isEditable}
+              onCommit={(text) => onChange?.({ ...contenido, titulo: text })}
+            />
           </h1>
-          {cliente && <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>Preparado para {cliente}</p>}
+          {cliente && (
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
+              Preparado para{' '}
+              <EditableText
+                value={cliente}
+                editable={isEditable}
+                onCommit={(text) => onChange?.({ ...contenido, cliente: text })}
+              />
+            </p>
+          )}
         </div>
 
         {/* Hallazgos */}
@@ -84,7 +100,14 @@ export function PropuestaResumenDocument({ contenido, propuestaId }: Props) {
             {hallazgos.map((h, i) => (
               <div key={i} className="keep flex items-start gap-2.5 rounded-xl px-4 py-3 bg-white" style={{ border: `1px solid ${BRAND.border}` }}>
                 <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND.electric }} />
-                <span style={{ fontSize: 13, lineHeight: 1.6 }}>{renderBoldText(h)}</span>
+                <span style={{ fontSize: 13, lineHeight: 1.6 }}>
+                  <EditableText
+                    value={h}
+                    editable={isEditable}
+                    multiline
+                    onCommit={(text) => onChange?.({ ...contenido, hallazgos: hallazgos.map((hh, hi) => (hi === i ? text : hh)) })}
+                  />
+                </span>
               </div>
             ))}
           </div>
@@ -93,7 +116,14 @@ export function PropuestaResumenDocument({ contenido, propuestaId }: Props) {
         {/* Propuesta */}
         <div className="mb-8">
           <Label>Lo que proponemos</Label>
-          <p style={{ fontSize: 14, lineHeight: 1.75 }}>{renderBoldText(propuesta)}</p>
+          <p style={{ fontSize: 14, lineHeight: 1.75 }}>
+            <EditableText
+              value={propuesta}
+              editable={isEditable}
+              multiline
+              onCommit={(text) => onChange?.({ ...contenido, propuesta: text })}
+            />
+          </p>
         </div>
 
         {/* Incluye / No incluye */}
@@ -104,7 +134,14 @@ export function PropuestaResumenDocument({ contenido, propuestaId }: Props) {
               {incluye.map((item, i) => (
                 <div key={i} className="flex items-start gap-2">
                   <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND.turquesa }} />
-                  <span style={{ fontSize: 12.5, lineHeight: 1.55 }}>{renderBoldText(item)}</span>
+                  <span style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+                    <EditableText
+                      value={item}
+                      editable={isEditable}
+                      multiline
+                      onCommit={(text) => onChange?.({ ...contenido, incluye: incluye.map((it, ii) => (ii === i ? text : it)) })}
+                    />
+                  </span>
                 </div>
               ))}
             </div>
@@ -115,7 +152,14 @@ export function PropuestaResumenDocument({ contenido, propuestaId }: Props) {
               {no_incluye.map((item, i) => (
                 <div key={i} className="flex items-start gap-2">
                   <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND.textMuted }} />
-                  <span style={{ fontSize: 12.5, lineHeight: 1.55, color: BRAND.textMuted }}>{renderBoldText(item)}</span>
+                  <span style={{ fontSize: 12.5, lineHeight: 1.55, color: BRAND.textMuted }}>
+                    <EditableText
+                      value={item}
+                      editable={isEditable}
+                      multiline
+                      onCommit={(text) => onChange?.({ ...contenido, no_incluye: no_incluye.map((it, ii) => (ii === i ? text : it)) })}
+                    />
+                  </span>
                 </div>
               ))}
             </div>
@@ -130,18 +174,45 @@ export function PropuestaResumenDocument({ contenido, propuestaId }: Props) {
           <div className="grid grid-cols-2 gap-6">
             <div>
               <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: BRAND.turquesa, marginBottom: 8 }}>
-                Inversión — {inversion.paquete}
+                Inversión —{' '}
+                <EditableText
+                  value={inversion.paquete}
+                  editable={isEditable}
+                  onCommit={(text) => onChange?.({ ...contenido, inversion: { ...inversion, paquete: text } })}
+                />
               </div>
               <div className="font-extrabold text-white mb-2" style={{ fontSize: 28, letterSpacing: '-0.02em' }}>
-                {formatMonto(inversion.monto, inversion.moneda)}
+                {isEditable ? (
+                  <EditableText
+                    value={formatMonto(inversion.monto, inversion.moneda)}
+                    editable
+                    onCommit={(text) => {
+                      const parsed = Number(text.replace(/[^\d.]/g, ''))
+                      if (!Number.isNaN(parsed) && parsed > 0) onChange?.({ ...contenido, inversion: { ...inversion, monto: parsed } })
+                    }}
+                  />
+                ) : formatMonto(inversion.monto, inversion.moneda)}
               </div>
-              <p style={{ fontSize: 11.5, lineHeight: 1.5, color: '#B7BDC6' }}>{renderBoldText(inversion.forma_pago)}</p>
+              <p style={{ fontSize: 11.5, lineHeight: 1.5, color: '#B7BDC6' }}>
+                <EditableText
+                  value={inversion.forma_pago}
+                  editable={isEditable}
+                  multiline
+                  onCommit={(text) => onChange?.({ ...contenido, inversion: { ...inversion, forma_pago: text } })}
+                />
+              </p>
             </div>
             <div>
               <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: BRAND.electric, marginBottom: 8 }}>
                 Tiempos
               </div>
-              <p className="text-white font-semibold" style={{ fontSize: 14 }}>{tiempos}</p>
+              <p className="text-white font-semibold" style={{ fontSize: 14 }}>
+                <EditableText
+                  value={tiempos}
+                  editable={isEditable}
+                  onCommit={(text) => onChange?.({ ...contenido, tiempos: text })}
+                />
+              </p>
             </div>
           </div>
         </div>

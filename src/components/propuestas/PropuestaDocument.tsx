@@ -3,7 +3,7 @@
 import { Inter } from 'next/font/google'
 import type { PropuestaContenido, PropuestaBloque } from '@/types'
 import { BRAND } from '@/lib/alora-brand'
-import { renderBoldText } from '@/lib/propuesta-format'
+import { EditableText } from '@/lib/propuesta-format'
 
 const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800'] })
 
@@ -32,47 +32,6 @@ function SectionHeader({ n, label }: { n: number; label: string }) {
         {label}
       </span>
     </div>
-  )
-}
-
-type Tag = 'span' | 'p' | 'div' | 'h1'
-
-/** Texto editable in-place: en modo lectura renderiza **negrita**; en modo edición
- * muestra el texto crudo (con los ** visibles) y confirma el cambio al perder foco. */
-function EditableText({
-  value, editable, onCommit, as = 'span', style, className, multiline,
-}: {
-  value: string
-  editable: boolean
-  onCommit: (next: string) => void
-  as?: Tag
-  style?: React.CSSProperties
-  className?: string
-  multiline?: boolean
-}) {
-  const Tag = as
-  if (!editable) {
-    return <Tag style={style} className={className}>{renderBoldText(value)}</Tag>
-  }
-  return (
-    <Tag
-      contentEditable
-      suppressContentEditableWarning
-      onBlur={(e) => {
-        const text = (e.currentTarget.textContent ?? '').trim()
-        if (text && text !== value) onCommit(text)
-      }}
-      onKeyDown={(e) => {
-        if (!multiline && e.key === 'Enter') {
-          e.preventDefault()
-          e.currentTarget.blur()
-        }
-      }}
-      style={{ ...style, outline: 'none', cursor: 'text' }}
-      className={`${className ?? ''} rounded px-0.5 -mx-0.5 hover:bg-blue-50 focus:bg-blue-50 focus:ring-1 focus:ring-blue-300 transition-colors`}
-    >
-      {value}
-    </Tag>
   )
 }
 
