@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Search, Send, Loader2, Copy, ExternalLink, Sparkles, Pencil, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PropuestaDocument } from '@/components/propuestas/PropuestaDocument'
@@ -72,7 +73,17 @@ function loadWorkspace(): Partial<PersistedWorkspace> {
   }
 }
 
+// El sidebar manda ?reset=<timestamp> cuando clickeás "Presupuestador" estando
+// ya en esta página -- un Link normal a la misma ruta no navega, así que sin
+// esto el workspace queda pegado al lead que tenía en memoria. Un remount
+// real (via key) resetea todo el estado de una vez, sin tener que replicar
+// resetWorkspace()/handleChangeLead() a mano dentro de un efecto.
 export default function PresupuestadorPage() {
+  const searchParams = useSearchParams()
+  return <PresupuestadorWorkspace key={searchParams.get('reset') ?? 'default'} />
+}
+
+function PresupuestadorWorkspace() {
   const [persisted] = useState(loadWorkspace)
 
   const [query, setQuery] = useState('')
@@ -218,6 +229,14 @@ export default function PresupuestadorPage() {
     setLead(null)
     fetchRecientes()
   }
+
+  // Limpia el ?reset=<timestamp> de la URL después del remount -- ya cumplió
+  // su función (forzar el key del componente), no hace falta que quede.
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  useEffect(() => {
+    if (searchParams.get('reset')) router.replace('/presupuestador')
+  }, [searchParams, router])
 
   function handleSend() {
     if (!input.trim() || loading) return

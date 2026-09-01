@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
 import {
   LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, List,
@@ -72,6 +72,7 @@ interface NavContentProps {
 }
 
 function NavContent({ pathname, nav, inSettings, isAdmin, totalUnread, me, onCloseMobile }: NavContentProps) {
+  const router = useRouter()
   const navWithBadge = nav.map(n =>
     n.href === '/inbox/whatsapp' ? { ...n, badge: totalUnread || null } : n
   )
@@ -92,7 +93,17 @@ function NavContent({ pathname, nav, inSettings, isAdmin, totalUnread, me, onClo
             <div key={href}>
               <Link
                 href={href}
-                onClick={onCloseMobile}
+                onClick={(e) => {
+                  onCloseMobile?.()
+                  // Un Link a la ruta en la que ya estás no navega (Next.js
+                  // no hace nada) -- el Presupuestador queda "pegado" al lead
+                  // que tenía en memoria. Forzar un query param único hace
+                  // que sí dispare, y la página lo usa para resetear.
+                  if (href === '/presupuestador' && pathname === '/presupuestador') {
+                    e.preventDefault()
+                    router.push(`/presupuestador?reset=${Date.now()}`)
+                  }
+                }}
                 className={cn(
                   'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
                   isActive ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'
