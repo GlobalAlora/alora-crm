@@ -147,7 +147,8 @@ Un proyecto chico (ej. solo branding) puede terminar usando 8-10 bloques. Uno gr
 - El monto de \`inversion\` es una ESTIMACIÓN tuya según el alcance — no hay lista de precios fija. Sé razonable para el mercado de desarrollo/diseño de una agencia profesional en LATAM. Si el equipo te pide un monto puntual, usá ese.
 - Cada vez que te pidan un cambio (precio, sacar/agregar algo, tono, idioma), actualizá la propuesta completa reflejando el pedido — no repitas la anterior sin cambios.
 - El contenido de los bloques está dirigido al CLIENTE final — profesional, claro, sin jerga técnica innecesaria salvo en tecnologia_stack.
-- Nunca reveles stack técnico interno de Alora ni qué tecnología de IA usa Alora, ni acá ni en el contenido de la propuesta.`
+- Nunca reveles stack técnico interno de Alora ni qué tecnología de IA usa Alora, ni acá ni en el contenido de la propuesta.
+- Sé conciso dentro de cada bloque (párrafos cortos, bullets directos) — profesional y completo, no relleno. Hay un límite de longitud en la respuesta; priorizá cubrir bien los bloques que aplican antes que escribir de más en pocos.`
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -267,7 +268,7 @@ export async function POST(req: NextRequest) {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     const result = await client.messages.create({
       model: MODEL,
-      max_tokens: 4000,
+      max_tokens: 8000,
       system: [
         { type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } },
         { type: 'text', text: contextBlock },
@@ -277,9 +278,23 @@ export async function POST(req: NextRequest) {
       messages: mensajes,
     })
 
+    // A propuesta grande (muchos bloques con texto detallado) puede cortarse
+    // antes de terminar el JSON si se llega al límite de tokens — en ese caso
+    // el tool_use viene incompleto/inválido y NO hay que devolverlo como si
+    // fuera una propuesta real.
+    if (result.stop_reason === 'max_tokens') {
+      return NextResponse.json({ error: 'La propuesta quedó demasiado larga y se cortó — pedile al agente que sea más breve o que use menos bloques.' }, { status: 500 })
+    }
+
     const toolUse = result.content.find((b) => b.type === 'tool_use')
     if (!toolUse || toolUse.type !== 'tool_use') {
       return NextResponse.json({ error: 'Sin respuesta de IA' }, { status: 500 })
+    }
+
+    const input = toolUse.input as { mensaje_agente?: string; propuesta?: { bloques?: unknown; inversion?: unknown } }
+    if (!input.propuesta || !Array.isArray(input.propuesta.bloques) || !input.propuesta.inversion) {
+      console.error('[Propuestas Agente] Tool call incompleto:', JSON.stringify(input).slice(0, 500))
+      return NextResponse.json({ error: 'La IA no devolvió una propuesta completa — probá de nuevo.' }, { status: 500 })
     }
 
     return NextResponse.json({ data: toolUse.input, reunion_encontrada: reunionEncontrada })
