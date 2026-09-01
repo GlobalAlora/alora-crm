@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Search, Send, Loader2, Copy, ExternalLink, Sparkles, Pencil, Check } from 'lucide-react'
+import { Search, Send, Loader2, Copy, ExternalLink, Sparkles, Pencil, Check, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PropuestaDocument } from '@/components/propuestas/PropuestaDocument'
 import { PropuestaResumenDocument } from '@/components/propuestas/PropuestaResumenDocument'
@@ -230,6 +230,25 @@ function PresupuestadorWorkspace() {
     fetchRecientes()
   }
 
+  // Mismo endpoint que usa la ficha del lead para borrar propuestas -- borra
+  // en serio de la base (no solo de esta lista), así que también desaparece
+  // de la ficha del lead, del dashboard y de cualquier cálculo de valor.
+  async function handleDeleteRecent(id: string) {
+    const prev = recientes
+    setRecientes((r) => r.filter((p) => p.id !== id))
+    try {
+      const res = await fetch(`/api/propuestas/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error || 'Error al eliminar')
+      }
+      toast.success('Propuesta eliminada')
+    } catch (e) {
+      setRecientes(prev)
+      toast.error(e instanceof Error ? e.message : 'Error al eliminar')
+    }
+  }
+
   // Limpia el ?reset=<timestamp> de la URL después del remount -- ya cumplió
   // su función (forzar el key del componente), no hace falta que quede.
   const router = useRouter()
@@ -364,21 +383,29 @@ function PresupuestadorWorkspace() {
                   {recientes.map((p) => {
                     const l = Array.isArray(p.lead) ? p.lead[0] : p.lead
                     return (
-                      <button
-                        key={p.id}
-                        onClick={() => handleLoadRecent(p)}
-                        className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors flex items-center justify-between gap-3"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-slate-800 truncate">{p.descripcion}</p>
-                          <p className="text-xs text-slate-500 truncate">
-                            {l ? [l.nombre, l.apellido].filter(Boolean).join(' ') : 'Lead eliminado'}
-                          </p>
-                        </div>
-                        <span className="text-xs text-slate-400 flex-shrink-0">
-                          {new Date(p.created_at).toLocaleDateString('es-AR')}
-                        </span>
-                      </button>
+                      <div key={p.id} className="group flex items-center gap-1 px-2">
+                        <button
+                          onClick={() => handleLoadRecent(p)}
+                          className="flex-1 min-w-0 text-left px-2 py-3 hover:bg-slate-50 transition-colors flex items-center justify-between gap-3 rounded-lg"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-800 truncate">{p.descripcion}</p>
+                            <p className="text-xs text-slate-500 truncate">
+                              {l ? [l.nombre, l.apellido].filter(Boolean).join(' ') : 'Lead eliminado'}
+                            </p>
+                          </div>
+                          <span className="text-xs text-slate-400 flex-shrink-0">
+                            {new Date(p.created_at).toLocaleDateString('es-AR')}
+                          </span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteRecent(p.id)}
+                          title="Eliminar propuesta"
+                          className="flex-shrink-0 opacity-0 group-hover:opacity-100 p-1.5 rounded text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     )
                   })}
                 </div>
