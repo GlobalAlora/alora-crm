@@ -174,7 +174,7 @@ Un proyecto chico (ej. solo branding) puede terminar usando 8-10 bloques. Uno gr
 - No inventes datos del lead que no te dieron — si falta información clave de negocio para el contexto, decilo en \`notas\`/\`mensaje_agente\` y hacé el mejor trabajo posible con lo que hay; no le pidas al equipo que actúe como si fuera el cliente.
 - Si tenés notas o transcripción de la reunión con el cliente, son la mejor fuente para el bloque "contexto" (es información de primera mano, mejor que lo que dice la ficha) — usalas en detalle.
 - El monto de \`inversion\` es una ESTIMACIÓN tuya según el alcance — no hay lista de precios fija. Sé razonable para el mercado de desarrollo/diseño de una agencia profesional en LATAM. Si el equipo te pide un monto puntual, usá ese.
-- Cada vez que te pidan un cambio (precio, sacar/agregar algo, tono, idioma), actualizá la propuesta completa reflejando el pedido — no repitas la anterior sin cambios.
+- Si te pasan un BORRADOR ACTUAL, esa es la propuesta real que ya existe — un pedido de cambio (precio, sacar/agregar algo, tono, idioma, o "hacela de nuevo"/"de nuevo" sin más detalle) se aplica SOBRE ese contenido, no se reescribe todo desde cero. Devolvé la propuesta completa actualizada (todos los bloques, no solo el que cambió), pero basada en lo que ya estaba ahí.
 - En los párrafos e items (parrafos, items, subsecciones.items, hallazgos, incluye, no_incluye, propuesta), marcá con **negrita** (doble asterisco) la o las 1-2 frases más importantes de cada párrafo o punto — un dato clave, un número, una palabra que resume la idea. No abuses: si todo está en negrita, no resalta nada.
 - El contenido de los bloques está dirigido al CLIENTE final — profesional, claro, sin jerga técnica innecesaria salvo en tecnologia_stack.
 - TODO bloque arranca con al menos un párrafo (ver descripción de \`parrafos\` arriba) — ningún bloque va directo a una lista de items o subsecciones sin una frase de introducción antes.
@@ -210,7 +210,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { leadId, mensajes, modo } = body as { leadId: string; mensajes: ChatMessage[]; modo?: 'resumen' | 'propuesta' }
+  const { leadId, mensajes, modo, draftActual } = body as { leadId: string; mensajes: ChatMessage[]; modo?: 'resumen' | 'propuesta'; draftActual?: PropuestaContenido | null }
 
   if (!leadId || !Array.isArray(mensajes) || mensajes.length === 0) {
     return NextResponse.json({ error: 'leadId y mensajes son requeridos' }, { status: 400 })
@@ -329,12 +329,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ data: { mensaje_agente, propuesta: null }, reunion_encontrada: reunionEncontrada })
     }
 
+    // El chat solo guarda resúmenes cortos de lo que el agente contestó, no
+    // el JSON completo que generó -- sin esto, un pedido de cambio (o algo
+    // vago como "hacela de nuevo") se responde a ciegas, sin ver el
+    // contenido real que hay que editar.
+    const draftBlock = draftActual
+      ? { type: 'text' as const, text: `BORRADOR ACTUAL DE LA PROPUESTA (JSON) — si te piden un cambio puntual, partí de este contenido exacto y modificá solo lo pedido, no reescribas todo desde cero salvo que te lo pidan explícitamente:\n${JSON.stringify(draftActual)}` }
+      : null
+
     const result = await client.messages.create({
       model: MODEL,
       max_tokens: 12000,
       system: [
         { type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } },
         { type: 'text', text: contextBlock },
+        ...(draftBlock ? [draftBlock] : []),
       ],
       tools: [PROPOSAL_TOOL],
       tool_choice: { type: 'tool', name: 'responder' },

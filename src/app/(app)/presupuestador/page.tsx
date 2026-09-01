@@ -137,7 +137,11 @@ export default function PresupuestadorPage() {
       const res = await fetch('/api/propuestas/agente', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId: activeLead.id, mensajes: newMensajes, modo }),
+        // draftActual: el chat solo guarda resúmenes cortos de lo que hizo el
+        // agente, nunca el JSON completo -- sin mandarle el borrador real en
+        // cada pedido de cambio, el agente termina "editando a ciegas" sobre
+        // una descripción de sí mismo en vez del contenido real.
+        body: JSON.stringify({ leadId: activeLead.id, mensajes: newMensajes, modo, draftActual: draft?.detallada ?? null }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Error')

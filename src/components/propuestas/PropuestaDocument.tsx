@@ -1,7 +1,7 @@
 'use client'
 
 import { Inter } from 'next/font/google'
-import type { PropuestaContenido } from '@/types'
+import type { PropuestaContenido, PropuestaBloque } from '@/types'
 import { BRAND } from '@/lib/alora-brand'
 import { renderBoldText } from '@/lib/propuesta-format'
 
@@ -10,6 +10,8 @@ const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600', '700', '
 interface PropuestaDocumentProps {
   contenido: PropuestaContenido
   propuestaId?: string
+  editable?: boolean
+  onChange?: (next: PropuestaContenido) => void
 }
 
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
@@ -33,7 +35,48 @@ function SectionHeader({ n, label }: { n: number; label: string }) {
   )
 }
 
-export function PropuestaDocument({ contenido, propuestaId }: PropuestaDocumentProps) {
+type Tag = 'span' | 'p' | 'div' | 'h1'
+
+/** Texto editable in-place: en modo lectura renderiza **negrita**; en modo edición
+ * muestra el texto crudo (con los ** visibles) y confirma el cambio al perder foco. */
+function EditableText({
+  value, editable, onCommit, as = 'span', style, className, multiline,
+}: {
+  value: string
+  editable: boolean
+  onCommit: (next: string) => void
+  as?: Tag
+  style?: React.CSSProperties
+  className?: string
+  multiline?: boolean
+}) {
+  const Tag = as
+  if (!editable) {
+    return <Tag style={style} className={className}>{renderBoldText(value)}</Tag>
+  }
+  return (
+    <Tag
+      contentEditable
+      suppressContentEditableWarning
+      onBlur={(e) => {
+        const text = (e.currentTarget.textContent ?? '').trim()
+        if (text && text !== value) onCommit(text)
+      }}
+      onKeyDown={(e) => {
+        if (!multiline && e.key === 'Enter') {
+          e.preventDefault()
+          e.currentTarget.blur()
+        }
+      }}
+      style={{ ...style, outline: 'none', cursor: 'text' }}
+      className={`${className ?? ''} rounded px-0.5 -mx-0.5 hover:bg-blue-50 focus:bg-blue-50 focus:ring-1 focus:ring-blue-300 transition-colors`}
+    >
+      {value}
+    </Tag>
+  )
+}
+
+export function PropuestaDocument({ contenido, propuestaId, editable, onChange }: PropuestaDocumentProps) {
   // Defensa contra propuestas guardadas en un formato anterior (antes del
   // split detallada/resumen) -- mejor un mensaje claro que un crash de
   // toda la pantalla por un .map() sobre algo que no existe en esa forma.
@@ -46,22 +89,35 @@ export function PropuestaDocument({ contenido, propuestaId }: PropuestaDocumentP
   }
 
   const { titulo, cliente, bloques, inversion, mantenimiento } = contenido
+  const isEditable = !!(editable && onChange)
   let n = 0
+
+  function patchBloque(idx: number, updater: (b: PropuestaBloque) => PropuestaBloque) {
+    if (!onChange) return
+    onChange({ ...contenido, bloques: bloques.map((b, i) => (i === idx ? updater(b) : b)) })
+  }
 
   // El cierre va al final de todo el documento (después de inversión y
   // mantenimiento) aunque el agente lo devuelva como un bloque más — un
   // cierre cálido después del precio es mejor que uno en el medio.
-  const cierreIdx = bloques.findIndex((b) => b.id === 'cierre')
-  const mainBloques = cierreIdx >= 0 ? bloques.filter((_, i) => i !== cierreIdx) : bloques
-  const cierreBloque = cierreIdx >= 0 ? bloques[cierreIdx] : null
+  const indexed = bloques.map((bloque, idx) => ({ bloque, idx }))
+  const cierreEntry = indexed.find((e) => e.bloque.id === 'cierre') ?? null
+  const mainEntries = cierreEntry ? indexed.filter((e) => e !== cierreEntry) : indexed
 
-  function renderBloque(bloque: PropuestaContenido['bloques'][number], num: number) {
+  function renderBloque(bloque: PropuestaBloque, idx: number, num: number) {
     return (
       <div key={bloque.id} className="mb-9">
         <SectionHeader n={num} label={bloque.titulo} />
 
         {bloque.parrafos?.map((p, i) => (
-          <p key={i} style={{ fontSize: 14, lineHeight: 1.75, color: '#2A2E34', marginBottom: 14 }}>{renderBoldText(p)}</p>
+          <p key={i} style={{ fontSize: 14, lineHeight: 1.75, color: '#2A2E34', marginBottom: 14 }}>
+            <EditableText
+              value={p}
+              editable={isEditable}
+              multiline
+              onCommit={(text) => patchBloque(idx, (b) => ({ ...b, parrafos: (b.parrafos ?? []).map((pp, pi) => (pi === i ? text : pp)) }))}
+            />
+          </p>
         ))}
 
         {bloque.items && bloque.items.length > 0 && (
@@ -69,20 +125,43 @@ export function PropuestaDocument({ contenido, propuestaId }: PropuestaDocumentP
             {bloque.items.map((item, i) => (
               <div key={i} className="keep flex items-start gap-2.5 rounded-xl px-4 py-3" style={{ background: BRAND.surface, border: `1px solid ${BRAND.border}` }}>
                 <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND.turquesa }} />
-                <span style={{ fontSize: 13, lineHeight: 1.6, color: '#2A2E34' }}>{renderBoldText(item)}</span>
+                <span style={{ fontSize: 13, lineHeight: 1.6, color: '#2A2E34' }}>
+                  <EditableText
+                    value={item}
+                    editable={isEditable}
+                    multiline
+                    onCommit={(text) => patchBloque(idx, (b) => ({ ...b, items: (b.items ?? []).map((it, ii) => (ii === i ? text : it)) }))}
+                  />
+                </span>
               </div>
             ))}
           </div>
         )}
 
-        {bloque.subsecciones?.map((sub, i) => (
-          <div key={i} className={`keep rounded-2xl p-6 bg-white ${i > 0 ? 'mt-3' : 'mt-2'}`} style={{ border: `1px solid ${BRAND.border}` }}>
-            <p className="font-bold mb-3" style={{ fontSize: 14, color: BRAND.ink, letterSpacing: '-0.01em' }}>{sub.titulo}</p>
+        {bloque.subsecciones?.map((sub, si) => (
+          <div key={si} className={`keep rounded-2xl p-6 bg-white ${si > 0 ? 'mt-3' : 'mt-2'}`} style={{ border: `1px solid ${BRAND.border}` }}>
+            <p className="font-bold mb-3" style={{ fontSize: 14, color: BRAND.ink, letterSpacing: '-0.01em' }}>
+              <EditableText
+                value={sub.titulo}
+                editable={isEditable}
+                onCommit={(text) => patchBloque(idx, (b) => ({ ...b, subsecciones: (b.subsecciones ?? []).map((s, ssi) => (ssi === si ? { ...s, titulo: text } : s)) }))}
+              />
+            </p>
             <div className="grid gap-2">
               {sub.items.map((item, j) => (
                 <div key={j} className="flex items-start gap-2.5">
                   <span className="mt-1.5 w-1 h-1 rounded-full flex-shrink-0" style={{ background: BRAND.electric }} />
-                  <span style={{ fontSize: 12.5, lineHeight: 1.6, color: BRAND.textMuted }}>{renderBoldText(item)}</span>
+                  <span style={{ fontSize: 12.5, lineHeight: 1.6, color: BRAND.textMuted }}>
+                    <EditableText
+                      value={item}
+                      editable={isEditable}
+                      multiline
+                      onCommit={(text) => patchBloque(idx, (b) => ({
+                        ...b,
+                        subsecciones: (b.subsecciones ?? []).map((s, ssi) => (ssi === si ? { ...s, items: s.items.map((it, ii) => (ii === j ? text : it)) } : s)),
+                      }))}
+                    />
+                  </span>
                 </div>
               ))}
             </div>
@@ -124,7 +203,11 @@ export function PropuestaDocument({ contenido, propuestaId }: PropuestaDocumentP
             </span>
           </div>
           <h1 className="font-extrabold text-white mb-3" style={{ fontSize: 32, lineHeight: 1.15, letterSpacing: '-0.02em' }}>
-            {titulo}
+            <EditableText
+              value={titulo}
+              editable={isEditable}
+              onCommit={(text) => onChange?.({ ...contenido, titulo: text })}
+            />
           </h1>
           {cliente && (
             <div
@@ -134,13 +217,19 @@ export function PropuestaDocument({ contenido, propuestaId }: PropuestaDocumentP
               <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: BRAND.turquesa, marginBottom: 6 }}>
                 Preparada para
               </div>
-              <div className="text-white font-semibold" style={{ fontSize: 13.5 }}>{cliente}</div>
+              <div className="text-white font-semibold" style={{ fontSize: 13.5 }}>
+                <EditableText
+                  value={cliente}
+                  editable={isEditable}
+                  onCommit={(text) => onChange?.({ ...contenido, cliente: text })}
+                />
+              </div>
             </div>
           )}
         </div>
 
         {/* Bloques (excepto cierre, que va al final) */}
-        {mainBloques.map((bloque) => renderBloque(bloque, ++n))}
+        {mainEntries.map(({ bloque, idx }) => renderBloque(bloque, idx, ++n))}
 
         {/* Inversión */}
         <div className="mb-9">
@@ -150,12 +239,32 @@ export function PropuestaDocument({ contenido, propuestaId }: PropuestaDocumentP
             style={{ background: BRAND.ink, backgroundImage: `radial-gradient(110% 100% at 0% 0%, rgba(6,159,249,0.20) 0%, rgba(144,106,229,0.12) 42%, rgba(7,9,14,0) 74%)` }}
           >
             <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: BRAND.turquesa, marginBottom: 8 }}>
-              {inversion.paquete}
+              <EditableText
+                value={inversion.paquete}
+                editable={isEditable}
+                onCommit={(text) => onChange?.({ ...contenido, inversion: { ...inversion, paquete: text } })}
+              />
             </div>
             <div className="font-extrabold text-white mb-3" style={{ fontSize: 34, letterSpacing: '-0.02em' }}>
-              {formatMonto(inversion.monto, inversion.moneda)}
+              {isEditable ? (
+                <EditableText
+                  value={formatMonto(inversion.monto, inversion.moneda)}
+                  editable
+                  onCommit={(text) => {
+                    const parsed = Number(text.replace(/[^\d.]/g, ''))
+                    if (!Number.isNaN(parsed) && parsed > 0) onChange?.({ ...contenido, inversion: { ...inversion, monto: parsed } })
+                  }}
+                />
+              ) : formatMonto(inversion.monto, inversion.moneda)}
             </div>
-            <p style={{ fontSize: 12.5, lineHeight: 1.6, color: '#B7BDC6' }}>{renderBoldText(inversion.forma_pago)}</p>
+            <p style={{ fontSize: 12.5, lineHeight: 1.6, color: '#B7BDC6' }}>
+              <EditableText
+                value={inversion.forma_pago}
+                editable={isEditable}
+                multiline
+                onCommit={(text) => onChange?.({ ...contenido, inversion: { ...inversion, forma_pago: text } })}
+              />
+            </p>
           </div>
         </div>
 
@@ -165,14 +274,33 @@ export function PropuestaDocument({ contenido, propuestaId }: PropuestaDocumentP
             <SectionHeader n={++n} label="Mantenimiento (opcional)" />
             <div className="keep rounded-2xl p-6 bg-white" style={{ border: `1px solid ${BRAND.border}` }}>
               <p className="font-extrabold mb-3" style={{ fontSize: 20, color: BRAND.ink }}>
-                {formatMonto(mantenimiento.monto_mensual, mantenimiento.moneda)}{' '}
+                {isEditable ? (
+                  <EditableText
+                    value={formatMonto(mantenimiento.monto_mensual, mantenimiento.moneda)}
+                    editable
+                    onCommit={(text) => {
+                      const parsed = Number(text.replace(/[^\d.]/g, ''))
+                      if (!Number.isNaN(parsed) && parsed > 0) onChange?.({ ...contenido, mantenimiento: { ...mantenimiento, monto_mensual: parsed } })
+                    }}
+                  />
+                ) : formatMonto(mantenimiento.monto_mensual, mantenimiento.moneda)}{' '}
                 <span className="font-normal" style={{ fontSize: 12, color: BRAND.textMuted }}>/ mes</span>
               </p>
               <div className="grid gap-1.5">
                 {mantenimiento.incluye.map((item, i) => (
                   <div key={i} className="flex items-start gap-2.5">
                     <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND.violeta }} />
-                    <span style={{ fontSize: 12.5, lineHeight: 1.55, color: BRAND.textMuted }}>{renderBoldText(item)}</span>
+                    <span style={{ fontSize: 12.5, lineHeight: 1.55, color: BRAND.textMuted }}>
+                      <EditableText
+                        value={item}
+                        editable={isEditable}
+                        multiline
+                        onCommit={(text) => onChange?.({
+                          ...contenido,
+                          mantenimiento: { ...mantenimiento, incluye: mantenimiento.incluye.map((it, ii) => (ii === i ? text : it)) },
+                        })}
+                      />
+                    </span>
                   </div>
                 ))}
               </div>
@@ -181,7 +309,7 @@ export function PropuestaDocument({ contenido, propuestaId }: PropuestaDocumentP
         )}
 
         {/* Cierre (siempre al final) */}
-        {cierreBloque && renderBloque(cierreBloque, ++n)}
+        {cierreEntry && renderBloque(cierreEntry.bloque, cierreEntry.idx, ++n)}
 
         {/* Footer */}
         <div
