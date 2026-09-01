@@ -53,7 +53,7 @@ const PROPOSAL_TOOL: Anthropic.Tool = {
             type: 'object',
             required: ['paquete', 'moneda', 'monto', 'forma_pago'],
             properties: {
-              paquete: { type: 'string', description: 'Nombre del paquete/proyecto para la sección de inversión.' },
+              paquete: { type: 'string', description: 'Nombre CORTO del paquete/proyecto para la sección de inversión — 3 a 6 palabras máximo (ej. "Ecommerce a medida", no una descripción completa del proyecto). Va en una etiqueta angosta, un nombre largo se corta mal.' },
               moneda: { type: 'string', enum: ['USD', 'ARS'] },
               monto: { type: 'number', description: 'Monto total estimado — no hay lista de precios fija, usá criterio de mercado LATAM para una agencia profesional según el alcance descrito en los bloques.' },
               forma_pago: { type: 'string', description: 'Forma de pago, por default "40% al inicio, 30% a los 30 días, 30% previo a la puesta en producción" salvo que el proyecto sea muy corto/largo o te pidan otra cosa.' },
