@@ -66,14 +66,15 @@ export default function PresupuestadorPage() {
     return () => clearTimeout(t)
   }, [query])
 
-  async function sendToAgent(newMensajes: ChatMessage[], modo: 'resumen' | 'propuesta') {
-    if (!lead) return
+  async function sendToAgent(newMensajes: ChatMessage[], modo: 'resumen' | 'propuesta', leadOverride?: LeadResult) {
+    const activeLead = leadOverride ?? lead
+    if (!activeLead) return
     setLoading(true)
     try {
       const res = await fetch('/api/propuestas/agente', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId: lead.id, mensajes: newMensajes, modo }),
+        body: JSON.stringify({ leadId: activeLead.id, mensajes: newMensajes, modo }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Error')
@@ -102,7 +103,7 @@ export default function PresupuestadorPage() {
     setReunionChecked(false)
     const inicial: ChatMessage[] = [{ role: 'user', content: 'Contame qué encontraste sobre este lead antes de armar la propuesta.' }]
     setMensajes(inicial)
-    void sendToAgent(inicial, 'resumen')
+    void sendToAgent(inicial, 'resumen', l)
   }
 
   function handleSend() {
