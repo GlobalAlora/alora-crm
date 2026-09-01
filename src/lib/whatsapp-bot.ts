@@ -695,7 +695,7 @@ async function advanceQualifyingBotWithAI(
       .eq('id', leadId)
       .single(),
     admin.from('wa_messages')
-      .select('direction, body')
+      .select('direction, body, agent_id')
       .eq('conversation_id', conversationId)
       .not('body', 'is', null)
       .order('created_at', { ascending: true })
@@ -704,16 +704,23 @@ async function advanceQualifyingBotWithAI(
 
   if (!lead || !messages?.length) return
 
-  // Build alternating user/assistant history, merging consecutive same-role messages
+  // Check if a human team member already sent messages (agent_id set = manual send)
+  const hasHumanContact = messages.some(m => m.direction === 'outbound' && m.agent_id)
+
+  // Build alternating user/assistant history, merging consecutive same-role messages.
+  // Tag human-sent outbound messages so the AI knows Lidia didn't write them.
   const history: Array<{ role: 'user' | 'assistant'; content: string }> = []
   for (const msg of messages) {
     if (!msg.body) continue
     const role: 'user' | 'assistant' = msg.direction === 'inbound' ? 'user' : 'assistant'
+    const content = (msg.direction === 'outbound' && msg.agent_id)
+      ? `[mensaje enviado por el equipo de Alora, NO por Lidia]\n${msg.body}`
+      : msg.body
     const last = history[history.length - 1]
     if (last && last.role === role) {
-      last.content += '\n' + msg.body
+      last.content += '\n' + content
     } else {
-      history.push({ role, content: msg.body })
+      history.push({ role, content })
     }
   }
 
@@ -726,6 +733,14 @@ async function advanceQualifyingBotWithAI(
   if (lead.empresa) ctx.push(`Empresa: ${lead.empresa}`)
   if (lead.sitio_web) ctx.push(`Sitio web: ${lead.sitio_web}`)
   if (lead.pais) ctx.push(`País: ${lead.pais}`)
+
+  if (hasHumanContact) {
+    ctx.push(
+      lang === 'en'
+        ? '\nIMPORTANT CONTEXT: A human team member (Walo or another person from the Alora team) already reached out to this lead directly — their messages are tagged "[mensaje enviado por el equipo de Alora, NO por Lidia]" in the history. Do NOT re-introduce yourself as if this is the first contact. Continue the conversation naturally from where they left off. Do not repeat questions or information already covered in those messages.'
+        : '\nCONTEXTO IMPORTANTE: Un miembro del equipo de Alora (Walo u otra persona) ya contactó a este lead directamente — sus mensajes aparecen marcados con "[mensaje enviado por el equipo de Alora, NO por Lidia]" en el historial. No te presentes como si fuera el primer contacto. Continuá la conversación de forma natural desde donde quedó. No repitas preguntas ni información que ya fue mencionada en esos mensajes.',
+    )
+  }
 
   const systemBase = lang === 'en' ? QUALIFYING_AI_SYSTEM_EN : QUALIFYING_AI_SYSTEM_ES
 
@@ -1314,11 +1329,12 @@ function findSlotByDayTime(trimmed: string, slots: Date[], tz: string): number {
     if (lower.includes(name)) { targetDay = dayNum; break }
   }
 
-  // Date number (1-31) — only take one that isn't the hour itself
+  // Date number (1-31) — strip the matched time first to avoid minutes being treated as a date
   let targetDate: number | null = null
-  const dateNums = [...trimmed.matchAll(/\b(\d{1,2})\b/g)]
+  const withoutTime = trimmed.replace(timeMatch[0], ' ')
+  const dateNums = [...withoutTime.matchAll(/\b(\d{1,2})\b/g)]
     .map(m => parseInt(m[1], 10))
-    .filter(n => n >= 1 && n <= 31 && n !== targetHour)
+    .filter(n => n >= 1 && n <= 31)
   if (dateNums.length > 0) targetDate = dateNums[0]
 
   for (let i = 0; i < slots.length; i++) {
@@ -2054,6 +2070,15 @@ async function handleFaqPhase(
 ): Promise<void> {
   const t = text?.trim() ?? ''
 
+  // Check upfront if the lead already has a meeting — this changes the whole routing
+  const { data: leadStageCheck } = await admin.from('leads').select('estado_pipeline').eq('id', leadId).maybeSingle()
+  const alreadyBooked = ['reunion_reservada', 'reunion_realizada', 'propuesta_en_armado', 'propuesta_enviada', 'follow_up', 'cliente_ganado'].includes(leadStageCheck?.estado_pipeline ?? '')
+
+  if (alreadyBooked) {
+    await handlePostBookingMessage(admin, { leadId, conversationId, phone, text: t, lang })
+    return
+  }
+
   // Disengagement check — same as in qualifying and booking phases
   if (t && (DISENGAGEMENT_RE.test(t) || DISENGAGEMENT_RE_EN.test(t))) {
     await sendOutboundWhatsAppMessage(admin, {
@@ -2157,28 +2182,84 @@ async function handleFaqPhase(
     return
   }
 
-  // Nothing matched — if the lead hasn't booked a meeting yet, re-offer the slots
-  // so they never hit a dead-end of silence. Leads in FAQ mode are already qualified;
-  // booking is the only remaining step.
-  const { data: leadStageCheck } = await admin
-    .from('leads')
-    .select('estado_pipeline')
-    .eq('id', leadId)
-    .maybeSingle()
+  // Nothing matched and lead hasn't booked yet — re-offer the slots so they never
+  // hit a dead-end of silence. Leads in FAQ mode are already qualified; booking is
+  // the only remaining step.
+  await startBookingFlow(admin, { leadId, conversationId, phone }, 0,
+    lang === 'en'
+      ? "To help you properly, the best next step is a 30-min call with Walo so you can chat about your project in detail 😊 Pick the time that works best for you:\n\n"
+      : 'Para poder ayudarte mejor, lo ideal es agendar una llamada de 30 min con Walo para charlar sobre tu proyecto en detalle 😊 Elegí el horario que más te quede bien:\n\n',
+    lang,
+  )
+}
 
-  const alreadyBooked = leadStageCheck?.estado_pipeline === 'reunion_reservada'
-    || leadStageCheck?.estado_pipeline === 'reunion_realizada'
-    || leadStageCheck?.estado_pipeline === 'propuesta_en_armado'
-    || leadStageCheck?.estado_pipeline === 'propuesta_enviada'
-    || leadStageCheck?.estado_pipeline === 'follow_up'
-    || leadStageCheck?.estado_pipeline === 'cliente_ganado'
+/**
+ * After a meeting is booked, Lidia stays active so the lead can ask questions.
+ * She doesn't pause on gratitude ("gracias por todo"), supports rescheduling,
+ * and uses AI to answer anything that doesn't match a FAQ.
+ */
+async function handlePostBookingMessage(
+  admin: AdminClient,
+  { leadId, conversationId, phone, text, lang }: { leadId: string; conversationId: string; phone: string; text: string; lang: Lang },
+): Promise<void> {
+  const t = text.trim()
+  if (!t) return
 
-  if (!alreadyBooked) {
-    await startBookingFlow(admin, { leadId, conversationId, phone }, 0,
-      lang === 'en'
-        ? "To help you properly, the best next step is a 30-min call with Walo so you can chat about your project in detail 😊 Pick the time that works best for you:\n\n"
-        : 'Para poder ayudarte mejor, lo ideal es agendar una llamada de 30 min con Walo para charlar sobre tu proyecto en detalle 😊 Elegí el horario que más te quede bien:\n\n',
-      lang,
-    )
+  // Rescheduling is always honoured even after booking
+  const wantsReschedule = /\b(otro|otra|otros|cambiar|reagendar|reprogramar|diferente|distinto|quiero otro|quiero otra|cambio|cambien|no me queda|no puedo ese|otro horario|otra fecha|otro dia|otro día|reschedule|change the time|different time|another time|another slot|another date)\b/i.test(t)
+  if (wantsReschedule) {
+    await sendOutboundWhatsAppMessage(admin, {
+      conversationId, leadId, phone,
+      body: lang === 'en'
+        ? "No problem! Here are the available times for you to reschedule 🗓️"
+        : '¡Sin problema! Acá van los horarios disponibles para reagendar 🗓️',
+    })
+    await startBookingFlow(admin, { leadId, conversationId, phone }, 0, undefined, lang)
+    return
+  }
+
+  // Check FAQ list first — most accurate for common questions
+  const faqResult = await matchFaqOrEscalate(admin, t)
+  if (faqResult.action === 'answer' && faqResult.answer) {
+    await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: faqResult.answer })
+    return
+  }
+
+  // Explicit human request — honour it
+  if (faqResult.humanRequested) {
+    const sentHandoff = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: getHandoff(lang) })
+    if (!sentHandoff) return
+    await admin.from('whatsapp_conversations').update({ bot_active: false }).eq('id', conversationId)
+    const { data: leadInfo } = await admin.from('leads').select('nombre, apellido').eq('id', leadId).maybeSingle()
+    const leadLabel = [leadInfo?.nombre, leadInfo?.apellido].filter(Boolean).join(' ') || `+${phone}`
+    notifyAll({
+      title: `🙋 ${leadLabel} pidió hablar con alguien (post-reserva)`,
+      body:  'Lidia pausó la conversación — el lead quiere atención humana.',
+      url:   `/leads/${leadId}`,
+    }).catch(() => {})
+    return
+  }
+
+  // Anything else — use AI to answer in context. The lead is already booked,
+  // so Lidia can be helpful without risk of giving wrong pre-sales info.
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return
+
+  try {
+    const client = new Anthropic({ apiKey })
+    const reply = await client.messages.create({
+      model:      ANTHROPIC_MODEL,
+      max_tokens: 200,
+      system: lang === 'en'
+        ? 'You are Lidia, the WhatsApp assistant for Alora (a web agency). The lead has already booked a 30-min video call with Walo (the team lead). Reply helpfully and warmly to their message. Keep it short (1-3 sentences). Never offer to schedule another call — they already have one. If they thank you, acknowledge it warmly and remind them the meeting is confirmed. If they ask something about preparation, tell them no special prep is needed — Walo will guide the conversation.'
+        : 'Sos Lidia, la asistente de WhatsApp de Alora (una agencia web). El lead ya reservó una videollamada de 30 min con Walo (el líder del equipo). Respondé de forma útil y cálida a su mensaje. Sé breve (1-3 oraciones). Nunca ofrezcas agendar otra llamada — ya tienen una. Si agradecen, acusá recibo con calidez y recordales que la reunión está confirmada. Si preguntan cómo prepararse, deciles que no es necesario nada especial — Walo guía la charla.',
+      messages: [{ role: 'user', content: t }],
+    })
+    const replyText = reply.content.find(b => b.type === 'text')?.text?.trim()
+    if (replyText) {
+      await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: replyText })
+    }
+  } catch (err) {
+    console.error('[Bot] Post-booking AI reply failed:', err)
   }
 }
