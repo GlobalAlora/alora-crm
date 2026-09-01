@@ -5,17 +5,14 @@ import { useParams } from 'next/navigation'
 import { PropuestaDocument } from '@/components/propuestas/PropuestaDocument'
 import { PropuestaResumenDocument } from '@/components/propuestas/PropuestaResumenDocument'
 import type { PropuestaDocumentos } from '@/types'
+import { propuestaWhatsappLink } from '@/lib/propuesta-cta'
 
 interface PropuestaData {
   id: string
   contenido: PropuestaDocumentos
 }
 
-const WHATSAPP_NUMERO = '5491124629452'
-
-function linkWhatsapp(texto: string) {
-  return `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent(texto)}`
-}
+const linkWhatsapp = propuestaWhatsappLink
 
 export default function PropuestaPublicaPage() {
   const { id } = useParams<{ id: string }>()

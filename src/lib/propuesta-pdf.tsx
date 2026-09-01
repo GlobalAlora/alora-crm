@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { Document, Page, View, Text, StyleSheet, renderToBuffer, Font } from '@react-pdf/renderer'
+import { Document, Page, View, Text, Link, StyleSheet, renderToBuffer, Font } from '@react-pdf/renderer'
 
 // react-pdf's exported Text style prop type resolves to an ambiguous union
 // (plain vs SVG text) that TS can't narrow through a generic wrapper —
@@ -10,6 +10,7 @@ type TextStyleProp = any
 import type { PropuestaContenido, PropuestaResumenEjecutivo } from '@/types'
 import { BRAND } from './alora-brand'
 import { splitBoldSegments } from './propuesta-format'
+import { propuestaCtaLinks } from './propuesta-cta'
 
 // Mismas fuentes que la versión web (Inter + un monospace para los headers
 // numerados/badges, donde la web usa la pila de monospace del sistema) --
@@ -70,7 +71,7 @@ const styles = StyleSheet.create({
   // ~816pt en una página de 842pt, pisando el footer (que arranca ~803pt).
   // paddingBottom tiene que ser mayor que el alto real del footer fijo (~38:
   // borde + paddingTop 8 + línea de texto).
-  page: { fontSize: 10, fontFamily: BODY_FONT, color: '#2A2E34', backgroundColor: '#ffffff', paddingTop: 28, paddingLeft: 28, paddingRight: 28, paddingBottom: 52 },
+  page: { fontSize: 10, fontFamily: BODY_FONT, color: '#2A2E34', backgroundColor: '#ffffff', paddingTop: 46, paddingLeft: 38, paddingRight: 38, paddingBottom: 58 },
   content: {},
 
   cover: { backgroundColor: BRAND.ink, borderRadius: 20, padding: 28, paddingBottom: 24, marginBottom: 24 },
@@ -108,7 +109,7 @@ const styles = StyleSheet.create({
   mantCard: { backgroundColor: '#ffffff', borderWidth: 1, borderColor: BRAND.border, borderRadius: 16, padding: 18 },
   mantMonto: { fontSize: 17, fontFamily: BODY_FONT, fontWeight: 800, color: BRAND.ink, marginBottom: 10 },
 
-  footer: { position: 'absolute', bottom: 20, left: 28, right: 28, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: BRAND.border, paddingTop: 8, fontFamily: MONO_FONT },
+  footer: { position: 'absolute', bottom: 26, left: 38, right: 38, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: BRAND.border, paddingTop: 8, fontFamily: MONO_FONT },
   footerWordmark: { fontSize: 7.5, fontFamily: MONO_FONT, fontWeight: 800, letterSpacing: 1.5, color: BRAND.ink },
   footerText: { fontSize: 7, fontFamily: MONO_FONT, color: BRAND.textMuted },
 
@@ -116,6 +117,11 @@ const styles = StyleSheet.create({
   twoCol: { flexDirection: 'row', gap: 20 },
   col: { flex: 1 },
   resumenInvCard: { backgroundColor: BRAND.ink, borderRadius: 16, padding: 20, flexDirection: 'row', gap: 24 },
+
+  ctaSection: { marginTop: 28, alignItems: 'center' },
+  ctaPrimary: { width: '100%', textAlign: 'center', backgroundColor: BRAND.turquesa, color: '#ffffff', fontSize: 10.5, fontFamily: BODY_FONT, fontWeight: 600, borderRadius: 10, paddingVertical: 11, marginBottom: 8, textDecoration: 'none' },
+  ctaSecondary: { width: '100%', textAlign: 'center', borderWidth: 1, borderColor: BRAND.border, color: '#2A2E34', fontSize: 10.5, fontFamily: BODY_FONT, fontWeight: 500, borderRadius: 10, paddingVertical: 11, marginBottom: 10, textDecoration: 'none' },
+  ctaLink: { fontSize: 8.5, fontFamily: MONO_FONT, color: BRAND.textMuted, textDecoration: 'underline' },
 })
 
 function formatMonto(monto: number, moneda: 'USD' | 'ARS') {
@@ -166,6 +172,26 @@ function BulletRow({ text, muted }: { text: string; muted?: boolean }) {
   )
 }
 
+// Mismos tres botones que la página pública (Aceptar / Tengo dudas /
+// contacto directo) -- un PDF no ejecuta JS, así que van como links reales
+// a WhatsApp (Link de react-pdf), no como botones interactivos.
+function CtaSection({ titulo }: { titulo: string }) {
+  const links = propuestaCtaLinks(titulo)
+  return (
+    <View style={styles.ctaSection} wrap={false}>
+      <Link src={links.aceptar} style={styles.ctaPrimary}>
+        <Text>Aceptar propuesta y comenzar ahora — 15% off</Text>
+      </Link>
+      <Link src={links.dudas} style={styles.ctaSecondary}>
+        <Text>Tengo dudas sobre la propuesta</Text>
+      </Link>
+      <Link src={links.contacto} style={styles.ctaLink}>
+        <Text>Escribinos directo por WhatsApp</Text>
+      </Link>
+    </View>
+  )
+}
+
 function Footer() {
   return (
     <View style={styles.footer} fixed>
@@ -185,49 +211,26 @@ function PropuestaPdf({ titulo, cliente, bloques, inversion, mantenimiento }: Pr
   const cierreBloque = cierreIdx >= 0 ? bloques[cierreIdx] : null
 
   function renderBloque(bloque: PropuestaContenido['bloques'][number], num: number) {
-    // Un SectionHeader nunca puede quedar solo al final de una página (con
-    // el contenido entero empujado a la siguiente, footer pegado al header)
-    // -- eso es lo que rompía "18 INVERSIÓN" y bloques largos como Objetivo.
-    // Pero forzar el BLOQUE ENTERO como unidad atómica reproduce el bug
-    // original (huecos enormes cuando el bloque es largo). La solución: el
-    // header va pegado SOLO al primer párrafo/item/subsección -- lo mínimo
-    // para que nunca esté huérfano -- y el resto sigue fluyendo libre.
-    const parrafos = bloque.parrafos ?? []
-    const items = bloque.items ?? []
-    const subsecciones = bloque.subsecciones ?? []
-
-    const primerParrafo = parrafos[0]
-    const restoParrafos = parrafos.slice(1)
-
-    const pegarPrimerItem = parrafos.length === 0 && items.length > 0
-    const primerItem = pegarPrimerItem ? items[0] : null
-    const restoItems = pegarPrimerItem ? items.slice(1) : items
-
-    const pegarPrimeraSub = parrafos.length === 0 && items.length === 0 && subsecciones.length > 0
-    const primeraSub = pegarPrimeraSub ? subsecciones[0] : null
-    const restoSubs = pegarPrimeraSub ? subsecciones.slice(1) : subsecciones
-
+    // "Pegar" el header a su primer párrafo/item como unidad atómica se
+    // probó (dos veces) y en la práctica sigue generando huecos grandes --
+    // ese primer chunk puede ser largo, y wrap={false} lo obliga a saltar
+    // ENTERO si no entra. minPresenceAhead es la herramienta correcta de
+    // react-pdf para esto: reserva un colchón chico y fijo (no depende del
+    // contenido) antes del header, así el peor caso de hueco queda acotado
+    // en vez de variar según cuánto mida el primer párrafo.
     return (
       <View key={bloque.id} style={styles.block}>
-        <View wrap={false}>
+        <View minPresenceAhead={70}>
           <SectionHeader n={num} label={bloque.titulo} />
-          {primerParrafo && <BoldText text={primerParrafo} style={styles.parrafo} boldColor={BRAND.ink} />}
-          {primerItem && <BulletRow text={primerItem} />}
-          {primeraSub && (
-            <View style={styles.subCard}>
-              <Text style={styles.subTitle}>{primeraSub.titulo}</Text>
-              {primeraSub.items.map((item, j) => <BulletRow key={j} text={item} muted />)}
-            </View>
-          )}
         </View>
 
-        {restoParrafos.map((p, i) => (
+        {bloque.parrafos?.map((p, i) => (
           <BoldText key={i} text={p} style={styles.parrafo} boldColor={BRAND.ink} />
         ))}
 
-        {restoItems.map((item, i) => <BulletRow key={i} text={item} />)}
+        {bloque.items?.map((item, i) => <BulletRow key={i} text={item} />)}
 
-        {restoSubs.map((sub, i) => (
+        {bloque.subsecciones?.map((sub, i) => (
           <View key={i} style={styles.subCard} wrap={false}>
             <Text style={styles.subTitle}>{sub.titulo}</Text>
             {sub.items.map((item, j) => <BulletRow key={j} text={item} muted />)}
@@ -278,6 +281,8 @@ function PropuestaPdf({ titulo, cliente, bloques, inversion, mantenimiento }: Pr
           )}
 
           {cierreBloque && renderBloque(cierreBloque, ++n)}
+
+          <CtaSection titulo={titulo} />
         </View>
 
         <Footer />
@@ -337,6 +342,8 @@ function PropuestaResumenPdf({ titulo, cliente, hallazgos, propuesta, incluye, n
               <Text style={{ color: '#ffffff', fontSize: 12, fontFamily: BODY_FONT, fontWeight: 600 }}>{tiempos}</Text>
             </View>
           </View>
+
+          <CtaSection titulo={titulo} />
         </View>
 
         <Footer />

@@ -159,7 +159,7 @@ Un proyecto chico (ej. solo branding) puede terminar usando 8-10 bloques. Uno gr
 - **Modalidad de trabajo**: cadena de fases en una línea (Relevamiento → Branding → Arquitectura → UX → UI → Validación → Desarrollo → Integraciones → QA → Producción) — sacá las fases que no apliquen (ej. Branding si el cliente ya tiene marca).
 - **Tiempos**: duración estimada SIEMPRE en días corridos (ej. "45 a 60 días"), nunca en semanas + qué dispara el inicio del plazo (aceptación, pago inicial, entrega de información, definición de marca si aplica) + demoras del cliente mueven el cronograma.
 - **Impacto esperado**: vuelve al contexto y cierra en términos de NEGOCIO, no de funcionalidades — reconectar con la situación inicial + lista de resultados (no de features). Es lo último antes del precio.
-- **Cierre**: tono cálido, sin presión artificial, disposición a resolver dudas, agradecimiento.
+- **Cierre**: tono cálido, sin presión artificial, disposición a resolver dudas, agradecimiento. Dirigite a la EMPRESA/proyecto, nunca a la persona por su nombre de pila (ver regla general de no nombrar personas). Cerrá con un párrafo aparte indicando la validez de la propuesta: "Esta propuesta tiene una validez de 15 días a partir de la fecha de envío" (ajustá el plazo solo si el equipo te pide otro).
 
 ## Adaptación por tipo de proyecto (cambia sobre todo alcance_tecnico, y qué bloques se activan)
 
@@ -180,6 +180,7 @@ Un proyecto chico (ej. solo branding) puede terminar usando 8-10 bloques. Uno gr
 - TODO bloque arranca con al menos un párrafo (ver descripción de \`parrafos\` arriba) — ningún bloque va directo a una lista de items o subsecciones sin una frase de introducción antes.
 - Usá el nombre de pila del contacto solo en el bloque \`cierre\` (ahí sí, tono personal y cálido). En el resto del documento referite al cliente por el nombre de la empresa, o como "el cliente"/"el negocio" — un documento que repite el nombre de pila en cada sección se siente informal y raro.
 - Nunca reveles CON QUÉ construye Alora (su propio stack interno, ni qué tecnología de IA usa Alora para sus propias herramientas). Esto NO aplica a la tecnología que le vas a recomendar al cliente PARA SU proyecto — esa se nombra siempre, explícitamente, con criterio real (ver tecnologia_stack).
+- Nunca nombres a la persona de contacto por su nombre de pila en NINGÚN bloque (ni siquiera en el cierre) — dirigite siempre a la empresa/proyecto ("el equipo de [Empresa]", "[Empresa]", "ustedes"). El nombre de pila solo va en el campo estructurado \`cliente\` (encabezado), nunca en el texto de los bloques.
 - Prueba de especificidad, aplicá a TODO el documento, no solo a objetivo: si una frase o bullet podría pegarse sin cambios en la propuesta de otro cliente distinto, está mal escrita — hacela específica a lo que dice el contexto de ESTE proyecto (su rubro, sus productos/servicios reales, lo que pidió puntualmente).
 - Sé conciso dentro de cada bloque (párrafos cortos, bullets directos) — profesional y completo, no relleno. Hay un límite de longitud en la respuesta; priorizá cubrir bien los bloques que aplican antes que escribir de más en pocos.`
 
