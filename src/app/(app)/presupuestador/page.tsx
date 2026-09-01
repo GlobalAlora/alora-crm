@@ -56,13 +56,15 @@ export default function PresupuestadorPage() {
   const [recientes, setRecientes] = useState<RecentPropuesta[]>([])
   const [loadingRecientes, setLoadingRecientes] = useState(true)
 
-  useEffect(() => {
+  function fetchRecientes() {
     fetch('/api/propuestas/recientes')
       .then((r) => r.json())
       .then((json) => setRecientes(json.data ?? []))
       .catch(() => {})
       .finally(() => setLoadingRecientes(false))
-  }, [])
+  }
+
+  useEffect(() => { fetchRecientes() }, [])
 
   const logEndRef = useRef<HTMLDivElement>(null)
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [log, loading])
@@ -109,16 +111,26 @@ export default function PresupuestadorPage() {
     }
   }
 
-  function handleSelectLead(l: LeadResult) {
-    setLead(l)
+  // Limpia todo lo que no sea el lead en sí — usado antes de elegir/cargar
+  // uno nuevo y desde "Cambiar lead", para que nunca quede un resabio de la
+  // propuesta anterior (borrador, link guardado, chat, reunión detectada).
+  function resetWorkspace() {
     setQuery('')
     setResults([])
     setDraft(null)
     setLog([])
+    setMensajes([])
+    setInput('')
     setSavedUrl(null)
     setSavedId(null)
     setReunion(null)
     setReunionChecked(false)
+    setPreviewTab('resumen')
+  }
+
+  function handleSelectLead(l: LeadResult) {
+    resetWorkspace()
+    setLead(l)
     const inicial: ChatMessage[] = [{ role: 'user', content: 'Contame qué encontraste sobre este lead antes de armar la propuesta.' }]
     setMensajes(inicial)
     void sendToAgent(inicial, 'resumen', l)
@@ -127,16 +139,17 @@ export default function PresupuestadorPage() {
   function handleLoadRecent(p: RecentPropuesta) {
     const leadData = Array.isArray(p.lead) ? p.lead[0] : p.lead
     if (!leadData) return
+    resetWorkspace()
     setLead(leadData)
-    setQuery('')
-    setResults([])
     setDraft(p.contenido)
-    setLog([])
-    setMensajes([])
     setSavedUrl(`/propuesta/${p.id}`)
     setSavedId(p.id)
-    setReunion(null)
-    setReunionChecked(false)
+  }
+
+  function handleChangeLead() {
+    resetWorkspace()
+    setLead(null)
+    fetchRecientes()
   }
 
   function handleSend() {
@@ -265,7 +278,7 @@ export default function PresupuestadorPage() {
                 <p className="text-sm font-semibold text-slate-800">{lead.nombre} {lead.apellido || ''}</p>
                 {lead.empresa && <p className="text-xs text-slate-500">{lead.empresa}</p>}
               </div>
-              <button onClick={() => setLead(null)} className="text-xs text-slate-400 hover:text-slate-600">
+              <button onClick={handleChangeLead} className="text-xs text-slate-400 hover:text-slate-600">
                 Cambiar lead
               </button>
             </div>
