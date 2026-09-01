@@ -36,25 +36,68 @@ interface RecentPropuesta {
   lead: LeadResult | LeadResult[] | null
 }
 
+// Workspace en curso (lead + chat + borrador todavía sin guardar) persistido
+// en sessionStorage -- sin esto, navegar a otra pantalla del CRM y volver
+// desmonta la página y pierde todo lo que no se haya guardado como propuesta.
+const WORKSPACE_KEY = 'presupuestador-workspace'
+
+interface PersistedWorkspace {
+  lead: LeadResult | null
+  mensajes: ChatMessage[]
+  log: { role: 'user' | 'assistant'; text: string }[]
+  draft: Draft | null
+  savedUrl: string | null
+  savedId: string | null
+  reunion: ReunionEncontrada | null
+  reunionChecked: boolean
+  previewTab: 'resumen' | 'detallada'
+}
+
+function loadWorkspace(): Partial<PersistedWorkspace> {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = sessionStorage.getItem(WORKSPACE_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
 export default function PresupuestadorPage() {
+  const [persisted] = useState(loadWorkspace)
+
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<LeadResult[]>([])
   const [searching, setSearching] = useState(false)
-  const [lead, setLead] = useState<LeadResult | null>(null)
+  const [lead, setLead] = useState<LeadResult | null>(persisted.lead ?? null)
 
-  const [mensajes, setMensajes] = useState<ChatMessage[]>([])
-  const [log, setLog] = useState<{ role: 'user' | 'assistant'; text: string }[]>([])
-  const [draft, setDraft] = useState<Draft | null>(null)
+  const [mensajes, setMensajes] = useState<ChatMessage[]>(persisted.mensajes ?? [])
+  const [log, setLog] = useState<{ role: 'user' | 'assistant'; text: string }[]>(persisted.log ?? [])
+  const [draft, setDraft] = useState<Draft | null>(persisted.draft ?? null)
   const [loading, setLoading] = useState(false)
   const [input, setInput] = useState('')
-  const [savedUrl, setSavedUrl] = useState<string | null>(null)
-  const [savedId, setSavedId] = useState<string | null>(null)
+  const [savedUrl, setSavedUrl] = useState<string | null>(persisted.savedUrl ?? null)
+  const [savedId, setSavedId] = useState<string | null>(persisted.savedId ?? null)
   const [saving, setSaving] = useState(false)
-  const [reunion, setReunion] = useState<ReunionEncontrada | null>(null)
-  const [reunionChecked, setReunionChecked] = useState(false)
-  const [previewTab, setPreviewTab] = useState<'resumen' | 'detallada'>('resumen')
+  const [reunion, setReunion] = useState<ReunionEncontrada | null>(persisted.reunion ?? null)
+  const [reunionChecked, setReunionChecked] = useState(persisted.reunionChecked ?? false)
+  const [previewTab, setPreviewTab] = useState<'resumen' | 'detallada'>(persisted.previewTab ?? 'resumen')
   const [recientes, setRecientes] = useState<RecentPropuesta[]>([])
   const [loadingRecientes, setLoadingRecientes] = useState(true)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      if (!lead) {
+        sessionStorage.removeItem(WORKSPACE_KEY)
+        return
+      }
+      const workspace: PersistedWorkspace = { lead, mensajes, log, draft, savedUrl, savedId, reunion, reunionChecked, previewTab }
+      sessionStorage.setItem(WORKSPACE_KEY, JSON.stringify(workspace))
+    } catch {
+      // sessionStorage puede fallar (privado, cuota) -- no es crítico, se pierde la persistencia nomás.
+    }
+  }, [lead, mensajes, log, draft, savedUrl, savedId, reunion, reunionChecked, previewTab])
 
   function fetchRecientes() {
     fetch('/api/propuestas/recientes')
@@ -130,6 +173,7 @@ export default function PresupuestadorPage() {
     setReunion(null)
     setReunionChecked(false)
     setPreviewTab('resumen')
+    if (typeof window !== 'undefined') sessionStorage.removeItem(WORKSPACE_KEY)
   }
 
   function handleSelectLead(l: LeadResult) {
