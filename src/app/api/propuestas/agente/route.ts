@@ -302,16 +302,19 @@ export async function POST(req: NextRequest) {
     if (modo === 'resumen') {
       const result = await client.messages.create({
         model: MODEL,
-        max_tokens: 500,
+        max_tokens: 1000,
         system: [
           { type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } },
           { type: 'text', text: contextBlock },
-          { type: 'text', text: 'Antes de escribir la propuesta, contale al equipo en 4-6 líneas qué encontraste sobre este lead: de qué se trata el proyecto, qué se habló en la reunión (si hay notas o transcripción de Meet), y qué datos importantes todavía faltan para presupuestar bien. NO generes la propuesta todavía — terminá preguntando si avanzás con eso o si quieren agregar/corregir algo antes.' },
+          { type: 'text', text: 'Antes de escribir la propuesta, contale al equipo en 4-6 líneas MÁXIMO (esto es un límite estricto, no una sugerencia) qué encontraste sobre este lead: de qué se trata el proyecto, qué se habló en la reunión (si hay notas o transcripción de Meet), y qué datos importantes todavía faltan para presupuestar bien. Sé breve — es un resumen para que el equipo lo lea rápido, no un informe completo. NO generes la propuesta todavía. SIEMPRE terminá la respuesta con una pregunta directa: "¿Avanzo con la propuesta o querés agregar/corregir algo antes?" — esa pregunta final es obligatoria, dejá lugar para escribirla.' },
         ],
         messages: mensajes,
       })
       const text = result.content.find((b) => b.type === 'text')
-      const mensaje_agente = text && text.type === 'text' ? text.text.trim() : 'No pude leer la info de este lead.'
+      let mensaje_agente = text && text.type === 'text' ? text.text.trim() : 'No pude leer la info de este lead.'
+      if (result.stop_reason === 'max_tokens') {
+        mensaje_agente += '\n\n(Se cortó por longitud — de todas formas, ¿avanzo con la propuesta o querés agregar algo antes?)'
+      }
       return NextResponse.json({ data: { mensaje_agente, propuesta: null }, reunion_encontrada: reunionEncontrada })
     }
 
