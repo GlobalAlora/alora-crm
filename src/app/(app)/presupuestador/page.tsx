@@ -105,7 +105,11 @@ export default function PresupuestadorPage() {
       setLog((l) => [...l, { role: 'assistant', text: mensaje_agente }])
       setMensajes([...newMensajes, { role: 'assistant', content: mensaje_agente }])
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error generando la propuesta')
+      const msg = e instanceof Error ? e.message : 'Error generando la propuesta'
+      toast.error(msg)
+      // Además del toast (que se pierde solo), queda visible en el chat —
+      // si no, un error se ve exactamente igual que "no pasó nada".
+      setLog((l) => [...l, { role: 'assistant', text: `⚠️ ${msg}` }])
     } finally {
       setLoading(false)
     }
@@ -156,6 +160,16 @@ export default function PresupuestadorPage() {
     if (!input.trim() || loading) return
     const text = input.trim()
     setInput('')
+    setLog((l) => [...l, { role: 'user', text }])
+    // Sin borrador todavía: el mensaje suma/corrige contexto (modo resumen),
+    // no dispara la generación completa por sí solo — eso es handleGenerar.
+    // Con borrador ya armado, cada mensaje es un pedido de cambio (propuesta).
+    void sendToAgent([...mensajes, { role: 'user', content: text }], draft ? 'propuesta' : 'resumen')
+  }
+
+  function handleGenerar() {
+    if (loading) return
+    const text = 'Dale, generá la propuesta con la info que tenés hasta ahora.'
     setLog((l) => [...l, { role: 'user', text }])
     void sendToAgent([...mensajes, { role: 'user', content: text }], 'propuesta')
   }
@@ -327,22 +341,33 @@ export default function PresupuestadorPage() {
               <div ref={logEndRef} />
             </div>
 
-            <div className="p-3 border-t border-slate-100 flex gap-2">
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSend() }}
-                placeholder={draft ? 'Pedile cambios: bajá el precio, sacá tal cosa, agregá...' : 'Confirmá, corregí o agregá info — después escribí "dale" para generar la propuesta'}
-                disabled={loading}
-                className="flex-1 px-3.5 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-              />
-              <button
-                onClick={handleSend}
-                disabled={loading || !input.trim()}
-                className="px-3.5 py-2.5 rounded-lg bg-blue-600 text-white disabled:opacity-40 hover:bg-blue-700 transition-colors"
-              >
-                <Send size={15} />
-              </button>
+            <div className="p-3 border-t border-slate-100 space-y-2">
+              <div className="flex gap-2">
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSend() }}
+                  placeholder={draft ? 'Pedile cambios: bajá el precio, sacá tal cosa, agregá...' : 'Confirmá, corregí o agregá info sobre el proyecto...'}
+                  disabled={loading}
+                  className="flex-1 px-3.5 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={loading || !input.trim()}
+                  className="px-3.5 py-2.5 rounded-lg bg-blue-600 text-white disabled:opacity-40 hover:bg-blue-700 transition-colors"
+                >
+                  <Send size={15} />
+                </button>
+              </div>
+              {!draft && (
+                <button
+                  onClick={handleGenerar}
+                  disabled={loading || mensajes.length === 0}
+                  className="w-full text-xs font-medium px-3 py-2 rounded-lg bg-slate-800 text-white disabled:opacity-40 hover:bg-slate-900 transition-colors"
+                >
+                  Generar propuesta →
+                </button>
+              )}
             </div>
           </div>
 
