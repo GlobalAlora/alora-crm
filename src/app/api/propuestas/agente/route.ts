@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { findMeetNotesForLead } from '@/lib/google-drive'
+import type { PropuestaContenido } from '@/types'
 
 const MODEL = process.env.ANTHROPIC_QUALIFYING_MODEL || 'claude-sonnet-5'
 
@@ -70,6 +71,34 @@ const PROPOSAL_TOOL: Anthropic.Tool = {
           notas: { type: 'string', description: 'Nota interna breve para el equipo (no se le muestra al cliente): supuestos que hiciste, o qué falta confirmar.' },
         },
       },
+    },
+  },
+}
+
+const RESUMEN_EJECUTIVO_TOOL: Anthropic.Tool = {
+  name: 'resumen_ejecutivo',
+  description: 'Condensá la propuesta detallada ya armada en una versión ejecutiva de 1-2 páginas.',
+  input_schema: {
+    type: 'object' as const,
+    required: ['titulo', 'cliente', 'hallazgos', 'propuesta', 'incluye', 'no_incluye', 'inversion', 'tiempos'],
+    properties: {
+      titulo: { type: 'string' },
+      cliente: { type: 'string' },
+      hallazgos: { type: 'array', items: { type: 'string' }, description: '3-5 puntos: qué encontraste sobre la situación del cliente (equivalente condensado del bloque de contexto).' },
+      propuesta: { type: 'string', description: '1-2 párrafos: qué se va a construir y por qué resuelve lo que el cliente necesita.' },
+      incluye: { type: 'array', items: { type: 'string' }, description: '4-8 puntos clave de qué incluye el proyecto — resumen de alcance_tecnico/incluye de la versión detallada, no una copia completa.' },
+      no_incluye: { type: 'array', items: { type: 'string' }, description: '3-6 exclusiones más importantes — las específicas de este proyecto, no hace falta repetir cada exclusión estándar de la versión detallada.' },
+      inversion: {
+        type: 'object',
+        required: ['paquete', 'moneda', 'monto', 'forma_pago'],
+        properties: {
+          paquete: { type: 'string' },
+          moneda: { type: 'string', enum: ['USD', 'ARS'] },
+          monto: { type: 'number', description: 'MISMO monto que la propuesta detallada — esto es un resumen, no una recotización.' },
+          forma_pago: { type: 'string' },
+        },
+      },
+      tiempos: { type: 'string', description: 'Duración estimada en una frase corta.' },
     },
   },
 }
@@ -311,13 +340,41 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Sin respuesta de IA' }, { status: 500 })
     }
 
-    const input = toolUse.input as { mensaje_agente?: string; propuesta?: { bloques?: unknown; inversion?: unknown } }
+    const input = toolUse.input as { mensaje_agente: string; propuesta: PropuestaContenido }
     if (!input.propuesta || !Array.isArray(input.propuesta.bloques) || !input.propuesta.inversion) {
       console.error('[Propuestas Agente] Tool call incompleto:', JSON.stringify(input).slice(0, 500))
       return NextResponse.json({ error: 'La IA no devolvió una propuesta completa — probá de nuevo.' }, { status: 500 })
     }
 
-    return NextResponse.json({ data: toolUse.input, reunion_encontrada: reunionEncontrada })
+    // Segunda llamada, separada: condensa la propuesta ya armada en la
+    // versión ejecutiva de 1-2 páginas. Separarla de la generación principal
+    // evita que un solo tool call gigante (detallada + resumen) se corte por
+    // el límite de tokens — cada llamada es más chica y segura.
+    let resumenEjecutivo = null
+    try {
+      const resumenResult = await client.messages.create({
+        model: MODEL,
+        max_tokens: 2000,
+        system: 'Condensá la propuesta detallada de Alora que te paso en una versión ejecutiva de 1-2 páginas: hallazgos (equivalente corto del contexto), un párrafo de la propuesta, lo que incluye, lo que no incluye, y los mismos datos de inversión y tiempos. No inventes nada nuevo, es un resumen.',
+        tools: [RESUMEN_EJECUTIVO_TOOL],
+        tool_choice: { type: 'tool', name: 'resumen_ejecutivo' },
+        messages: [{ role: 'user', content: `Propuesta detallada:\n${JSON.stringify(input.propuesta)}` }],
+      })
+      const resumenToolUse = resumenResult.content.find((b) => b.type === 'tool_use')
+      if (resumenResult.stop_reason !== 'max_tokens' && resumenToolUse && resumenToolUse.type === 'tool_use') {
+        resumenEjecutivo = resumenToolUse.input
+      }
+    } catch (err) {
+      console.error('[Propuestas Agente] Resumen ejecutivo falló:', err)
+    }
+
+    return NextResponse.json({
+      data: {
+        mensaje_agente: input.mensaje_agente,
+        propuesta: { detallada: input.propuesta, resumen: resumenEjecutivo },
+      },
+      reunion_encontrada: reunionEncontrada,
+    })
   } catch (err) {
     console.error('[Propuestas Agente] Error:', err)
     return NextResponse.json({ error: 'Error generando la propuesta' }, { status: 500 })

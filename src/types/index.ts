@@ -96,6 +96,24 @@ export interface PropuestaContenido {
   notas: string
 }
 
+/** Versión corta (1-2 páginas): findings, propuesta, incluye/no incluye, precio y tiempos. */
+export interface PropuestaResumenEjecutivo {
+  titulo: string
+  cliente: string
+  hallazgos: string[]
+  propuesta: string
+  incluye: string[]
+  no_incluye: string[]
+  inversion: PropuestaInversion
+  tiempos: string
+}
+
+/** Lo que se guarda en propuestas.contenido — ambas versiones del mismo proyecto. */
+export interface PropuestaDocumentos {
+  detallada: PropuestaContenido
+  resumen: PropuestaResumenEjecutivo
+}
+
 export interface Propuesta {
   id: string
   lead_id: string
@@ -106,7 +124,7 @@ export interface Propuesta {
   tipo_pago: TipoPago
   estado: PropuestaEstado
   link: string | null
-  contenido: PropuestaContenido | null
+  contenido: PropuestaDocumentos | null
   created_at: string
   updated_at: string
 }

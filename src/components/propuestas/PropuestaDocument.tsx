@@ -1,128 +1,172 @@
 'use client'
 
+import { Inter } from 'next/font/google'
 import type { PropuestaContenido } from '@/types'
+import { BRAND } from '@/lib/alora-brand'
+
+const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800'] })
 
 interface PropuestaDocumentProps {
   contenido: PropuestaContenido
   propuestaId?: string
 }
 
-const BRAND = '#1B4040'
-const BRAND_BG = '#EEF4F4'
-const BRAND_LT = '#E0EEEE'
+const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
 
 function formatMonto(monto: number, moneda: 'USD' | 'ARS') {
   const formatted = new Intl.NumberFormat(moneda === 'ARS' ? 'es-AR' : 'en-US', { maximumFractionDigits: 0 }).format(monto)
   return `${moneda} ${formatted}`
 }
 
+function SectionHeader({ n, label }: { n: number; label: string }) {
+  return (
+    <div className="flex items-center gap-3 mb-3">
+      <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', color: BRAND.textMuted }}>
+        {String(n).padStart(2, '0')}
+      </span>
+      <span className="w-[26px] h-px" style={{ background: BRAND.border }} />
+      <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: BRAND.textMuted }}>
+        {label}
+      </span>
+    </div>
+  )
+}
+
 export function PropuestaDocument({ contenido, propuestaId }: PropuestaDocumentProps) {
   const { titulo, cliente, bloques, inversion, mantenimiento } = contenido
+  let n = 0
 
   return (
-    <div className="propuesta-doc mx-auto max-w-2xl print:max-w-none" style={{ background: BRAND_BG }}>
+    <div className={inter.className} style={{ background: BRAND.surfaceSoft }}>
       {propuestaId && (
         <div className="print:hidden flex justify-end p-4">
           <a
-            href={`/api/propuesta/${propuestaId}/pdf`}
+            href={`/api/propuesta/${propuestaId}/pdf?doc=detallada`}
             download
             className="px-4 py-2 text-sm font-medium rounded-lg text-white hover:opacity-90 transition-opacity"
-            style={{ background: BRAND }}
+            style={{ background: BRAND.ink }}
           >
             Descargar PDF
           </a>
         </div>
       )}
 
-      <div className="px-6 pb-10 print:p-0">
-        <div className="rounded-2xl overflow-hidden shadow-sm print:shadow-none print:rounded-none">
-          {/* Header */}
-          <div className="text-center py-10 px-6" style={{ background: BRAND }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="https://globalalora.com/logo-web.png"
-              alt="Alora"
-              className="h-9 mx-auto mb-4"
-              style={{ filter: 'brightness(0) invert(1)' }}
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-            />
-            <h1 className="text-white text-2xl font-bold">{titulo}</h1>
-            {cliente && <p className="text-white/70 text-sm mt-2">Preparado para {cliente}</p>}
+      <div className="mx-auto max-w-2xl px-6 pb-16 print:max-w-none print:px-0" style={{ color: '#2A2E34' }}>
+        {/* Cover */}
+        <div
+          className="keep rounded-[20px] p-9 pb-8 mb-9"
+          style={{ background: BRAND.ink, backgroundImage: `radial-gradient(120% 90% at 88% 4%, rgba(0,189,190,0.22) 0%, rgba(6,159,249,0.10) 34%, rgba(7,9,14,0) 68%)` }}
+        >
+          <div className="font-extrabold text-white mb-8" style={{ fontSize: 22, letterSpacing: '0.26em' }}>ALORA</div>
+          <div
+            className="inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 mb-5"
+            style={{ border: `1px solid ${BRAND.inkSoft}`, background: '#12161B' }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: BRAND.turquesa }} />
+            <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#C9CED6' }}>
+              Propuesta de trabajo
+            </span>
           </div>
+          <h1 className="font-extrabold text-white mb-3" style={{ fontSize: 32, lineHeight: 1.15, letterSpacing: '-0.02em' }}>
+            {titulo}
+          </h1>
+          {cliente && (
+            <div
+              className="inline-block rounded-xl px-4 py-3"
+              style={{ background: '#12161B', border: '1px solid #22282F' }}
+            >
+              <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: BRAND.turquesa, marginBottom: 6 }}>
+                Preparada para
+              </div>
+              <div className="text-white font-semibold" style={{ fontSize: 13.5 }}>{cliente}</div>
+            </div>
+          )}
+        </div>
 
-          {/* Body */}
-          <div className="bg-white px-6 py-8 md:px-10 md:py-10 space-y-8">
-            {bloques.map((bloque) => (
-              <div key={bloque.id}>
-                <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: BRAND }}>
-                  {bloque.titulo}
-                </h2>
+        {/* Bloques */}
+        {bloques.map((bloque) => {
+          n++
+          return (
+            <div key={bloque.id} className="mb-9">
+              <SectionHeader n={n} label={bloque.titulo} />
 
-                {bloque.parrafos?.map((p, i) => (
-                  <p key={i} className="text-slate-700 leading-relaxed mb-3 last:mb-0">{p}</p>
-                ))}
+              {bloque.parrafos?.map((p, i) => (
+                <p key={i} style={{ fontSize: 14, lineHeight: 1.68, color: '#2A2E34', marginBottom: 10 }}>{p}</p>
+              ))}
 
-                {bloque.items && bloque.items.length > 0 && (
-                  <ul className="space-y-2">
-                    {bloque.items.map((item, i) => (
-                      <li key={i} className="flex items-start gap-2.5 text-slate-700">
-                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND }} />
-                        <span>{item}</span>
-                      </li>
+              {bloque.items && bloque.items.length > 0 && (
+                <div className="grid gap-2 mt-2">
+                  {bloque.items.map((item, i) => (
+                    <div key={i} className="keep flex items-start gap-2.5 rounded-xl px-4 py-2.5" style={{ background: BRAND.surface, border: `1px solid ${BRAND.border}` }}>
+                      <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND.turquesa }} />
+                      <span style={{ fontSize: 13, lineHeight: 1.55, color: '#2A2E34' }}>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {bloque.subsecciones?.map((sub, i) => (
+                <div key={i} className={`keep rounded-2xl p-5 bg-white ${i > 0 ? 'mt-2.5' : 'mt-2'}`} style={{ border: `1px solid ${BRAND.border}` }}>
+                  <p className="font-bold mb-2.5" style={{ fontSize: 14, color: BRAND.ink, letterSpacing: '-0.01em' }}>{sub.titulo}</p>
+                  <div className="grid gap-1.5">
+                    {sub.items.map((item, j) => (
+                      <div key={j} className="flex items-start gap-2.5">
+                        <span className="mt-1.5 w-1 h-1 rounded-full flex-shrink-0" style={{ background: BRAND.electric }} />
+                        <span style={{ fontSize: 12.5, lineHeight: 1.55, color: BRAND.textMuted }}>{item}</span>
+                      </div>
                     ))}
-                  </ul>
-                )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        })}
 
-                {bloque.subsecciones?.map((sub, i) => (
-                  <div key={i} className={i > 0 ? 'mt-4' : ''}>
-                    <p className="text-sm font-medium text-slate-800 mb-2">{sub.titulo}</p>
-                    <ul className="space-y-1.5">
-                      {sub.items.map((item, j) => (
-                        <li key={j} className="flex items-start gap-2.5 text-slate-600 text-sm">
-                          <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND }} />
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
+        {/* Inversión */}
+        <div className="mb-9">
+          <SectionHeader n={++n} label="Inversión" />
+          <div
+            className="keep rounded-2xl p-7"
+            style={{ background: BRAND.ink, backgroundImage: `radial-gradient(110% 100% at 0% 0%, rgba(6,159,249,0.20) 0%, rgba(144,106,229,0.12) 42%, rgba(7,9,14,0) 74%)` }}
+          >
+            <div style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: BRAND.turquesa, marginBottom: 8 }}>
+              {inversion.paquete}
+            </div>
+            <div className="font-extrabold text-white mb-3" style={{ fontSize: 34, letterSpacing: '-0.02em' }}>
+              {formatMonto(inversion.monto, inversion.moneda)}
+            </div>
+            <p style={{ fontSize: 12.5, lineHeight: 1.6, color: '#B7BDC6' }}>{inversion.forma_pago}</p>
+          </div>
+        </div>
+
+        {/* Mantenimiento opcional */}
+        {mantenimiento && (
+          <div className="mb-9">
+            <SectionHeader n={++n} label="Mantenimiento (opcional)" />
+            <div className="keep rounded-2xl p-6 bg-white" style={{ border: `1px solid ${BRAND.border}` }}>
+              <p className="font-extrabold mb-3" style={{ fontSize: 20, color: BRAND.ink }}>
+                {formatMonto(mantenimiento.monto_mensual, mantenimiento.moneda)}{' '}
+                <span className="font-normal" style={{ fontSize: 12, color: BRAND.textMuted }}>/ mes</span>
+              </p>
+              <div className="grid gap-1.5">
+                {mantenimiento.incluye.map((item, i) => (
+                  <div key={i} className="flex items-start gap-2.5">
+                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BRAND.violeta }} />
+                    <span style={{ fontSize: 12.5, lineHeight: 1.55, color: BRAND.textMuted }}>{item}</span>
                   </div>
                 ))}
               </div>
-            ))}
-
-            {/* Inversión */}
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: BRAND }}>Inversión</h2>
-              <div className="rounded-xl p-5" style={{ background: BRAND_LT }}>
-                <p className="text-xs mb-1" style={{ color: BRAND }}>{inversion.paquete}</p>
-                <p className="text-2xl font-bold text-slate-900 mb-3">{formatMonto(inversion.monto, inversion.moneda)}</p>
-                <p className="text-xs text-slate-600">{inversion.forma_pago}</p>
-              </div>
             </div>
-
-            {/* Mantenimiento opcional */}
-            {mantenimiento && (
-              <div>
-                <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: BRAND }}>Mantenimiento (opcional)</h2>
-                <div className="rounded-xl p-5 border border-slate-200">
-                  <p className="text-lg font-bold text-slate-900 mb-3">
-                    {formatMonto(mantenimiento.monto_mensual, mantenimiento.moneda)} <span className="text-sm font-normal text-slate-500">/ mes</span>
-                  </p>
-                  <ul className="space-y-1.5">
-                    {mantenimiento.incluye.map((item, i) => (
-                      <li key={i} className="flex items-start gap-2.5 text-slate-600 text-sm">
-                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 bg-slate-400" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
-
-            <p className="text-xs text-slate-400 text-center pt-4 border-t border-slate-100">
-              Alora — agencia de tecnología digital · globalalora.com
-            </p>
           </div>
+        )}
+
+        {/* Footer */}
+        <div
+          className="flex justify-between items-center pt-3"
+          style={{ borderTop: `1px solid ${BRAND.border}`, fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: BRAND.textMuted }}
+        >
+          <span className="font-extrabold" style={{ color: BRAND.ink, letterSpacing: '0.2em' }}>ALORA</span>
+          <span>Propuesta comercial · Confidencial · globalalora.com</span>
         </div>
       </div>
 
@@ -133,9 +177,9 @@ export function PropuestaDocument({ contenido, propuestaId }: PropuestaDocumentP
             print-color-adjust: exact !important;
             color-adjust: exact !important;
           }
-          @page { margin: 0; }
+          @page { margin: 0.6in; }
           body { background: white !important; margin: 0 !important; }
-          .propuesta-doc { padding: 0 !important; background: white !important; }
+          .keep { break-inside: avoid; }
         }
       `}</style>
     </div>

@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from 'react'
 import { Search, Send, Loader2, Copy, ExternalLink, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PropuestaDocument } from '@/components/propuestas/PropuestaDocument'
-import type { PropuestaContenido } from '@/types'
+import { PropuestaResumenDocument } from '@/components/propuestas/PropuestaResumenDocument'
+import type { PropuestaDocumentos } from '@/types'
 import toast from 'react-hot-toast'
 
 interface LeadResult {
@@ -20,7 +21,7 @@ interface ChatMessage {
   content: string
 }
 
-type Draft = PropuestaContenido
+type Draft = PropuestaDocumentos
 
 interface ReunionEncontrada {
   archivos: { nombre: string; fecha: string | null; url: string; tipo: 'notas' | 'transcripcion' }[]
@@ -43,6 +44,7 @@ export default function PresupuestadorPage() {
   const [saving, setSaving] = useState(false)
   const [reunion, setReunion] = useState<ReunionEncontrada | null>(null)
   const [reunionChecked, setReunionChecked] = useState(false)
+  const [previewTab, setPreviewTab] = useState<'resumen' | 'detallada'>('resumen')
 
   const logEndRef = useRef<HTMLDivElement>(null)
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [log, loading])
@@ -115,12 +117,12 @@ export default function PresupuestadorPage() {
     if (!lead || !draft) return
     setSaving(true)
     try {
-      const { moneda, monto } = draft.inversion
+      const { moneda, monto } = draft.detallada.inversion
       const createRes = await fetch(`/api/leads/${lead.id}/propuestas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          descripcion: draft.titulo,
+          descripcion: draft.detallada.titulo,
           moneda,
           valor_usd: moneda === 'USD' ? monto : null,
           valor_ars: moneda === 'ARS' ? monto : null,
@@ -264,8 +266,25 @@ export default function PresupuestadorPage() {
 
           {/* Preview */}
           <div className="flex flex-col bg-slate-100 border border-slate-200 rounded-xl overflow-hidden min-h-0">
-            <div className="px-4 py-3 border-b border-slate-200 bg-white flex items-center justify-between flex-shrink-0">
-              <p className="text-sm font-semibold text-slate-800">Vista previa</p>
+            <div className="px-4 py-3 border-b border-slate-200 bg-white flex items-center justify-between flex-shrink-0 gap-2">
+              {draft ? (
+                <div className="inline-flex bg-slate-100 rounded-full p-0.5 text-xs">
+                  <button
+                    onClick={() => setPreviewTab('resumen')}
+                    className={cn('px-2.5 py-1 rounded-full transition-colors', previewTab === 'resumen' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500')}
+                  >
+                    Resumen
+                  </button>
+                  <button
+                    onClick={() => setPreviewTab('detallada')}
+                    className={cn('px-2.5 py-1 rounded-full transition-colors', previewTab === 'detallada' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500')}
+                  >
+                    Completa
+                  </button>
+                </div>
+              ) : (
+                <p className="text-sm font-semibold text-slate-800">Vista previa</p>
+              )}
               {draft && (
                 savedUrl ? (
                   <div className="flex items-center gap-2">
@@ -297,7 +316,11 @@ export default function PresupuestadorPage() {
             </div>
             <div className="flex-1 overflow-y-auto">
               {draft ? (
-                <PropuestaDocument contenido={draft} propuestaId={savedId ?? undefined} />
+                previewTab === 'resumen' && draft.resumen ? (
+                  <PropuestaResumenDocument contenido={draft.resumen} propuestaId={savedId ?? undefined} />
+                ) : (
+                  <PropuestaDocument contenido={draft.detallada} propuestaId={savedId ?? undefined} />
+                )
               ) : (
                 <div className="h-full flex items-center justify-center text-sm text-slate-400">
                   {loading ? 'Generando el primer borrador...' : 'Sin propuesta todavía'}

@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { renderPropuestaPdf } from '@/lib/propuesta-pdf'
+import { renderPropuestaPdf, renderResumenPdf } from '@/lib/propuesta-pdf'
 
 type Params = { params: Promise<{ id: string }> }
 
 // Public, unauthenticated — same data as /api/propuesta/[id], rendered as a
 // downloadable PDF (real server-side render, not a browser print-to-PDF).
-export async function GET(_req: NextRequest, { params }: Params) {
+// ?doc=resumen (default) or ?doc=detallada picks which of the two documents.
+export async function GET(req: NextRequest, { params }: Params) {
   const { id } = await params
+  const doc = req.nextUrl.searchParams.get('doc') === 'detallada' ? 'detallada' : 'resumen'
   const admin = createAdminClient()
 
   const { data, error } = await admin
@@ -16,17 +18,19 @@ export async function GET(_req: NextRequest, { params }: Params) {
     .eq('id', id)
     .single()
 
-  if (error || !data || !data.contenido) {
+  if (error || !data || !data.contenido?.detallada) {
     return NextResponse.json({ error: 'Propuesta no encontrada' }, { status: 404 })
   }
 
   try {
-    const buffer = await renderPropuestaPdf(data.contenido)
+    const buffer = doc === 'detallada' || !data.contenido.resumen
+      ? await renderPropuestaPdf(data.contenido.detallada)
+      : await renderResumenPdf(data.contenido.resumen)
 
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="propuesta-alora.pdf"`,
+        'Content-Disposition': `attachment; filename="propuesta-alora${doc === 'detallada' ? '' : '-resumen'}.pdf"`,
       },
     })
   } catch (err) {
