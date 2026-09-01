@@ -32,6 +32,7 @@ interface ReunionEncontrada {
 interface RecentPropuesta {
   id: string
   descripcion: string
+  link: string | null
   contenido: Draft
   created_at: string
   lead: LeadResult | LeadResult[] | null
@@ -220,7 +221,7 @@ function PresupuestadorWorkspace() {
     resetWorkspace()
     setLead(leadData)
     setDraft(p.contenido)
-    setSavedUrl(`/propuesta/${p.id}`)
+    setSavedUrl(p.link || `/propuesta/${p.id}`)
     setSavedId(p.id)
   }
 
@@ -301,7 +302,7 @@ function PresupuestadorWorkspace() {
 
       setSavedUrl(link)
       setSavedId(propuestaId)
-      setRecientes((r) => [{ id: propuestaId, descripcion: draft.detallada.titulo, contenido: draft, created_at: new Date().toISOString(), lead }, ...r])
+      setRecientes((r) => [{ id: propuestaId, descripcion: draft.detallada.titulo, link, contenido: draft, created_at: new Date().toISOString(), lead }, ...r])
       toast.success('Propuesta guardada')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Error al guardar')

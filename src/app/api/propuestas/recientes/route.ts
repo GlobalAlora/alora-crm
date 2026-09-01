@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('propuestas')
-    .select('id, descripcion, contenido, created_at, lead:leads(id, nombre, apellido, empresa, estado_pipeline)')
+    .select('id, descripcion, link, contenido, created_at, lead:leads(id, nombre, apellido, empresa, estado_pipeline)')
     .not('contenido', 'is', null)
     .order('created_at', { ascending: false })
     .limit(limit * 2)
