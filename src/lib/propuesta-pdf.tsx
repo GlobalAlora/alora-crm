@@ -1,4 +1,6 @@
-import { Document, Page, View, Text, StyleSheet, renderToBuffer } from '@react-pdf/renderer'
+import fs from 'fs'
+import path from 'path'
+import { Document, Page, View, Text, StyleSheet, renderToBuffer, Font } from '@react-pdf/renderer'
 
 // react-pdf's exported Text style prop type resolves to an ambiguous union
 // (plain vs SVG text) that TS can't narrow through a generic wrapper —
@@ -9,12 +11,50 @@ import type { PropuestaContenido, PropuestaResumenEjecutivo } from '@/types'
 import { BRAND } from './alora-brand'
 import { splitBoldSegments } from './propuesta-format'
 
-// react-pdf renders with its built-in Helvetica rather than Inter (the web
-// version's font) — registering a remote font adds a real failure mode
-// (fetch at render time) for a typeface difference that matters far less
-// than the color/layout system actually matching. Same brand tokens as the
-// web preview otherwise.
+// Mismas fuentes que la versión web (Inter + un monospace para los headers
+// numerados/badges, donde la web usa la pila de monospace del sistema) --
+// registradas desde archivos locales (@fontsource, copiados a este repo) en
+// vez de una URL remota, para no depender de una red externa en cada render.
 //
+// IMPORTANTE: estos .woff se leen por fs en runtime, no por import -- Vercel
+// no los va a incluir en el bundle de la function a menos que estén en
+// outputFileTracingIncludes (next.config.ts). Si el PDF pierde las fuentes
+// en producción pero anda bien en local, empezá por ahí. Verificamos que el
+// archivo exista antes de registrar para no romper el render entero por una
+// fuente faltante -- en ese caso cae al Helvetica default de react-pdf.
+const FONT_DIR = path.join(process.cwd(), 'src/lib/pdf-fonts')
+const fontPath = (filename: string) => path.join(FONT_DIR, filename)
+const fontsAvailable = fs.existsSync(fontPath('inter-latin-400-normal.woff'))
+
+if (fontsAvailable) {
+  Font.register({
+    family: 'Inter',
+    fonts: [
+      { src: fontPath('inter-latin-400-normal.woff'), fontWeight: 400 },
+      { src: fontPath('inter-latin-500-normal.woff'), fontWeight: 500 },
+      { src: fontPath('inter-latin-600-normal.woff'), fontWeight: 600 },
+      { src: fontPath('inter-latin-700-normal.woff'), fontWeight: 700 },
+      { src: fontPath('inter-latin-800-normal.woff'), fontWeight: 800 },
+    ],
+  })
+
+  Font.register({
+    family: 'Mono',
+    fonts: [
+      { src: fontPath('jetbrains-mono-latin-400-normal.woff'), fontWeight: 400 },
+      { src: fontPath('jetbrains-mono-latin-700-normal.woff'), fontWeight: 700 },
+      { src: fontPath('jetbrains-mono-latin-800-normal.woff'), fontWeight: 800 },
+    ],
+  })
+}
+
+const BODY_FONT = fontsAvailable ? 'Inter' : 'Helvetica'
+const MONO_FONT = fontsAvailable ? 'Mono' : 'Helvetica'
+
+// La web nunca hifena (simplemente envuelve o desborda) -- sin esto react-pdf
+// corta palabras largas con guión, que se ve distinto a la versión web.
+Font.registerHyphenationCallback((word) => [word])
+
 // IMPORTANT: wrap={false} only goes on small atomic units (a single bullet
 // row, one subsección card) — never on a whole "bloque" section. Forcing an
 // entire large section to stay together pushes it whole onto the next page
@@ -22,52 +62,52 @@ import { splitBoldSegments } from './propuesta-format'
 // on the page before it. That is what blew this document out to 8 pages
 // with empty voids — confirmed from a real render.
 const styles = StyleSheet.create({
-  page: { fontSize: 10, color: '#2A2E34', fontFamily: 'Helvetica', backgroundColor: '#ffffff' },
+  page: { fontSize: 10, fontFamily: BODY_FONT, color: '#2A2E34', backgroundColor: '#ffffff' },
   content: { padding: 28 },
 
-  cover: { backgroundColor: BRAND.ink, borderRadius: 16, padding: 26, marginBottom: 24 },
-  coverWordmark: { color: '#ffffff', fontSize: 15, fontFamily: 'Helvetica-Bold', letterSpacing: 3, marginBottom: 18 },
+  cover: { backgroundColor: BRAND.ink, borderRadius: 20, padding: 28, paddingBottom: 24, marginBottom: 24 },
+  coverWordmark: { color: '#ffffff', fontSize: 16, fontFamily: BODY_FONT, fontWeight: 800, letterSpacing: 4, marginBottom: 16 },
   coverBadgeRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
-  coverDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: BRAND.turquesa, marginRight: 6 },
-  coverBadge: { color: '#C9CED6', fontSize: 8, letterSpacing: 1.2, textTransform: 'uppercase' },
-  coverTitle: { color: '#ffffff', fontSize: 21, fontFamily: 'Helvetica-Bold', lineHeight: 1.25, marginBottom: 14 },
-  coverClientBox: { backgroundColor: '#12161B', borderRadius: 8, padding: 12, alignSelf: 'flex-start' },
-  coverClientLabel: { color: BRAND.turquesa, fontSize: 7.5, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 5 },
-  coverClientName: { color: '#ffffff', fontSize: 11, fontFamily: 'Helvetica-Bold' },
+  coverDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: BRAND.turquesa, marginRight: 6 },
+  coverBadge: { color: '#C9CED6', fontSize: 8, fontFamily: MONO_FONT, letterSpacing: 1.4, textTransform: 'uppercase' },
+  coverTitle: { color: '#ffffff', fontSize: 22, fontFamily: BODY_FONT, fontWeight: 800, lineHeight: 1.15, letterSpacing: -0.4, marginBottom: 14 },
+  coverClientBox: { backgroundColor: '#12161B', borderWidth: 1, borderColor: '#22282F', borderRadius: 12, padding: 12, alignSelf: 'flex-start' },
+  coverClientLabel: { color: BRAND.turquesa, fontSize: 8, fontFamily: MONO_FONT, letterSpacing: 1.3, textTransform: 'uppercase', marginBottom: 5 },
+  coverClientName: { color: '#ffffff', fontSize: 11, fontFamily: BODY_FONT, fontWeight: 600 },
   coverSubtitlePlain: { color: 'rgba(255,255,255,0.7)', fontSize: 10.5, marginTop: 4 },
 
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, marginTop: 4 },
-  sectionN: { fontSize: 9.5, color: BRAND.turquesa, marginRight: 8, fontFamily: 'Helvetica-Bold' },
+  sectionN: { fontSize: 10.5, color: BRAND.turquesa, marginRight: 8, fontFamily: MONO_FONT, fontWeight: 700 },
   sectionLine: { width: 20, height: 1, backgroundColor: BRAND.border, marginRight: 8 },
-  sectionLabel: { fontSize: 9.5, letterSpacing: 1.2, textTransform: 'uppercase', color: BRAND.ink, fontFamily: 'Helvetica-Bold' },
+  sectionLabel: { fontSize: 10.5, fontFamily: MONO_FONT, fontWeight: 700, letterSpacing: 1.3, textTransform: 'uppercase', color: BRAND.ink },
 
   block: { marginBottom: 20 },
-  parrafo: { lineHeight: 1.65, marginBottom: 8, fontSize: 10 },
+  parrafo: { lineHeight: 1.7, marginBottom: 8, fontSize: 10 },
 
   bulletRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 6, paddingRight: 8 },
   bulletDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: BRAND.turquesa, marginTop: 4.5, marginRight: 8 },
   bulletDotMuted: { width: 3.5, height: 3.5, borderRadius: 1.75, backgroundColor: BRAND.textMuted, marginTop: 5, marginRight: 8 },
   bulletText: { flex: 1, fontSize: 10, lineHeight: 1.55 },
 
-  subCard: { backgroundColor: BRAND.surface, borderRadius: 10, padding: 13, marginBottom: 10 },
-  subTitle: { fontSize: 10.5, fontFamily: 'Helvetica-Bold', color: BRAND.ink, marginBottom: 7 },
+  subCard: { backgroundColor: BRAND.surface, borderRadius: 14, padding: 13, marginBottom: 10 },
+  subTitle: { fontSize: 10.5, fontFamily: BODY_FONT, fontWeight: 700, color: BRAND.ink, marginBottom: 7 },
 
-  invCard: { backgroundColor: BRAND.ink, borderRadius: 14, padding: 20 },
-  invPaquete: { color: BRAND.turquesa, fontSize: 8.5, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 },
-  invMonto: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: '#ffffff', marginBottom: 10 },
+  invCard: { backgroundColor: BRAND.ink, borderRadius: 16, padding: 20 },
+  invPaquete: { color: BRAND.turquesa, fontSize: 8.5, fontFamily: MONO_FONT, letterSpacing: 1.3, textTransform: 'uppercase', marginBottom: 8 },
+  invMonto: { fontSize: 26, fontFamily: BODY_FONT, fontWeight: 800, color: '#ffffff', marginBottom: 10 },
   invFormaPago: { fontSize: 9, color: '#B7BDC6', lineHeight: 1.5 },
 
-  mantCard: { backgroundColor: '#ffffff', borderWidth: 1, borderColor: BRAND.border, borderRadius: 14, padding: 18 },
-  mantMonto: { fontSize: 16, fontFamily: 'Helvetica-Bold', color: BRAND.ink, marginBottom: 10 },
+  mantCard: { backgroundColor: '#ffffff', borderWidth: 1, borderColor: BRAND.border, borderRadius: 16, padding: 18 },
+  mantMonto: { fontSize: 17, fontFamily: BODY_FONT, fontWeight: 800, color: BRAND.ink, marginBottom: 10 },
 
-  footer: { position: 'absolute', bottom: 20, left: 28, right: 28, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: BRAND.border, paddingTop: 8 },
-  footerWordmark: { fontSize: 7.5, letterSpacing: 1.5, fontFamily: 'Helvetica-Bold', color: BRAND.ink },
-  footerText: { fontSize: 7, color: BRAND.textMuted },
+  footer: { position: 'absolute', bottom: 20, left: 28, right: 28, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: BRAND.border, paddingTop: 8, fontFamily: MONO_FONT },
+  footerWordmark: { fontSize: 7.5, fontFamily: MONO_FONT, fontWeight: 800, letterSpacing: 1.5, color: BRAND.ink },
+  footerText: { fontSize: 7, fontFamily: MONO_FONT, color: BRAND.textMuted },
 
-  label: { fontSize: 9.5, letterSpacing: 1.2, textTransform: 'uppercase', color: BRAND.ink, marginBottom: 9, fontFamily: 'Helvetica-Bold' },
+  label: { fontSize: 10.5, fontFamily: MONO_FONT, fontWeight: 700, letterSpacing: 1.3, textTransform: 'uppercase', color: BRAND.ink, marginBottom: 9 },
   twoCol: { flexDirection: 'row', gap: 20 },
   col: { flex: 1 },
-  resumenInvCard: { backgroundColor: BRAND.ink, borderRadius: 14, padding: 20, flexDirection: 'row', gap: 24 },
+  resumenInvCard: { backgroundColor: BRAND.ink, borderRadius: 16, padding: 20, flexDirection: 'row', gap: 24 },
 })
 
 function formatMonto(monto: number, moneda: 'USD' | 'ARS') {
@@ -75,13 +115,24 @@ function formatMonto(monto: number, moneda: 'USD' | 'ARS') {
   return `${moneda} ${formatted}`
 }
 
-/** Renders **bold** markers as nested bold <Text> spans inside a parent <Text>. */
+// El subset "latin" de Inter/JetBrains Mono (el que trae @fontsource) no
+// incluye flechas -- el agente las usa en "Modalidad de trabajo" y
+// "Modelo de funcionamiento" ("Relevamiento → Branding → ..."), y sin esto
+// se ven como un glifo roto (tofu / comilla suelta) en vez de una flecha.
+// La web no tiene este problema (usa la fuente del sistema, que sí las
+// tiene), así que el reemplazo es solo acá.
+function sanitizeForPdf(text: string): string {
+  return text.replace(/→/g, '->').replace(/←/g, '<-').replace(/↔/g, '<->')
+}
+
+// La web marca **negrita** con font-semibold (600) sobre Inter, no un bold
+// pleno -- usar el mismo peso acá para que el énfasis se vea igual.
 function BoldText({ text, style, boldColor }: { text: string; style?: TextStyleProp; boldColor?: string }) {
   return (
     <Text style={style}>
-      {splitBoldSegments(text).map((seg, i) =>
+      {splitBoldSegments(sanitizeForPdf(text)).map((seg, i) =>
         seg.bold
-          ? <Text key={i} style={{ fontFamily: 'Helvetica-Bold', color: boldColor }}>{seg.text}</Text>
+          ? <Text key={i} style={{ fontFamily: BODY_FONT, fontWeight: 600, color: boldColor }}>{seg.text}</Text>
           : <Text key={i}>{seg.text}</Text>
       )}
     </Text>
@@ -204,7 +255,7 @@ function PropuestaPdf({ titulo, cliente, bloques, inversion, mantenimiento }: Pr
             <View style={styles.invCard}>
               <Text style={styles.invPaquete}>{inversion.paquete}</Text>
               <Text style={styles.invMonto}>{formatMonto(inversion.monto, inversion.moneda)}</Text>
-              <Text style={styles.invFormaPago}>{inversion.forma_pago}</Text>
+              <BoldText text={inversion.forma_pago} style={styles.invFormaPago} boldColor="#ffffff" />
             </View>
           </View>
 
@@ -212,7 +263,7 @@ function PropuestaPdf({ titulo, cliente, bloques, inversion, mantenimiento }: Pr
             <View style={styles.block} wrap={false}>
               <SectionHeader n={++n} label="Mantenimiento (opcional)" />
               <View style={styles.mantCard}>
-                <Text style={styles.mantMonto}>{formatMonto(mantenimiento.monto_mensual, mantenimiento.moneda)} <Text style={{ fontSize: 10, fontFamily: 'Helvetica', color: BRAND.textMuted }}>/ mes</Text></Text>
+                <Text style={styles.mantMonto}>{formatMonto(mantenimiento.monto_mensual, mantenimiento.moneda)} <Text style={{ fontSize: 10, fontFamily: BODY_FONT, fontWeight: 400, color: BRAND.textMuted }}>/ mes</Text></Text>
                 {mantenimiento.incluye.map((item, i) => <BulletRow key={i} text={item} />)}
               </View>
             </View>
@@ -271,11 +322,11 @@ function PropuestaResumenPdf({ titulo, cliente, hallazgos, propuesta, incluye, n
             <View style={styles.col}>
               <Text style={[styles.invPaquete, { marginBottom: 6 }]}>Inversión — {inversion.paquete}</Text>
               <Text style={[styles.invMonto, { fontSize: 22, marginBottom: 6 }]}>{formatMonto(inversion.monto, inversion.moneda)}</Text>
-              <Text style={styles.invFormaPago}>{inversion.forma_pago}</Text>
+              <BoldText text={inversion.forma_pago} style={styles.invFormaPago} boldColor="#ffffff" />
             </View>
             <View style={styles.col}>
               <Text style={[styles.invPaquete, { color: BRAND.electric, marginBottom: 6 }]}>Tiempos</Text>
-              <Text style={{ color: '#ffffff', fontSize: 12, fontFamily: 'Helvetica-Bold' }}>{tiempos}</Text>
+              <Text style={{ color: '#ffffff', fontSize: 12, fontFamily: BODY_FONT, fontWeight: 600 }}>{tiempos}</Text>
             </View>
           </View>
         </View>
