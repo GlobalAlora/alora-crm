@@ -7,11 +7,13 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  await notifyAll({
+  const vapidConfigured = !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY)
+
+  const results = await notifyAll({
     title: '🔔 Test de notificación',
     body:  '¡Funciona! Las push notifications están activas.',
     url:   '/',
   })
 
-  return NextResponse.json({ ok: true, message: 'Push enviada' })
+  return NextResponse.json({ ok: true, vapidConfigured, results })
 }
