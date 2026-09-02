@@ -313,7 +313,7 @@ export async function POST(req: NextRequest) {
     if (modo === 'resumen') {
       const result = await client.messages.create({
         model: MODEL,
-        max_tokens: 1500,
+        max_tokens: 4000,
         system: [
           { type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } },
           { type: 'text', text: contextBlock },
