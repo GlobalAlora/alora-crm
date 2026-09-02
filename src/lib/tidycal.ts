@@ -128,7 +128,7 @@ export async function processTidyCalBooking(
 
   let { data: existing } = await admin
     .from('leads')
-    .select('id, nombre, estado_pipeline')
+    .select('id, nombre, email, empresa, notas, estado_pipeline')
     .or(conditions.join(','))
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
@@ -142,7 +142,15 @@ export async function processTidyCalBooking(
   // canal en vez de reabrir el que ya existía.
   if (!existing && phone) {
     const { data: normalized } = await admin.rpc('find_lead_by_normalized_phone', { p_phone: phone })
-    existing = (normalized as { id: string; nombre: string; estado_pipeline: string }[] | null)?.[0] ?? null
+    const match = (normalized as { id: string; nombre: string; estado_pipeline: string }[] | null)?.[0] ?? null
+    if (match) {
+      const { data: full } = await admin
+        .from('leads')
+        .select('id, nombre, email, empresa, notas, estado_pipeline')
+        .eq('id', match.id)
+        .single()
+      existing = full
+    }
   }
 
   const { date: fecha_reunion, time: reunion_hora } = toArgentina(startTime)
@@ -172,6 +180,29 @@ export async function processTidyCalBooking(
         .eq('id', leadId)
     }
     // For later stages (propuesta, cliente…) we only log the activity, no stage change
+
+    // Sumar datos nuevos de la reserva sin pisar lo que ya está cargado --
+    // si un campo ya tiene valor y la reserva trae uno distinto, se anota en
+    // notas para que el equipo lo revise, nunca se sobreescribe solo.
+    const fieldUpdates: Record<string, unknown> = {}
+    const conflictNotes: string[] = []
+    if (email) {
+      if (!existing.email) fieldUpdates.email = email
+      else if (existing.email.toLowerCase() !== email) conflictNotes.push(`Email distinto en la reserva de calendario: "${email}" (queda "${existing.email}" en la ficha, revisar)`)
+    }
+    if (empresa) {
+      if (!existing.empresa) fieldUpdates.empresa = empresa
+      else if (existing.empresa !== empresa) conflictNotes.push(`Empresa distinta en la reserva de calendario: "${empresa}" (queda "${existing.empresa}" en la ficha, revisar)`)
+    }
+    // La nota del proyecto/servicio consultado es contexto nuevo de esta
+    // reserva puntual, no un campo con valor "viejo" -- siempre se suma.
+    if (note) conflictNotes.push(`Reserva de calendario: "${note}"`)
+    if (conflictNotes.length) {
+      fieldUpdates.notas = existing.notas ? `${existing.notas}\n\n${conflictNotes.join('\n')}` : conflictNotes.join('\n')
+    }
+    if (Object.keys(fieldUpdates).length > 0) {
+      await admin.from('leads').update(fieldUpdates).eq('id', leadId)
+    }
   } else {
     // New lead
     const { data: walo } = await admin

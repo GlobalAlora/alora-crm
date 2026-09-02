@@ -132,7 +132,7 @@ export async function recordInboundWhatsAppMessage(admin: AdminClient, msg: Inbo
 async function enrichLeadFromConversation(admin: AdminClient, leadId: string, conversationId: string): Promise<void> {
   const { data: lead } = await admin
     .from('leads')
-    .select('empresa, sitio_web, pais, email, servicios_interesados')
+    .select('empresa, sitio_web, pais, email, servicios_interesados, notas')
     .eq('id', leadId)
     .single()
 
@@ -151,17 +151,23 @@ async function enrichLeadFromConversation(admin: AdminClient, leadId: string, co
   if (!extracted) return
 
   const updates: Record<string, unknown> = {}
+  // Cuando el campo ya tiene un valor y el chat menciona uno distinto, nunca
+  // lo pisamos -- se deja anotado en `notas` para que el equipo lo revise y
+  // decida a mano, en vez de perder silenciosamente el dato original.
+  const conflictNotes: string[] = []
 
-  if (!lead.empresa && extracted.empresa) updates.empresa = extracted.empresa
-  if (!lead.sitio_web && extracted.sitio_web && URL_RE.test(extracted.sitio_web.trim())) {
-    updates.sitio_web = extracted.sitio_web.trim()
+  function fillOrNote(field: 'empresa' | 'sitio_web' | 'email' | 'pais', label: string, current: string | null, incoming: string | null) {
+    if (!incoming) return
+    if (!current) { updates[field] = incoming; return }
+    if (current !== incoming) {
+      conflictNotes.push(`${label} distinto mencionado en WhatsApp: "${incoming}" (queda "${current}" en la ficha, revisar)`)
+    }
   }
-  if (!lead.email && extracted.email && EMAIL_RE.test(extracted.email.trim())) {
-    updates.email = extracted.email.trim()
-  }
-  if (!lead.pais && extracted.pais && (PAISES as readonly string[]).includes(extracted.pais)) {
-    updates.pais = extracted.pais
-  }
+
+  fillOrNote('empresa', 'Empresa', lead.empresa, extracted.empresa ?? null)
+  fillOrNote('sitio_web', 'Sitio web', lead.sitio_web, extracted.sitio_web && URL_RE.test(extracted.sitio_web.trim()) ? extracted.sitio_web.trim() : null)
+  fillOrNote('email', 'Email', lead.email, extracted.email && EMAIL_RE.test(extracted.email.trim()) ? extracted.email.trim() : null)
+  fillOrNote('pais', 'País', lead.pais, extracted.pais && (PAISES as readonly string[]).includes(extracted.pais) ? extracted.pais : null)
 
   if (extracted.servicios_interesados?.length) {
     const existing = new Set<string>(lead.servicios_interesados ?? [])
@@ -172,6 +178,10 @@ async function enrichLeadFromConversation(admin: AdminClient, leadId: string, co
     if (merged.length !== (lead.servicios_interesados ?? []).length) {
       updates.servicios_interesados = merged
     }
+  }
+
+  if (conflictNotes.length) {
+    updates.notas = lead.notas ? `${lead.notas}\n\n${conflictNotes.join('\n')}` : conflictNotes.join('\n')
   }
 
   if (Object.keys(updates).length === 0) return
