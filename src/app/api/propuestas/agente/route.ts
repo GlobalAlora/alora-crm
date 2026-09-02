@@ -322,7 +322,12 @@ export async function POST(req: NextRequest) {
         messages: mensajes,
       })
       const text = result.content.find((b) => b.type === 'text')
-      const resumenTexto = text && text.type === 'text' ? text.text.trim() : 'No pude leer la info de este lead.'
+      if (!text || text.type !== 'text' || !text.text.trim()) {
+        console.error('[Propuestas Agente] Resumen sin texto — stop_reason:', result.stop_reason, 'content:', JSON.stringify(result.content).slice(0, 500))
+      }
+      const resumenTexto = text && text.type === 'text' && text.text.trim()
+        ? text.text.trim()
+        : `No pude generar la respuesta esta vez (motivo: ${result.stop_reason ?? 'desconocido'}) — probá reenviar el mismo mensaje.`
       // La pregunta de cierre se agrega en código, no se le pide al modelo —
       // en la práctica nunca respetaba el límite de longitud y se cortaba
       // antes de llegar a escribirla.
