@@ -266,15 +266,23 @@ function PresupuestadorWorkspace() {
     if (searchParams.get('reset')) router.replace('/presupuestador')
   }, [searchParams, router])
 
+  // El agente termina cada resumen preguntando "¿Avanzo con la propuesta...?"
+  // — si el usuario le contesta "sí"/"dale" ahí mismo en el chat (lo más
+  // natural, en vez de buscar el botón de abajo), tiene que disparar la
+  // generación, no sumarse como "más contexto" y volver a preguntar lo mismo.
+  const CONFIRMACION_RE = /^(s[ií]|dale|ok|okay|listo|confirmo|avan[zc]a|genera|hacela|va|de una|adelante)[.!\s]*$/i
+
   function handleSend() {
     if (!input.trim() || loading) return
     const text = input.trim()
     setInput('')
     setLog((l) => [...l, { role: 'user', text }])
     // Sin borrador todavía: el mensaje suma/corrige contexto (modo resumen),
-    // no dispara la generación completa por sí solo — eso es handleGenerar.
+    // salvo que sea una confirmación directa a la pregunta del agente, en
+    // cuyo caso dispara la generación igual que el botón "Generar propuesta".
     // Con borrador ya armado, cada mensaje es un pedido de cambio (propuesta).
-    void sendToAgent([...mensajes, { role: 'user', content: text }], draft ? 'propuesta' : 'resumen')
+    const modo = draft || (!draft && CONFIRMACION_RE.test(text)) ? 'propuesta' : 'resumen'
+    void sendToAgent([...mensajes, { role: 'user', content: text }], modo)
   }
 
   function handleGenerar() {
