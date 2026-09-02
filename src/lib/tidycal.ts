@@ -120,7 +120,7 @@ export async function processTidyCalBooking(
   if (email) conditions.push(`email.ilike.${email}`)
   if (phone) conditions.push(`telefono.eq.${phone}`, `telefono.eq.+${phone}`)
 
-  const { data: existing } = await admin
+  let { data: existing } = await admin
     .from('leads')
     .select('id, nombre, estado_pipeline')
     .or(conditions.join(','))
@@ -128,6 +128,16 @@ export async function processTidyCalBooking(
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
+
+  // Fallback: el teléfono de una reserva de calendario suele venir sin
+  // código de país (ej. "2612067914"), mientras que un lead que ya existe
+  // por WhatsApp lo tiene completo ("5492612067914") -- distintos como
+  // string, mismo número. Sin esto se crea un lead duplicado por cada
+  // canal en vez de reabrir el que ya existía.
+  if (!existing && phone) {
+    const { data: normalized } = await admin.rpc('find_lead_by_normalized_phone', { p_phone: phone })
+    existing = (normalized as { id: string; nombre: string; estado_pipeline: string }[] | null)?.[0] ?? null
+  }
 
   const { date: fecha_reunion, time: reunion_hora } = toArgentina(startTime)
 
