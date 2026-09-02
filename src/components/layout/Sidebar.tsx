@@ -3,13 +3,14 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   LayoutDashboard, Users, Settings, FileCode2, CheckSquare, Mail, Tag, List,
   MessageCircle, Smartphone, ContactRound, X, Menu, UserCog, Bot, FolderKanban,
   ShieldCheck, Receipt, Ticket, BarChart2, Globe, Zap, FileText, Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { playNotificationSound } from '@/lib/notification-sound'
 import { useQuery } from '@tanstack/react-query'
 import type { WhatsAppConversation } from '@/types'
 import { PushSubscription } from '@/components/PushSubscription'
@@ -221,6 +222,20 @@ export function Sidebar() {
     enabled: isAdmin,
   })
   const totalUnread = (waData?.data ?? []).reduce((sum, c) => sum + c.unread_count, 0)
+
+  // Suena mientras el CRM está abierto en una pestaña -- las notificaciones
+  // push del sistema operativo dependen de su propio sonido (no se puede
+  // poner un audio custom ahí), así que esto es lo único que garantiza un
+  // "ding" audible siempre. Solo suena cuando el total SUBE, nunca al
+  // cargar la página ni al marcar mensajes como leídos.
+  const prevUnreadRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (!isAdmin) return
+    if (prevUnreadRef.current !== null && totalUnread > prevUnreadRef.current) {
+      playNotificationSound()
+    }
+    prevUnreadRef.current = totalUnread
+  }, [totalUnread, isAdmin])
 
   const nav = isAdmin ? FULL_NAV : VIEWER_NAV
 
