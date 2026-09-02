@@ -71,13 +71,19 @@ function toArgentina(utcIso: string): { date: string; time: string } {
 }
 
 async function isAlreadyProcessed(admin: AdminClient, bookingId: number): Promise<boolean> {
+  // .maybeSingle() errors out (not just returns null) the moment MORE than
+  // one row matches -- once any duplicate exists for a booking_id (a race
+  // between the webhook and this cron, or a manual data merge), this check
+  // starts silently failing forever and the booking gets reprocessed every
+  // run. .limit(1) + checking the array is robust no matter how many rows
+  // already exist.
   const { data } = await admin
     .from('activities')
     .select('id')
     .eq('tipo', 'reunion')
     .eq('metadata->>booking_id', String(bookingId))
-    .maybeSingle()
-  return !!data
+    .limit(1)
+  return !!data && data.length > 0
 }
 
 /**
