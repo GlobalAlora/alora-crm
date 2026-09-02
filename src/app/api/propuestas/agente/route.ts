@@ -313,7 +313,7 @@ export async function POST(req: NextRequest) {
     if (modo === 'resumen') {
       const result = await client.messages.create({
         model: MODEL,
-        max_tokens: 4000,
+        max_tokens: 8000,
         system: [
           { type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } },
           { type: 'text', text: contextBlock },
@@ -323,11 +323,15 @@ export async function POST(req: NextRequest) {
       })
       const text = result.content.find((b) => b.type === 'text')
       if (!text || text.type !== 'text' || !text.text.trim()) {
-        console.error('[Propuestas Agente] Resumen sin texto — stop_reason:', result.stop_reason, 'content:', JSON.stringify(result.content).slice(0, 500))
+        // Diagnóstico completo -- si esto vuelve a pasar con 8000 tokens de
+        // margen, algo distinto a "se quedó corto" lo está causando (ej.
+        // razonamiento interno consumiendo el budget sin dejar lugar al
+        // texto visible, o el historial de mensajes en un estado raro).
+        console.error('[Propuestas Agente] Resumen sin texto — modelo:', MODEL, 'stop_reason:', result.stop_reason, 'usage:', JSON.stringify(result.usage), 'tipos de bloque:', result.content.map((b) => b.type), 'mensajes.length:', mensajes.length)
       }
       const resumenTexto = text && text.type === 'text' && text.text.trim()
         ? text.text.trim()
-        : `No pude generar la respuesta esta vez (motivo: ${result.stop_reason ?? 'desconocido'}) — probá reenviar el mismo mensaje.`
+        : `No pude generar la respuesta esta vez (motivo: ${result.stop_reason ?? 'desconocido'}, bloques: ${result.content.map((b) => b.type).join(',') || 'ninguno'}, tokens usados: ${result.usage?.output_tokens ?? '?'}) — probá reenviar el mismo mensaje.`
       // La pregunta de cierre se agrega en código, no se le pide al modelo —
       // en la práctica nunca respetaba el límite de longitud y se cortaba
       // antes de llegar a escribirla.
