@@ -1500,20 +1500,32 @@ async function handleBookingPhase(
     if (nlIdx >= 0) idx = nlIdx
   }
 
-  // Lead mentioned a time but it didn't match any available slot — explain business hours and re-offer
+  // Lead mentioned a time but it didn't match any available slot — re-offer slots with an honest message
   if (isNaN(num) || idx < 0 || idx >= slots.length) {
-    const expressesOutOfHoursTime =
-      /\b(\d{1,2})[:.]\d{2}\b/.test(trimmed) ||
+    const mentionsNightTime =
       /\b(noche|madrugada|medianoche|nocturno|de noche|por la noche|a la noche|tarde noche)\b/i.test(trimmed) ||
-      /\b(24\s*hora|toda(s)? la(s)? noche|cualquier hora|a las? \d{1,2})\b/i.test(trimmed)
+      /\b(24\s*hora|toda(s)? la(s)? noche)\b/i.test(trimmed)
 
-    if (expressesOutOfHoursTime) {
-      await startBookingFlow(admin, { leadId, conversationId, phone }, nextSkip,
-        lang === 'en'
-          ? 'Our calls are scheduled during business hours 🕘 Here are the available times:\n\n'
-          : 'Las llamadas son en horario comercial 🕘 Estos son los horarios disponibles:\n\n',
-        lang,
-      )
+    // Detect explicitly out-of-hours hour (before 8 AM or from 9 PM)
+    const hourMatch = trimmed.match(/\ba\s*las?\s+(\d{1,2})\b/i) ?? trimmed.match(/\b(\d{1,2})[:.h]\d{2}\b/)
+    const requestedHour = hourMatch ? parseInt(hourMatch[1], 10) : null
+    const isOutOfHours = mentionsNightTime || (requestedHour !== null && (requestedHour < 8 || requestedHour >= 21))
+
+    const mentionsAnyTime =
+      /\b(\d{1,2})[:.h]\d{2}\b/.test(trimmed) ||
+      /\by\s+media\b/i.test(trimmed) ||
+      /\ba\s*las?\s+\d{1,2}\b/i.test(trimmed) ||
+      mentionsNightTime
+
+    if (mentionsAnyTime) {
+      const prefix = isOutOfHours
+        ? (lang === 'en'
+            ? 'Our calls are scheduled during business hours 🕘 Here are the available times:\n\n'
+            : 'Las llamadas son en horario comercial 🕘 Estos son los horarios disponibles:\n\n')
+        : (lang === 'en'
+            ? "We don't have availability at that time, but here are the closest slots:\n\n"
+            : 'No tenemos disponibilidad a esa hora, pero acá van los horarios más cercanos:\n\n')
+      await startBookingFlow(admin, { leadId, conversationId, phone }, nextSkip, prefix, lang)
       return
     }
   }
