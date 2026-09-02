@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Search, Send, Loader2, Copy, ExternalLink, Sparkles, Pencil, Check, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -74,12 +74,20 @@ function loadWorkspace(): Partial<PersistedWorkspace> {
   }
 }
 
+export default function PresupuestadorPage() {
+  return (
+    <Suspense>
+      <PresupuestadorPageInner />
+    </Suspense>
+  )
+}
+
 // El sidebar manda ?reset=<timestamp> cuando clickeás "Presupuestador" estando
 // ya en esta página -- un Link normal a la misma ruta no navega, así que sin
 // esto el workspace queda pegado al lead que tenía en memoria. Un remount
 // real (via key) resetea todo el estado de una vez, sin tener que replicar
 // resetWorkspace()/handleChangeLead() a mano dentro de un efecto.
-export default function PresupuestadorPage() {
+function PresupuestadorPageInner() {
   const searchParams = useSearchParams()
   return <PresupuestadorWorkspace key={searchParams.get('reset') ?? 'default'} />
 }
