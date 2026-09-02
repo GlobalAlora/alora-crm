@@ -135,7 +135,7 @@ type Lang = 'en' | 'es'
 // "nombre" and "consulta_detallada" are free-text answers we save directly
 // (no AI inference) and are always asked once, regardless of whether the
 // lead already has a placeholder value (e.g. the WhatsApp profile name).
-const QUESTION_ORDER = ['nombre', 'consulta_detallada', 'servicios_interesados', 'email', 'empresa', 'sitio_web', 'pais'] as const
+const QUESTION_ORDER = ['nombre', 'consulta_detallada', 'servicios_interesados', 'email', 'empresa', 'sitio_web'] as const
 type QuestionField = typeof QUESTION_ORDER[number]
 const DIRECT_SAVE_FIELDS = new Set<QuestionField>(['nombre', 'consulta_detallada'])
 
@@ -171,7 +171,6 @@ const QUESTION_TEXT: Record<QuestionField, string> = {
   email:                 '¿Me dejás tu email? Así el equipo puede hacerte seguimiento 📧',
   empresa:               '¿Tenés empresa o negocio? ¿Cómo se llama? 😊',
   sitio_web:             '¿Ya tenés sitio web? Si tenés, pasame el link — si no, sin problema, no es obligatorio 🙂',
-  pais:                  '¿Desde qué país nos escribís?',
   servicios_interesados: '¿En qué servicio estás pensando? (diseño web, apps, redes sociales, branding, marketing... lo que sea 😊)',
 }
 const QUESTION_TEXT_EN: Record<QuestionField, string> = {
@@ -180,7 +179,6 @@ const QUESTION_TEXT_EN: Record<QuestionField, string> = {
   email:                 "Could I get your email? That way the team can follow up with you 📧",
   empresa:               "Do you have a company or business? What's it called? 😊",
   sitio_web:             "Do you already have a website? Share the link if you do — no worries if not 🙂",
-  pais:                  "Which country are you writing from?",
   servicios_interesados: "Which service are you thinking about? (web design, apps, social media, branding, marketing... anything! 😊)",
 }
 
@@ -236,9 +234,6 @@ function getAcknowledgment(field: QuestionField, answer: string, leadNombre?: st
       }
       if (/\bno\b|\bsin\b|\btodavía\b|\baún\b|\bno tengo\b/i.test(answer)) return '¡Sin problema, no hace falta! 🙂'
       return '¡Genial, lo anoto! 🙌'
-    }
-    case 'pais': {
-      return lang === 'en' ? 'Awesome, greetings from here! 🙌' : '¡Buenísimo, un saludo desde acá! 🙌'
     }
     case 'servicios_interesados': {
       const options = lang === 'en'
@@ -430,7 +425,7 @@ INFO QUE NECESITÁS RECOPILAR (en este orden estricto, las 4 son ESENCIALES — 
 Empresa/negocio es un dato lindo de tener pero NO bloquea el paso a booking — no insistas por eso.
 
 REGLA DE ORO — PRIMERO EL PROYECTO:
-- Si no sabés todavía QUÉ quiere el lead, preguntá eso antes que cualquier otra cosa. Nunca país, sitio web ni email antes.
+- Si no sabés todavía QUÉ quiere el lead, preguntá eso antes que cualquier otra cosa. Nunca sitio web ni email antes.
 - "Me interesa conocer sus servicios", "hola", "buenas", "quiero saber más" → NO son proyectos. Preguntá "¿qué proyecto tenés en mente?" o "¿en qué te podemos ayudar?"
 - Nunca pidas el email como pregunta aislada y sin contexto — siempre va junto con la explicación de para qué es la videollamada (ver "SOBRE EL EMAIL")
 
@@ -465,7 +460,7 @@ REGLAS DE CONVERSACIÓN:
 - Si el lead se despide o quiere pausar: respondé amablemente, deseale suerte
 
 SOBRE EL EMAIL — OBLIGATORIO, SIN EXCEPCIÓN:
-- Se pide recién cuando ya tenés proyecto + país + sitio web, SIEMPRE junto con la explicación de para qué es la videollamada — nunca lo pidas "en seco", sin contexto
+- Se pide recién cuando ya tenés proyecto + sitio web, SIEMPRE junto con la explicación de para qué es la videollamada — nunca lo pidas "en seco", sin contexto
 - La razón que das tiene que ser CONCRETA y en una sola frase corta: es para entender bien el proyecto y armar un presupuesto/propuesta que tenga sentido. NO inventes otras razones ni uses palabras vagas como "la charla", "prepararse", "prepararla" — eso genera confusión, no explica nada
 - Explicá primero, pedí después, en el mismo mensaje: "Para armarte un presupuesto a medida, te propongo una videollamada de 30 min con Walo, uno de los fundadores. ¿Me pasás tu email para registrar tu consulta y mostrarte los horarios disponibles?"
 - IMPORTANTE: en este mensaje el lead todavía NO eligió día ni hora — nunca digas "para mandarte la confirmación" ni "el link" acá, porque no hay nada confirmado todavía y lo puede confundir o asustar. Esas palabras (confirmación, link) recién van DESPUÉS de que el lead elija un horario, no antes
@@ -474,7 +469,7 @@ SOBRE EL EMAIL — OBLIGATORIO, SIN EXCEPCIÓN:
 - Si sigue sin darlo: seguí preguntando de otra forma, con paciencia, pero NUNCA avances a booking sin el email — no hay excepción ni "seguimos igual"
 - Si ya te lo dio antes en la conversación, no lo pidas de nuevo
 
-CUANDO VAS A BOOKING (recién cuando tenés proyecto + país + sitio web + email, las 4 cosas):
+CUANDO VAS A BOOKING (recién cuando tenés proyecto + sitio web + email, las 3 cosas):
 - REGLA CRÍTICA: si el último mensaje del lead es una pregunta (precio, gratis, o cualquier otra), tu mensaje SIEMPRE la responde primero — aunque ya tuvieras las 4 cosas completas de antes (por ejemplo, un lead que vuelve a escribir después de un tiempo). Nunca ignores una pregunta nueva para pasar directo a anunciar los horarios. Respondé la pregunta y recién en el mismo mensaje, después, hacé la transición a booking
 - Mencioná el proyecto del lead con sus palabras y transmití entusiasmo genuino
 - Hacelo sentir que la llamada va a ser valiosa y que el equipo va a estar preparado
@@ -501,7 +496,7 @@ Otros:
 
 - Si preguntan por casos de campañas de Google Ads puntualmente: "No tenemos casos de campañas de Ads para mostrarte, pero todas las páginas que hacemos quedan listas para correr Google Ads arriba sin problema 🙂" — y ahí sí podés mostrar un caso de portafolio de la categoría que corresponda (servicio o tienda), aclarando que es de la web, no de la campaña
 
-IR A BOOKING: cuando tenés descripción del proyecto + país + sitio web + email — las 4, sin excepción. Nunca vayas a booking sin email.
+IR A BOOKING: cuando tenés descripción del proyecto + sitio web + email — las 3, sin excepción. Nunca vayas a booking sin email.
 IR A STOP: si el lead claramente no quiere continuar. Respondé amablemente antes de parar.`
 
 const QUALIFYING_AI_SYSTEM_EN = `You are Lidia, Alora's virtual receptionist on WhatsApp. Alora is a digital technology agency: websites, apps, e-commerce, WhatsApp bots, and management systems for businesses and entrepreneurs across Latin America.
@@ -514,16 +509,15 @@ PERSONALITY:
 - You ask intelligent follow-up questions that show you understood what they said
 - You express real enthusiasm when the project is interesting
 
-INFO TO COLLECT (in this strict order, all 4 are ESSENTIAL — without all 4, nothing gets booked):
+INFO TO COLLECT (in this strict order, all 3 are ESSENTIAL — without all 3, nothing gets booked):
 1. Project description (this goes FIRST, always)
-2. Country
-3. Existing website — if they don't have one, they should just say so ("I don't have one" counts as a valid answer, they don't need to actually have a site)
-4. Email — asked together with the explanation of the video call, not before (see "ABOUT THE EMAIL" below)
+2. Existing website — if they don't have one, they should just say so ("I don't have one" counts as a valid answer, they don't need to actually have a site)
+3. Email — asked together with the explanation of the video call, not before (see "ABOUT THE EMAIL" below)
 
 Company/business name is nice to have but does NOT block moving to booking — don't push for it.
 
 GOLDEN RULE — PROJECT FIRST:
-- If you don't yet know WHAT the lead wants, ask that before anything else. Never country, website, or email first.
+- If you don't yet know WHAT the lead wants, ask that before anything else. Never website or email first.
 - "I'm interested in your services", "hello", "hi", "I want to learn more" → NOT project descriptions. Ask "what project do you have in mind?"
 - Never ask for email as an isolated, out-of-context question — it always comes bundled with explaining what the video call is for (see "ABOUT THE EMAIL")
 
@@ -555,7 +549,7 @@ CONVERSATION RULES:
 - If the lead says goodbye or wants to pause: respond warmly, wish them luck
 
 ABOUT THE EMAIL — REQUIRED, NO EXCEPTIONS:
-- Only ask once you already have project + country + website, and ALWAYS together with explaining what the video call is for — never ask it cold, with no context
+- Only ask once you already have project + website, and ALWAYS together with explaining what the video call is for — never ask it cold, with no context
 - The reason you give must be CONCRETE and one short sentence: it's to understand the project well and put together a quote/proposal that makes sense. Do NOT invent other reasons or use vague words like "the chat", "get ready", "prepare for it" — that just confuses, it doesn't explain anything
 - Explain first, ask second, in the same message: "To put together a tailored quote, I'd like to set up a 30-minute video call with Walo, one of Alora's founders. Can I get your email so I can register your inquiry and show you the available times?"
 - IMPORTANT: at this point the lead hasn't picked a day or time yet — never say "to send you the confirmation" or "the link" here, since nothing is confirmed yet and it can confuse or worry them. Those words (confirmation, link) only belong AFTER the lead picks a time, not before
@@ -564,7 +558,7 @@ ABOUT THE EMAIL — REQUIRED, NO EXCEPTIONS:
 - If they still don't give it: keep asking a different way, patiently, but NEVER go to booking without the email — there's no exception, no "proceeding anyway"
 - If they already gave their email earlier, don't ask again
 
-WHEN GOING TO BOOKING (only once you have project + country + website + email, all 4):
+WHEN GOING TO BOOKING (only once you have project + website + email, all 3):
 - CRITICAL RULE: if the lead's last message is a question (pricing, free-of-charge, or anything else), your message ALWAYS answers it first — even if you already had all 4 things complete from before (e.g. a lead who writes back after a while). Never ignore a new question just to jump straight to announcing time slots. Answer the question, then make the transition to booking in the same message afterward
 - In your message, mention the lead's project in their own words and express genuine enthusiasm
 - Make them feel the call will be valuable and that the team will be prepared
@@ -615,7 +609,6 @@ const QUALIFYING_TOOL: Anthropic.Tool = {
           email:    { type: 'string', description: 'Email del lead' },
           empresa:  { type: 'string', description: 'Nombre del negocio o empresa' },
           sitio_web: { type: 'string', description: 'URL del sitio web actual. Si el lead dijo que no tiene sitio web, guardá "No tiene" — no dejes el campo sin reportar, es un dato esencial que ya preguntaste y respondió.' },
-          pais:     { type: 'string', description: 'País desde donde escribe el lead' },
           servicios_interesados: {
             type: 'array',
             items: { type: 'string' },
@@ -627,7 +620,7 @@ const QUALIFYING_TOOL: Anthropic.Tool = {
       siguiente: {
         type: 'string',
         enum: ['CONTINUE', 'BOOKING', 'STOP'],
-        description: 'CONTINUE: seguir conversando | BOOKING: ya tenés descripción+país+email, ir a agendar | STOP: el lead no quiere continuar',
+        description: 'CONTINUE: seguir conversando | BOOKING: ya tenés descripción+sitio_web+email, ir a agendar | STOP: el lead no quiere continuar',
       },
     },
   },
@@ -703,6 +696,15 @@ async function advanceQualifyingBotWithAI(
   ])
 
   if (!lead || !messages?.length) return
+
+  // Auto-detect country from phone prefix and save it if the lead doesn't have one yet
+  if (!lead.pais) {
+    const detectedCountry = countryFromPhone(phone)
+    if (detectedCountry) {
+      await admin.from('leads').update({ pais: detectedCountry }).eq('id', leadId)
+      lead.pais = detectedCountry
+    }
+  }
 
   // Check if a human team member already sent messages (agent_id set = manual send)
   const hasHumanContact = messages.some(m => m.direction === 'outbound' && m.agent_id)
@@ -1189,6 +1191,29 @@ async function parseSlotFromNaturalLanguage(text: string, slots: Date[]): Promis
 const SLOT_EMOJIS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣']
 
 // ─── Timezone helpers ──────────────────────────────────────────────────────
+
+/** Maps phone country prefix → country name in Spanish. Returns null for unknown prefixes. */
+function countryFromPhone(phone: string): string | null {
+  const p = phone.replace(/\D/g, '')
+  if (p.startsWith('598')) return 'Uruguay'
+  if (p.startsWith('595')) return 'Paraguay'
+  if (p.startsWith('591')) return 'Bolivia'
+  if (p.startsWith('593')) return 'Ecuador'
+  if (p.startsWith('592')) return 'Guyana'
+  if (p.startsWith('597')) return 'Surinam'
+  if (p.startsWith('56'))  return 'Chile'
+  if (p.startsWith('57'))  return 'Colombia'
+  if (p.startsWith('51'))  return 'Perú'
+  if (p.startsWith('58'))  return 'Venezuela'
+  if (p.startsWith('52'))  return 'México'
+  if (p.startsWith('54'))  return 'Argentina'
+  if (p.startsWith('55'))  return 'Brasil'
+  if (p.startsWith('34'))  return 'España'
+  if (p.startsWith('44'))  return 'Reino Unido'
+  if (p.startsWith('351')) return 'Portugal'
+  if (p.startsWith('1'))   return 'Estados Unidos'
+  return null
+}
 
 /** Maps phone country prefix → IANA timezone. Defaults to Argentina. */
 function timezoneFromPhone(phone: string): string {
