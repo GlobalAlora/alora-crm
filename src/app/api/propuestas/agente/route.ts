@@ -57,6 +57,8 @@ const PROPOSAL_TOOL: Anthropic.Tool = {
               moneda: { type: 'string', enum: ['USD', 'ARS'] },
               monto: { type: 'number', description: 'Monto total estimado — no hay lista de precios fija, usá criterio de mercado LATAM para una agencia profesional según el alcance descrito en los bloques.' },
               forma_pago: { type: 'string', description: 'Forma de pago, por default "40% al inicio, 30% a los 30 días, 30% previo a la puesta en producción" salvo que el proyecto sea muy corto/largo o te pidan otra cosa.' },
+              descuento_porcentaje: { type: ['number', 'null'], description: 'Si el equipo pidió una promo de confirmación temprana (ej. "20% off si confirman en 5 días"), el porcentaje como número (20, no 0.2). null si no hay promo — el link público y el PDF arman el CTA de "Aceptar propuesta" con este número real, así que tiene que ser exacto.' },
+              descuento_condicion: { type: ['string', 'null'], description: 'Condición para el descuento, ej. "confirmando dentro de los próximos 5 días hábiles desde el envío de esta propuesta". null si no hay promo.' },
             },
           },
           mantenimiento: {
@@ -96,6 +98,8 @@ const RESUMEN_EJECUTIVO_TOOL: Anthropic.Tool = {
           moneda: { type: 'string', enum: ['USD', 'ARS'] },
           monto: { type: 'number', description: 'MISMO monto que la propuesta detallada — esto es un resumen, no una recotización.' },
           forma_pago: { type: 'string' },
+          descuento_porcentaje: { type: ['number', 'null'], description: 'MISMO valor que en la propuesta detallada (o null si no hay promo).' },
+          descuento_condicion: { type: ['string', 'null'], description: 'MISMO valor que en la propuesta detallada (o null si no hay promo).' },
         },
       },
       tiempos: { type: 'string', description: 'Duración estimada en una frase corta, en días corridos (ej. "45 a 60 días"), nunca en semanas.' },
@@ -174,6 +178,7 @@ Un proyecto chico (ej. solo branding) puede terminar usando 8-10 bloques. Uno gr
 - No inventes datos del lead que no te dieron — si falta información clave de negocio para el contexto, decilo en \`notas\`/\`mensaje_agente\` y hacé el mejor trabajo posible con lo que hay; no le pidas al equipo que actúe como si fuera el cliente.
 - Si tenés notas o transcripción de la reunión con el cliente, son la mejor fuente para el bloque "contexto" (es información de primera mano, mejor que lo que dice la ficha) — usalas en detalle.
 - El monto de \`inversion\` es una ESTIMACIÓN tuya según el alcance — no hay lista de precios fija. Sé razonable para el mercado de desarrollo/diseño de una agencia profesional en LATAM. Si el equipo te pide un monto puntual, usá ese.
+- Si el equipo pide una promo de confirmación temprana (ej. "20% off si confirman en 5 días"), completá \`descuento_porcentaje\`/\`descuento_condicion\` con el número real (no lo dejes solo mencionado en \`forma_pago\`) — el botón de "Aceptar propuesta" del link público y del PDF usa ese número exacto, así que tiene que coincidir con lo que decís en el texto. Sin promo, los dos quedan en null.
 - Si te pasan un BORRADOR ACTUAL, esa es la propuesta real que ya existe — un pedido de cambio (precio, sacar/agregar algo, tono, idioma, o "hacela de nuevo"/"de nuevo" sin más detalle) se aplica SOBRE ese contenido, no se reescribe todo desde cero. Devolvé la propuesta completa actualizada (todos los bloques, no solo el que cambió), pero basada en lo que ya estaba ahí.
 - En los párrafos e items (parrafos, items, subsecciones.items, hallazgos, incluye, no_incluye, propuesta), marcá con **negrita** (doble asterisco) la o las 1-2 frases más importantes de cada párrafo o punto — un dato clave, un número, una palabra que resume la idea. No abuses: si todo está en negrita, no resalta nada.
 - El contenido de los bloques está dirigido al CLIENTE final — profesional, claro, sin jerga técnica innecesaria salvo en tecnologia_stack.

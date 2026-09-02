@@ -10,9 +10,18 @@ export function propuestaWhatsappLink(texto: string): string {
   return `https://wa.me/${PROPUESTA_WHATSAPP_NUMERO}?text=${encodeURIComponent(texto)}`
 }
 
-export function propuestaCtaLinks(titulo: string) {
+/** Etiqueta del botón "Aceptar propuesta" -- sin promo, texto genérico; con
+ * promo, usa el porcentaje real de la propuesta, nunca un número fijo. */
+export function propuestaAceptarLabel(descuentoPorcentaje?: number | null): string {
+  return descuentoPorcentaje
+    ? `Aceptar propuesta y comenzar ahora — ${descuentoPorcentaje}% off`
+    : 'Aceptar propuesta y comenzar ahora'
+}
+
+export function propuestaCtaLinks(titulo: string, descuentoPorcentaje?: number | null) {
+  const descuentoTexto = descuentoPorcentaje ? ` con el ${descuentoPorcentaje}% de descuento` : ''
   return {
-    aceptar: propuestaWhatsappLink(`Hola! Quiero aceptar la propuesta "${titulo}" y comenzar ahora con el 15% de descuento.`),
+    aceptar: propuestaWhatsappLink(`Hola! Quiero aceptar la propuesta "${titulo}" y comenzar ahora${descuentoTexto}.`),
     dudas: propuestaWhatsappLink(`Hola! Tengo dudas sobre la propuesta "${titulo}".`),
     contacto: propuestaWhatsappLink(`Hola! Te escribo por la propuesta "${titulo}".`),
   }

@@ -10,7 +10,7 @@ type TextStyleProp = any
 import type { PropuestaContenido, PropuestaResumenEjecutivo } from '@/types'
 import { BRAND } from './alora-brand'
 import { splitBoldSegments } from './propuesta-format'
-import { propuestaCtaLinks } from './propuesta-cta'
+import { propuestaCtaLinks, propuestaAceptarLabel } from './propuesta-cta'
 
 // Mismas fuentes que la versión web (Inter + un monospace para los headers
 // numerados/badges, donde la web usa la pila de monospace del sistema) --
@@ -175,12 +175,12 @@ function BulletRow({ text, muted }: { text: string; muted?: boolean }) {
 // Mismos tres botones que la página pública (Aceptar / Tengo dudas /
 // contacto directo) -- un PDF no ejecuta JS, así que van como links reales
 // a WhatsApp (Link de react-pdf), no como botones interactivos.
-function CtaSection({ titulo }: { titulo: string }) {
-  const links = propuestaCtaLinks(titulo)
+function CtaSection({ titulo, descuentoPorcentaje }: { titulo: string; descuentoPorcentaje?: number | null }) {
+  const links = propuestaCtaLinks(titulo, descuentoPorcentaje)
   return (
     <View style={styles.ctaSection} wrap={false}>
       <Link src={links.aceptar} style={styles.ctaPrimary}>
-        <Text>Aceptar propuesta y comenzar ahora — 15% off</Text>
+        <Text>{propuestaAceptarLabel(descuentoPorcentaje)}</Text>
       </Link>
       <Link src={links.dudas} style={styles.ctaSecondary}>
         <Text>Tengo dudas sobre la propuesta</Text>
@@ -282,7 +282,7 @@ function PropuestaPdf({ titulo, cliente, bloques, inversion, mantenimiento }: Pr
 
           {cierreBloque && renderBloque(cierreBloque, ++n)}
 
-          <CtaSection titulo={titulo} />
+          <CtaSection titulo={titulo} descuentoPorcentaje={inversion.descuento_porcentaje} />
         </View>
 
         <Footer />
@@ -343,7 +343,7 @@ function PropuestaResumenPdf({ titulo, cliente, hallazgos, propuesta, incluye, n
             </View>
           </View>
 
-          <CtaSection titulo={titulo} />
+          <CtaSection titulo={titulo} descuentoPorcentaje={inversion.descuento_porcentaje} />
         </View>
 
         <Footer />

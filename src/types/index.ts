@@ -79,6 +79,11 @@ export interface PropuestaInversion {
   moneda: 'USD' | 'ARS'
   monto: number
   forma_pago: string
+  /** Null si no hay promo de confirmación temprana -- si hay, el CTA de
+   * "Aceptar propuesta" del link público/PDF usa este número real en vez
+   * de un porcentaje fijo en el código. */
+  descuento_porcentaje?: number | null
+  descuento_condicion?: string | null
 }
 
 export interface PropuestaMantenimiento {

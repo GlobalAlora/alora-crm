@@ -5,14 +5,12 @@ import { useParams } from 'next/navigation'
 import { PropuestaDocument } from '@/components/propuestas/PropuestaDocument'
 import { PropuestaResumenDocument } from '@/components/propuestas/PropuestaResumenDocument'
 import type { PropuestaDocumentos } from '@/types'
-import { propuestaWhatsappLink } from '@/lib/propuesta-cta'
+import { propuestaAceptarLabel, propuestaCtaLinks } from '@/lib/propuesta-cta'
 
 interface PropuestaData {
   id: string
   contenido: PropuestaDocumentos
 }
-
-const linkWhatsapp = propuestaWhatsappLink
 
 export default function PropuestaPublicaPage() {
   const { id } = useParams<{ id: string }>()
@@ -61,6 +59,8 @@ export default function PropuestaPublicaPage() {
   }
 
   const titulo = data.contenido.detallada.titulo
+  const descuentoPorcentaje = data.contenido.detallada.inversion.descuento_porcentaje ?? null
+  const cta = propuestaCtaLinks(titulo, descuentoPorcentaje)
 
   return (
     <div className="min-h-screen py-8">
@@ -91,17 +91,17 @@ export default function PropuestaPublicaPage() {
 
       <div className="print:hidden mx-auto max-w-2xl px-6 pb-16 flex flex-col items-center gap-3">
         <a
-          href={linkWhatsapp(`Hola! Quiero aceptar la propuesta "${titulo}" y comenzar ahora con el 15% de descuento.`)}
+          href={cta.aceptar}
           target="_blank"
           rel="noreferrer"
           onClick={() => trackEvento('aceptar')}
           className="w-full text-center px-5 py-3.5 rounded-xl text-white font-semibold text-sm hover:opacity-90 transition-opacity"
           style={{ background: '#00BDBE' }}
         >
-          Aceptar propuesta y comenzar ahora — 15% off
+          {propuestaAceptarLabel(descuentoPorcentaje)}
         </a>
         <a
-          href={linkWhatsapp(`Hola! Tengo dudas sobre la propuesta "${titulo}".`)}
+          href={cta.dudas}
           target="_blank"
           rel="noreferrer"
           onClick={() => trackEvento('dudas')}
@@ -110,7 +110,7 @@ export default function PropuestaPublicaPage() {
           Tengo dudas sobre la propuesta
         </a>
         <a
-          href={linkWhatsapp(`Hola! Te escribo por la propuesta "${titulo}".`)}
+          href={cta.contacto}
           target="_blank"
           rel="noreferrer"
           onClick={() => trackEvento('contacto')}
