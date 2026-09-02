@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import toast from 'react-hot-toast'
 
 type Status = 'loading' | 'unsupported' | 'denied' | 'subscribed' | 'unsubscribed'
 
@@ -25,8 +26,20 @@ export function PushSubscription() {
   async function subscribe() {
     setWorking(true)
     try {
+      // Si el navegador ya tiene una decisión guardada (granted/denied de un
+      // intento anterior), esto resuelve al toque SIN mostrar ningún popup
+      // -- no es un bug, es que ya no hay nada que preguntar.
       const permission = await Notification.requestPermission()
-      if (permission !== 'granted') { setStatus('denied'); return }
+      if (permission !== 'granted') {
+        setStatus('denied')
+        toast.error('El navegador tiene las notificaciones bloqueadas para este sitio — habilitalas en la configuración del sitio (ícono del candado junto a la URL).')
+        return
+      }
+
+      if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
+        toast.error('Falta la clave VAPID en el build — avisale a Walo que haga un redeploy después de configurarla en Vercel.')
+        return
+      }
 
       const reg = await navigator.serviceWorker.ready
       const sub = await reg.pushManager.subscribe({
@@ -39,9 +52,15 @@ export function PushSubscription() {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(sub.toJSON()),
       })
-      if (res.ok) setStatus('subscribed')
+      if (res.ok) {
+        setStatus('subscribed')
+      } else {
+        const body = await res.json().catch(() => ({}))
+        toast.error(`No se pudo guardar la suscripción: ${body.error ?? res.statusText}`)
+      }
     } catch (err) {
       console.error('[Push] Subscribe failed:', err)
+      toast.error(err instanceof Error ? `Error activando notificaciones: ${err.message}` : 'Error activando notificaciones')
     } finally {
       setWorking(false)
     }
