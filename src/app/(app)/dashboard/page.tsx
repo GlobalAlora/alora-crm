@@ -486,6 +486,28 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{[...Array(8)].map((_, i) => <Skel key={i} />)}</div>
         ) : (
           <div className="space-y-4">
+            {/* 1. Lo primero: cuántas propuestas se mandaron */}
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              <StatCard
+                label="Propuestas enviadas"
+                value={a?.resumen.propuestas_count ?? 0}
+                sub="Total en el período, ARS + USD"
+                info={a?.definiciones.propuestas_count}
+                onOpenDetail={() => openDetail('con_propuesta', 'Leads con propuesta enviada')}
+              />
+              <StatCard label="Enviado en ARS" value={formatARS(a?.resumen.propuestas_enviadas_ars ?? 0)} sub="Suma del período" onOpenDetail={() => openDetail('propuestas_enviadas_ars', 'Propuestas enviadas ARS')} />
+              <StatCard label="Enviado en USD" value={formatUSD(a?.resumen.propuestas_enviadas_usd ?? 0)} sub="Suma del período" onOpenDetail={() => openDetail('propuestas_enviadas_usd', 'Propuestas enviadas USD')} />
+            </div>
+
+            {/* 2. Después, lo interesante: cuánto se ganó/perdió por moneda */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <StatCard label="Ganado ARS" value={formatARS(a?.resumen.propuestas_ganadas_ars ?? 0)} sub="Solo aceptadas" color={(a?.resumen.propuestas_ganadas_ars ?? 0) > 0 ? 'green' : 'slate'} onOpenDetail={() => openDetail('propuestas_ganadas_ars', 'Propuestas ganadas ARS')} />
+              <StatCard label="Perdido ARS" value={formatARS(a?.resumen.propuestas_perdidas_ars ?? 0)} sub="Solo rechazadas" color={(a?.resumen.propuestas_perdidas_ars ?? 0) > 0 ? 'red' : 'slate'} info={a?.definiciones.propuestas_perdidas_ars} onOpenDetail={() => openDetail('propuestas_perdidas_ars', 'Propuestas perdidas ARS')} />
+              <StatCard label="Ganado USD" value={formatUSD(a?.resumen.propuestas_ganadas_usd ?? 0)} sub="Solo aceptadas" color={(a?.resumen.propuestas_ganadas_usd ?? 0) > 0 ? 'green' : 'slate'} onOpenDetail={() => openDetail('propuestas_ganadas_usd', 'Propuestas ganadas USD')} />
+              <StatCard label="Perdido USD" value={formatUSD(a?.resumen.propuestas_perdidas_usd ?? 0)} sub="Solo rechazadas" color={(a?.resumen.propuestas_perdidas_usd ?? 0) > 0 ? 'red' : 'slate'} info={a?.definiciones.propuestas_perdidas_usd} onOpenDetail={() => openDetail('propuestas_perdidas_usd', 'Propuestas perdidas USD')} />
+            </div>
+
+            {/* 3. El resto: conversión y tiempos */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard label="Conv. Lead → Propuesta" value={`${a?.conversiones.lead_a_propuesta ?? 0}%`} sub="Sobre leads cualificados" info={a?.definiciones.lead_a_propuesta} onOpenDetail={() => openDetail('con_propuesta', 'Leads con propuesta')} />
               <StatCard label="Conv. Reunión → Propuesta" value={`${a?.conversiones.reunion_a_propuesta ?? 0}%`} sub="Sobre reuniones realizadas" info={a?.definiciones.reunion_a_propuesta} />
@@ -494,7 +516,6 @@ export default function DashboardPage() {
                 value={`${a?.resumen.tasa_conversion_propuesta ?? 0}%`}
                 sub={`${a?.resumen.propuestas_aceptadas_count ?? 0} / ${a?.resumen.propuestas_count ?? 0} propuestas`}
                 color={(a?.resumen.tasa_conversion_propuesta ?? 0) >= 50 ? 'green' : (a?.resumen.tasa_conversion_propuesta ?? 0) >= 30 ? 'amber' : 'slate'}
-                info={a?.definiciones.propuestas_count}
                 onOpenDetail={() => openDetail('con_propuesta', 'Leads con propuesta enviada')}
               />
               <StatCard
@@ -504,16 +525,6 @@ export default function DashboardPage() {
                 color={(a?.resumen.tasa_perdida_propuesta ?? 0) >= 50 ? 'red' : (a?.resumen.tasa_perdida_propuesta ?? 0) >= 30 ? 'amber' : 'slate'}
                 info={a?.definiciones.tasa_perdida_propuesta}
               />
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-              <StatCard label="Propuestas enviadas ARS" value={formatARS(a?.resumen.propuestas_enviadas_ars ?? 0)} sub="Total en período" onOpenDetail={() => openDetail('propuestas_enviadas_ars', 'Propuestas enviadas ARS')} />
-              <StatCard label="Propuestas ganadas ARS" value={formatARS(a?.resumen.propuestas_ganadas_ars ?? 0)} sub="Solo aceptadas" color={(a?.resumen.propuestas_ganadas_ars ?? 0) > 0 ? 'green' : 'slate'} onOpenDetail={() => openDetail('propuestas_ganadas_ars', 'Propuestas ganadas ARS')} />
-              <StatCard label="Propuestas perdidas ARS" value={formatARS(a?.resumen.propuestas_perdidas_ars ?? 0)} sub="Solo rechazadas" color={(a?.resumen.propuestas_perdidas_ars ?? 0) > 0 ? 'red' : 'slate'} info={a?.definiciones.propuestas_perdidas_ars} onOpenDetail={() => openDetail('propuestas_perdidas_ars', 'Propuestas perdidas ARS')} />
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-              <StatCard label="Propuestas enviadas USD" value={formatUSD(a?.resumen.propuestas_enviadas_usd ?? 0)} sub="Total en período" onOpenDetail={() => openDetail('propuestas_enviadas_usd', 'Propuestas enviadas USD')} />
-              <StatCard label="Propuestas ganadas USD" value={formatUSD(a?.resumen.propuestas_ganadas_usd ?? 0)} sub="Solo aceptadas" color={(a?.resumen.propuestas_ganadas_usd ?? 0) > 0 ? 'green' : 'slate'} onOpenDetail={() => openDetail('propuestas_ganadas_usd', 'Propuestas ganadas USD')} />
-              <StatCard label="Propuestas perdidas USD" value={formatUSD(a?.resumen.propuestas_perdidas_usd ?? 0)} sub="Solo rechazadas" color={(a?.resumen.propuestas_perdidas_usd ?? 0) > 0 ? 'red' : 'slate'} info={a?.definiciones.propuestas_perdidas_usd} onOpenDetail={() => openDetail('propuestas_perdidas_usd', 'Propuestas perdidas USD')} />
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard label="Tiempo: ingreso → propuesta aceptada" value={a?.resumen.tiempo_ingreso_propuesta_aceptada != null ? `${a.resumen.tiempo_ingreso_propuesta_aceptada} días` : '—'} sub="Duración total del proceso comercial completo" />
