@@ -166,10 +166,35 @@ export async function GET(req: NextRequest) {
     if (paisFilter) canceladasAloraQuery = canceladasAloraQuery.eq('pais', paisFilter)
     if (fuenteFilter) canceladasAloraQuery = canceladasAloraQuery.eq('fuente', fuenteFilter)
 
-    const [leadsResult, cierresResult, canceladasAloraResult] = await Promise.all([
+    // Reuniones agendadas/realizadas en el período: filtradas por fecha_reunion,
+    // no por fecha_ingreso del lead -- mismo criterio que cierresQuery y
+    // canceladasAloraQuery. Sin esto, una reunión agendada este mes para un
+    // lead que ingresó el mes pasado quedaba invisible en "este mes" (el
+    // lead nunca entraba al set base, filtrado por fecha_ingreso) -- ese era
+    // el bug reportado: el panel de Reuniones mostraba solo 2 en el mes
+    // cuando hubo muchas más.
+    let reunionesQuery = adminSupabase
+      .from('leads')
+      .select(`
+        id, nombre, apellido, pais, fuente, estado_pipeline,
+        fecha_ingreso, fecha_contacto, fecha_reunion, reunion_asistencia, reunion_asistencia_at, fecha_propuesta, fecha_cierre,
+        stage_updated_at, last_activity_at, created_at,
+        propuestas(id, valor_usd, valor_ars, moneda, estado, created_at, updated_at)
+      `)
+      .is('deleted_at', null)
+      .neq('estado_pipeline', 'basura')
+      .not('fecha_reunion', 'is', null)
+      .gte('fecha_reunion', fechaDesde)
+      .lte('fecha_reunion', fechaHasta + 'T23:59:59')
+
+    if (paisFilter) reunionesQuery = reunionesQuery.eq('pais', paisFilter)
+    if (fuenteFilter) reunionesQuery = reunionesQuery.eq('fuente', fuenteFilter)
+
+    const [leadsResult, cierresResult, canceladasAloraResult, reunionesResult] = await Promise.all([
       leadsQuery,
       cierresQuery,
       canceladasAloraQuery,
+      reunionesQuery,
     ])
 
     // Filter excluded stages in JS
@@ -178,6 +203,7 @@ export async function GET(req: NextRequest) {
     // Leads closed in period (by fecha_cierre) — used for resumen KPIs
     const cierresEnPeriodo: LeadRow[] = (cierresResult.data ?? []) as unknown as LeadRow[]
     const reunionesCanceladasAlora: LeadRow[] = (canceladasAloraResult.data ?? []) as unknown as LeadRow[]
+    const reunionesEnPeriodo: LeadRow[] = (reunionesResult.data ?? []) as unknown as LeadRow[]
 
     // Flatten all propuestas for the period (leads ingresados)
     const allPropuestas = leads.flatMap(l => l.propuestas ?? [])
@@ -236,9 +262,10 @@ export async function GET(req: NextRequest) {
     //   agendada y luego marcados No cualificado.
     const reunionesAgendadas = cualificados.filter(l => !!l.fecha_reunion)
     const reunionesRealizadas = cualificados.filter(l => l.reunion_asistencia === 'se_presento')
-    const leadsParaReuniones = leads.filter(l => l.estado_pipeline !== 'basura')
-    const reunionesAgendadasTotal = leadsParaReuniones.filter(l => !!l.fecha_reunion)
-    const reunionesRealizadasTotal = leadsParaReuniones.filter(l => l.reunion_asistencia === 'se_presento')
+    // *Total usa reunionesEnPeriodo (filtrado por fecha_reunion), no el set
+    // base "leads" (filtrado por fecha_ingreso) -- ver comentario en la query.
+    const reunionesAgendadasTotal = reunionesEnPeriodo
+    const reunionesRealizadasTotal = reunionesEnPeriodo.filter(l => l.reunion_asistencia === 'se_presento')
     const showUpRateTotal = pct(reunionesRealizadasTotal.length, reunionesAgendadasTotal.length)
     // De las agendadas: no-show real del lead, y las que nadie entró a
     // confirmar todavía en la ficha (reunion_asistencia sigue null) — para
