@@ -479,6 +479,101 @@ export default function DashboardPage() {
         )}
       </section>
 
+      {/* ── S4: Propuestas ────────────────────────────────────────────────────── */}
+      <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
+        <SectionHeader icon={DollarSign} title="Propuestas" subtitle="Conversión, montos y ARS/USD del período — no se mezclan ni convierten" />
+        {loadingAnalytics ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{[...Array(8)].map((_, i) => <Skel key={i} />)}</div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <StatCard label="Conv. Lead → Propuesta" value={`${a?.conversiones.lead_a_propuesta ?? 0}%`} sub="Sobre leads cualificados" info={a?.definiciones.lead_a_propuesta} onOpenDetail={() => openDetail('con_propuesta', 'Leads con propuesta')} />
+              <StatCard label="Conv. Reunión → Propuesta" value={`${a?.conversiones.reunion_a_propuesta ?? 0}%`} sub="Sobre reuniones realizadas" info={a?.definiciones.reunion_a_propuesta} />
+              <StatCard
+                label="Conversión de propuesta"
+                value={`${a?.resumen.tasa_conversion_propuesta ?? 0}%`}
+                sub={`${a?.resumen.propuestas_aceptadas_count ?? 0} / ${a?.resumen.propuestas_count ?? 0} propuestas`}
+                color={(a?.resumen.tasa_conversion_propuesta ?? 0) >= 50 ? 'green' : (a?.resumen.tasa_conversion_propuesta ?? 0) >= 30 ? 'amber' : 'slate'}
+                info={a?.definiciones.propuestas_count}
+                onOpenDetail={() => openDetail('con_propuesta', 'Leads con propuesta enviada')}
+              />
+              <StatCard
+                label="Tasa de pérdida"
+                value={`${a?.resumen.tasa_perdida_propuesta ?? 0}%`}
+                sub={`${a?.resumen.propuestas_rechazadas_count ?? 0} / ${a?.resumen.propuestas_count ?? 0} propuestas`}
+                color={(a?.resumen.tasa_perdida_propuesta ?? 0) >= 50 ? 'red' : (a?.resumen.tasa_perdida_propuesta ?? 0) >= 30 ? 'amber' : 'slate'}
+                info={a?.definiciones.tasa_perdida_propuesta}
+              />
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              <StatCard label="Propuestas enviadas ARS" value={formatARS(a?.resumen.propuestas_enviadas_ars ?? 0)} sub="Total en período" onOpenDetail={() => openDetail('propuestas_enviadas_ars', 'Propuestas enviadas ARS')} />
+              <StatCard label="Propuestas ganadas ARS" value={formatARS(a?.resumen.propuestas_ganadas_ars ?? 0)} sub="Solo aceptadas" color={(a?.resumen.propuestas_ganadas_ars ?? 0) > 0 ? 'green' : 'slate'} onOpenDetail={() => openDetail('propuestas_ganadas_ars', 'Propuestas ganadas ARS')} />
+              <StatCard label="Propuestas perdidas ARS" value={formatARS(a?.resumen.propuestas_perdidas_ars ?? 0)} sub="Solo rechazadas" color={(a?.resumen.propuestas_perdidas_ars ?? 0) > 0 ? 'red' : 'slate'} info={a?.definiciones.propuestas_perdidas_ars} onOpenDetail={() => openDetail('propuestas_perdidas_ars', 'Propuestas perdidas ARS')} />
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              <StatCard label="Propuestas enviadas USD" value={formatUSD(a?.resumen.propuestas_enviadas_usd ?? 0)} sub="Total en período" onOpenDetail={() => openDetail('propuestas_enviadas_usd', 'Propuestas enviadas USD')} />
+              <StatCard label="Propuestas ganadas USD" value={formatUSD(a?.resumen.propuestas_ganadas_usd ?? 0)} sub="Solo aceptadas" color={(a?.resumen.propuestas_ganadas_usd ?? 0) > 0 ? 'green' : 'slate'} onOpenDetail={() => openDetail('propuestas_ganadas_usd', 'Propuestas ganadas USD')} />
+              <StatCard label="Propuestas perdidas USD" value={formatUSD(a?.resumen.propuestas_perdidas_usd ?? 0)} sub="Solo rechazadas" color={(a?.resumen.propuestas_perdidas_usd ?? 0) > 0 ? 'red' : 'slate'} info={a?.definiciones.propuestas_perdidas_usd} onOpenDetail={() => openDetail('propuestas_perdidas_usd', 'Propuestas perdidas USD')} />
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <StatCard label="Tiempo: ingreso → propuesta aceptada" value={a?.resumen.tiempo_ingreso_propuesta_aceptada != null ? `${a.resumen.tiempo_ingreso_propuesta_aceptada} días` : '—'} sub="Duración total del proceso comercial completo" />
+              <StatCard label="Tiempo: propuesta enviada → aceptada" value={a?.resumen.tiempo_propuesta_aceptacion != null ? `${a.resumen.tiempo_propuesta_aceptacion} días` : '—'} sub="Cuánto tarda el cliente en decidir tras recibir la propuesta" />
+            </div>
+
+            {!a?.propuestas.length ? (
+              <p className="text-sm text-slate-400 text-center py-4">Sin propuestas en el período</p>
+            ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {a.propuestas.map(prop => {
+              const fmt = prop.moneda === 'ARS' ? formatARS : formatUSD
+              const ticketAlerta = prop.ticket_promedio_perdido != null && prop.ticket_promedio_ganado != null && prop.ticket_promedio_perdido > prop.ticket_promedio_ganado
+              return (
+                <div key={prop.moneda} className="border border-slate-200 rounded-xl p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-slate-800">Moneda: {prop.moneda}</span>
+                    <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-medium">{prop.total_enviadas} propuesta{prop.total_enviadas !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
+                      <span>Aceptadas: <strong className="text-emerald-600">{prop.aceptadas}</strong></span>
+                      <span>Rechazadas: <strong className="text-red-500">{prop.rechazadas}</strong></span>
+                      <span className="font-semibold text-slate-700">{prop.tasa_aceptacion}% conversión</span>
+                    </div>
+                    <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
+                      <div className="h-full bg-emerald-500 rounded-l-full" style={{ width: `${prop.tasa_aceptacion}%` }} />
+                      {prop.rechazadas > 0 && prop.total_enviadas > 0 && (
+                        <div className="h-full bg-red-400" style={{ width: `${(prop.rechazadas / prop.total_enviadas) * 100}%` }} />
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-emerald-50 rounded-lg p-3">
+                      <p className="text-xs text-emerald-600 mb-1">Ticket promedio ganado</p>
+                      <p className="text-base font-bold text-emerald-800">{prop.ticket_promedio_ganado != null ? fmt(prop.ticket_promedio_ganado) : '—'}</p>
+                    </div>
+                    <div className={cn('rounded-lg p-3', ticketAlerta ? 'bg-red-50' : 'bg-slate-50')}>
+                      <p className={cn('text-xs mb-1', ticketAlerta ? 'text-red-600' : 'text-slate-500')}>Ticket promedio perdido {ticketAlerta && '⚠️'}</p>
+                      <p className={cn('text-base font-bold', ticketAlerta ? 'text-red-800' : 'text-slate-700')}>{prop.ticket_promedio_perdido != null ? fmt(prop.ticket_promedio_perdido) : '—'}</p>
+                    </div>
+                  </div>
+                  {ticketAlerta && (
+                    <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 border border-red-100">
+                      ⚠️ El ticket promedio perdido es mayor al ganado — se cierran los negocios chicos y se pierden los grandes.
+                    </p>
+                  )}
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <Clock size={12} />
+                    <span>Tiempo promedio hasta aceptación: <strong className="text-slate-700">{prop.tiempo_promedio_aceptacion != null ? `${prop.tiempo_promedio_aceptacion} días` : '—'}</strong></span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+            )}
+          </div>
+        )}
+      </section>
+
       {/* ── S2: Embudo ────────────────────────────────────────────────────────── */}
       <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
         <SectionHeader icon={BarChart3} title="Embudo de conversión" subtitle="Cuántos leads pasan de una etapa a la siguiente" />
@@ -592,101 +687,6 @@ export default function DashboardPage() {
                 </div>
               )
             })}
-          </div>
-        )}
-      </section>
-
-      {/* ── S4: Propuestas ────────────────────────────────────────────────────── */}
-      <section className="bg-white rounded-xl border border-slate-200 p-4 md:p-6">
-        <SectionHeader icon={DollarSign} title="Propuestas" subtitle="Conversión, montos y ARS/USD del período — no se mezclan ni convierten" />
-        {loadingAnalytics ? (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{[...Array(8)].map((_, i) => <Skel key={i} />)}</div>
-        ) : (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard label="Conv. Lead → Propuesta" value={`${a?.conversiones.lead_a_propuesta ?? 0}%`} sub="Sobre leads cualificados" info={a?.definiciones.lead_a_propuesta} onOpenDetail={() => openDetail('con_propuesta', 'Leads con propuesta')} />
-              <StatCard label="Conv. Reunión → Propuesta" value={`${a?.conversiones.reunion_a_propuesta ?? 0}%`} sub="Sobre reuniones realizadas" info={a?.definiciones.reunion_a_propuesta} />
-              <StatCard
-                label="Conversión de propuesta"
-                value={`${a?.resumen.tasa_conversion_propuesta ?? 0}%`}
-                sub={`${a?.resumen.propuestas_aceptadas_count ?? 0} / ${a?.resumen.propuestas_count ?? 0} propuestas`}
-                color={(a?.resumen.tasa_conversion_propuesta ?? 0) >= 50 ? 'green' : (a?.resumen.tasa_conversion_propuesta ?? 0) >= 30 ? 'amber' : 'slate'}
-                info={a?.definiciones.propuestas_count}
-                onOpenDetail={() => openDetail('con_propuesta', 'Leads con propuesta enviada')}
-              />
-              <StatCard
-                label="Tasa de pérdida"
-                value={`${a?.resumen.tasa_perdida_propuesta ?? 0}%`}
-                sub={`${a?.resumen.propuestas_rechazadas_count ?? 0} / ${a?.resumen.propuestas_count ?? 0} propuestas`}
-                color={(a?.resumen.tasa_perdida_propuesta ?? 0) >= 50 ? 'red' : (a?.resumen.tasa_perdida_propuesta ?? 0) >= 30 ? 'amber' : 'slate'}
-                info={a?.definiciones.tasa_perdida_propuesta}
-              />
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-              <StatCard label="Propuestas enviadas ARS" value={formatARS(a?.resumen.propuestas_enviadas_ars ?? 0)} sub="Total en período" onOpenDetail={() => openDetail('propuestas_enviadas_ars', 'Propuestas enviadas ARS')} />
-              <StatCard label="Propuestas ganadas ARS" value={formatARS(a?.resumen.propuestas_ganadas_ars ?? 0)} sub="Solo aceptadas" color={(a?.resumen.propuestas_ganadas_ars ?? 0) > 0 ? 'green' : 'slate'} onOpenDetail={() => openDetail('propuestas_ganadas_ars', 'Propuestas ganadas ARS')} />
-              <StatCard label="Propuestas perdidas ARS" value={formatARS(a?.resumen.propuestas_perdidas_ars ?? 0)} sub="Solo rechazadas" color={(a?.resumen.propuestas_perdidas_ars ?? 0) > 0 ? 'red' : 'slate'} info={a?.definiciones.propuestas_perdidas_ars} onOpenDetail={() => openDetail('propuestas_perdidas_ars', 'Propuestas perdidas ARS')} />
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-              <StatCard label="Propuestas enviadas USD" value={formatUSD(a?.resumen.propuestas_enviadas_usd ?? 0)} sub="Total en período" onOpenDetail={() => openDetail('propuestas_enviadas_usd', 'Propuestas enviadas USD')} />
-              <StatCard label="Propuestas ganadas USD" value={formatUSD(a?.resumen.propuestas_ganadas_usd ?? 0)} sub="Solo aceptadas" color={(a?.resumen.propuestas_ganadas_usd ?? 0) > 0 ? 'green' : 'slate'} onOpenDetail={() => openDetail('propuestas_ganadas_usd', 'Propuestas ganadas USD')} />
-              <StatCard label="Propuestas perdidas USD" value={formatUSD(a?.resumen.propuestas_perdidas_usd ?? 0)} sub="Solo rechazadas" color={(a?.resumen.propuestas_perdidas_usd ?? 0) > 0 ? 'red' : 'slate'} info={a?.definiciones.propuestas_perdidas_usd} onOpenDetail={() => openDetail('propuestas_perdidas_usd', 'Propuestas perdidas USD')} />
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard label="Tiempo: ingreso → propuesta aceptada" value={a?.resumen.tiempo_ingreso_propuesta_aceptada != null ? `${a.resumen.tiempo_ingreso_propuesta_aceptada} días` : '—'} sub="Duración total del proceso comercial completo" />
-              <StatCard label="Tiempo: propuesta enviada → aceptada" value={a?.resumen.tiempo_propuesta_aceptacion != null ? `${a.resumen.tiempo_propuesta_aceptacion} días` : '—'} sub="Cuánto tarda el cliente en decidir tras recibir la propuesta" />
-            </div>
-
-            {!a?.propuestas.length ? (
-              <p className="text-sm text-slate-400 text-center py-4">Sin propuestas en el período</p>
-            ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {a.propuestas.map(prop => {
-              const fmt = prop.moneda === 'ARS' ? formatARS : formatUSD
-              const ticketAlerta = prop.ticket_promedio_perdido != null && prop.ticket_promedio_ganado != null && prop.ticket_promedio_perdido > prop.ticket_promedio_ganado
-              return (
-                <div key={prop.moneda} className="border border-slate-200 rounded-xl p-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-slate-800">Moneda: {prop.moneda}</span>
-                    <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-medium">{prop.total_enviadas} propuesta{prop.total_enviadas !== 1 ? 's' : ''}</span>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
-                      <span>Aceptadas: <strong className="text-emerald-600">{prop.aceptadas}</strong></span>
-                      <span>Rechazadas: <strong className="text-red-500">{prop.rechazadas}</strong></span>
-                      <span className="font-semibold text-slate-700">{prop.tasa_aceptacion}% conversión</span>
-                    </div>
-                    <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
-                      <div className="h-full bg-emerald-500 rounded-l-full" style={{ width: `${prop.tasa_aceptacion}%` }} />
-                      {prop.rechazadas > 0 && prop.total_enviadas > 0 && (
-                        <div className="h-full bg-red-400" style={{ width: `${(prop.rechazadas / prop.total_enviadas) * 100}%` }} />
-                      )}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-emerald-50 rounded-lg p-3">
-                      <p className="text-xs text-emerald-600 mb-1">Ticket promedio ganado</p>
-                      <p className="text-base font-bold text-emerald-800">{prop.ticket_promedio_ganado != null ? fmt(prop.ticket_promedio_ganado) : '—'}</p>
-                    </div>
-                    <div className={cn('rounded-lg p-3', ticketAlerta ? 'bg-red-50' : 'bg-slate-50')}>
-                      <p className={cn('text-xs mb-1', ticketAlerta ? 'text-red-600' : 'text-slate-500')}>Ticket promedio perdido {ticketAlerta && '⚠️'}</p>
-                      <p className={cn('text-base font-bold', ticketAlerta ? 'text-red-800' : 'text-slate-700')}>{prop.ticket_promedio_perdido != null ? fmt(prop.ticket_promedio_perdido) : '—'}</p>
-                    </div>
-                  </div>
-                  {ticketAlerta && (
-                    <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 border border-red-100">
-                      ⚠️ El ticket promedio perdido es mayor al ganado — se cierran los negocios chicos y se pierden los grandes.
-                    </p>
-                  )}
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <Clock size={12} />
-                    <span>Tiempo promedio hasta aceptación: <strong className="text-slate-700">{prop.tiempo_promedio_aceptacion != null ? `${prop.tiempo_promedio_aceptacion} días` : '—'}</strong></span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-            )}
           </div>
         )}
       </section>

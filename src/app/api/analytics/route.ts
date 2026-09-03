@@ -190,11 +190,27 @@ export async function GET(req: NextRequest) {
     if (paisFilter) reunionesQuery = reunionesQuery.eq('pais', paisFilter)
     if (fuenteFilter) reunionesQuery = reunionesQuery.eq('fuente', fuenteFilter)
 
-    const [leadsResult, cierresResult, canceladasAloraResult, reunionesResult] = await Promise.all([
+    // Propuestas del período: filtradas por el created_at DE LA PROPUESTA,
+    // no por fecha_ingreso del lead que la recibió -- mismo bug que
+    // reunionesQuery de arriba. Una propuesta hecha este mes para un lead
+    // que ingresó el mes pasado quedaba invisible porque el lead nunca
+    // entraba al set base "leads" (filtrado por fecha_ingreso), así que
+    // .flatMap(l => l.propuestas) nunca la veía.
+    const propuestasQuery = adminSupabase
+      .from('propuestas')
+      .select(`
+        id, valor_usd, valor_ars, moneda, estado, created_at, updated_at, lead_id,
+        lead:leads(id, nombre, apellido, pais, fuente, estado_pipeline, deleted_at)
+      `)
+      .gte('created_at', fechaDesde)
+      .lte('created_at', fechaHasta + 'T23:59:59')
+
+    const [leadsResult, cierresResult, canceladasAloraResult, reunionesResult, propuestasResult] = await Promise.all([
       leadsQuery,
       cierresQuery,
       canceladasAloraQuery,
       reunionesQuery,
+      propuestasQuery,
     ])
 
     // Filter excluded stages in JS
@@ -205,14 +221,25 @@ export async function GET(req: NextRequest) {
     const reunionesCanceladasAlora: LeadRow[] = (canceladasAloraResult.data ?? []) as unknown as LeadRow[]
     const reunionesEnPeriodo: LeadRow[] = (reunionesResult.data ?? []) as unknown as LeadRow[]
 
-    // Flatten all propuestas for the period (leads ingresados)
-    const allPropuestas = leads.flatMap(l => l.propuestas ?? [])
+    // Propuestas del período (por su propio created_at, ver propuestasQuery
+    // arriba) -- excluye las de leads borrados/testing/consulta_cliente y
+    // aplica los mismos filtros de país/fuente que el resto del dashboard
+    // (Supabase no filtra bien columnas de una tabla anidada, se hace en JS
+    // como el resto de este archivo).
+    type PropuestaConLeadRaw = Propuesta & { lead_id: string; lead: (LeadRow & { deleted_at: string | null }) | null }
+    const propuestasEnPeriodoRaw = ((propuestasResult.data ?? []) as unknown as PropuestaConLeadRaw[])
+      .filter(p => p.lead && !p.lead.deleted_at && !EXCLUDED.has(p.lead.estado_pipeline))
+      .filter(p => !paisFilter || p.lead?.pais === paisFilter)
+      .filter(p => !fuenteFilter || p.lead?.fuente === fuenteFilter)
+
+    const allPropuestas = propuestasEnPeriodoRaw
     // Same propuestas, but keeping which lead each one belongs to — needed
     // for the "Propuestas enviadas/ganadas" drill-down (allPropuestas alone
     // loses that context).
-    const allPropuestasConLead = leads.flatMap(l =>
-      (l.propuestas ?? []).map(p => ({ ...p, lead_id: l.id, lead_nombre: [l.nombre, l.apellido].filter(Boolean).join(' ') }))
-    )
+    const allPropuestasConLead = propuestasEnPeriodoRaw.map(p => ({
+      ...p,
+      lead_nombre: [p.lead?.nombre, p.lead?.apellido].filter(Boolean).join(' '),
+    }))
 
     // ── Calidad de leads ─────────────────────────────────────────────────────
     // Basura = ni siquiera es una consulta real. No cualificado = hubo diálogo
