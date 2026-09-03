@@ -146,10 +146,11 @@ export async function GET(req: NextRequest) {
       .lte('fecha_cierre', fechaHasta + 'T23:59:59')
 
     // Reuniones canceladas por ALORA en el período: filtradas por
-    // reunion_asistencia_at (cuándo se marcó la cancelación), no por
-    // fecha_ingreso del lead — mismo criterio que cierresQuery, para que
-    // "Hoy" muestre lo que realmente se canceló hoy, sin importar cuándo
-    // entró el lead.
+    // fecha_reunion (la fecha de la reunión cancelada), no por cuándo se
+    // marcó la cancelación en el sistema ni por fecha_ingreso del lead --
+    // mismo criterio que reunionesQuery, consistente con "agendadas" y
+    // "realizadas" (confirmado explícitamente: los reportes van por la
+    // fecha real del lead, no por cuándo se cargó/cambió algo).
     let canceladasAloraQuery = adminSupabase
       .from('leads')
       .select(`
@@ -160,8 +161,9 @@ export async function GET(req: NextRequest) {
       `)
       .is('deleted_at', null)
       .eq('reunion_asistencia', 'cancelada_alora')
-      .gte('reunion_asistencia_at', fechaDesde)
-      .lte('reunion_asistencia_at', fechaHasta + 'T23:59:59')
+      .not('fecha_reunion', 'is', null)
+      .gte('fecha_reunion', fechaDesde)
+      .lte('fecha_reunion', fechaHasta + 'T23:59:59')
 
     if (paisFilter) canceladasAloraQuery = canceladasAloraQuery.eq('pais', paisFilter)
     if (fuenteFilter) canceladasAloraQuery = canceladasAloraQuery.eq('fuente', fuenteFilter)
