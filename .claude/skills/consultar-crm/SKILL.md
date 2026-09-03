@@ -21,6 +21,14 @@ directamente en vez de adivinar o pedirle al usuario que lo busque a mano.
 - Los montos (`valor_usd`, `valor_propuesta_usd`, etc.) pueden estar en USD o ARS —
   fijate siempre en la columna `moneda` / `valor_propuesta_moneda` antes de sumarlos, no
   mezcles monedas en un mismo total.
+- **Reportes por período van SIEMPRE por la fecha real del hito, nunca por `created_at`/
+  `updated_at`/`stage_updated_at`/cuándo se cargó o cambió algo.** Reunión → `fecha_reunion`
+  (agendada, realizada, Y cancelada por ALORA — las tres). Propuesta → `fecha_propuesta` del
+  lead (NO `propuestas.created_at`: una propuesta vieja backfileada tarde, o una de prueba, tiene
+  un `created_at` reciente que no refleja cuándo se mandó de verdad). Cierre → `fecha_cierre`.
+  Regla confirmada explícitamente por el usuario tras encontrar 3 bugs reales de esto en
+  `src/app/api/analytics/route.ts` en la misma sesión — ver memoria
+  `feedback_reportes_fecha_real_del_lead`.
 
 ## Esquema — tablas principales
 
@@ -36,8 +44,13 @@ Columnas clave:
 - Reunión: `reunion_hora`, `reunion_link`, `reunion_asistencia` (`se_presento` / `no_se_presento` /
   `reagendo` / `cancelada_alora` — esta última es cuando ALORA decide no dar una reunión ya
   agendada, ej. tras más charla por WhatsApp el lead no da la talla; no cuenta como "no show" del
-  lead), `reunion_asistencia_at` (cuándo se marcó ese estado — útil para filtrar "reuniones
-  canceladas hoy" por fecha de la acción, no por `fecha_ingreso` del lead)
+  lead), `reunion_asistencia_at` (cuándo se marcó ese estado en el sistema — NO usar esto para
+  filtrar reportes por período, ver regla de fechas abajo)
+- Teléfono: `telefono` puede venir en formatos muy distintos (con/sin código de país, con/sin el 9
+  de celular argentino, con espacios/guiones). Para matchear el mismo número contra otro lead o un
+  mensaje de WhatsApp entrante, comparar por los ÚLTIMOS 10 DÍGITOS (`right(regexp_replace(telefono,
+  '[^0-9]','','g'), 10)`), nunca por igualdad exacta de string — hay una función SQL para esto,
+  `find_lead_by_normalized_phone(p_phone)`.
 - Dinero (legacy, hoy vive mejor en `propuestas`): `valor_propuesta_usd`, `valor_propuesta_ars`, `valor_propuesta_moneda`
 - Responsables: `responsable_id` → `users` (comercial interno), `lider_tecnico_id` / `dev_id` → `team_members` (equipo técnico)
 - Proyecto: `avance_proyecto` (0-100)
@@ -60,9 +73,22 @@ Además de esas (fijas en el código), el equipo agregó etapas custom vía Conf
 
 ### `propuestas`
 Cotizaciones asociadas a un lead (`lead_id`). `descripcion`, `valor_usd`/`valor_ars`, `moneda`,
-`tipo_pago` (`unica_vez`/`mensual`), `estado` (`pendiente`/`aceptada`/`rechazada`), `link`.
-Es la fuente de verdad actual para el valor de una propuesta (más confiable que los campos
-legacy en `leads`).
+`tipo_pago` (`unica_vez`/`mensual`), `estado` (`pendiente`/`aceptada`/`rechazada`), `link` (URL
+pública, ahora basada en `slug` legible en vez del UUID — ej. `/propuesta/ecommerce-a-medida`),
+`slug`. Es la fuente de verdad actual para el valor de una propuesta (más confiable que los
+campos legacy en `leads`).
+
+`contenido` (jsonb, generado por el Presupuestador — el agente de IA que arma propuestas,
+`src/app/api/propuestas/agente/route.ts`) tiene la forma `{detallada, resumen}`: dos documentos
+completos (23 bloques posibles + inversión + mantenimiento la versión detallada; findings +
+incluye/no incluye + inversión + tiempos la versión resumen). `contenido.detallada.inversion` y
+`contenido.resumen.inversion` incluyen `descuento_porcentaje`/`descuento_condicion` (null si no
+hay promo de confirmación temprana) — de ahí sale el "% off" real que muestra el botón de
+"Aceptar propuesta" del link público, no un número fijo.
+
+`propuesta_eventos` (`propuesta_id`, `tipo`: `vista`/`aceptar`/`dudas`/`contacto`, `created_at`)
+registra cada apertura del link público y cada click en los botones de acción — para saber
+cuántas veces se abrió una propuesta y si el cliente clickeó aceptar/dudas.
 
 ### `stage_history`
 Historial de cambios de etapa por lead: `lead_id`, `etapa`, `fecha_ingreso`. Útil para calcular
@@ -112,7 +138,8 @@ del sitio web), `channel_configs`, `embed_events` (tracking de formularios), `pu
 - **"tareas vencidas"** → `tasks.completada = false AND vencimiento < now()`.
 - **"reuniones de esta semana"** → `leads.fecha_reunion` dentro del rango, con `reunion_asistencia`.
 - **"reuniones canceladas por ALORA"** → `reunion_asistencia = 'cancelada_alora'`, filtrando por
-  fecha con `reunion_asistencia_at` (cuándo se canceló), no `fecha_ingreso` del lead.
+  período con `fecha_reunion` (la fecha de la reunión cancelada) — no `reunion_asistencia_at`
+  (cuándo se marcó) ni `fecha_ingreso` del lead.
 - **"servicios más pedidos"** → `servicios_interesados` (array) de `leads`, aplanar y contar frecuencia.
 - **"actividad reciente de fulano"** → `activities` filtrado por `user_id`, orden `created_at desc`.
 
