@@ -124,7 +124,7 @@ function extractName(raw: string): string {
 
 // Detect whether a message is written in English.
 // Returns 'en' if 2+ English indicator words are found, otherwise 'es'.
-function detectLanguage(text: string): 'en' | 'es' {
+export function detectLanguage(text: string): 'en' | 'es' {
   if (!text) return 'es'
   const hits = text.match(/\b(i am|i'm|i'd|i've|i'll|i would|i need|i want|hello|hi there|hey there|my name is|please|thank you|thanks|what are|how do|can you|do you|are you|services|website|marketing|design|looking for|interested in|recently|submitted|let me know|your team|find out|more about|we are|we're|our company|our business|my company|my business|we need|we want|we would|could you|would you|digital marketing|web design|social media|branding)\b/gi)
   return hits && hits.length >= 2 ? 'en' : 'es'

@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendOutboundWhatsAppMessage } from '@/lib/whatsapp-outbound'
-import { isClientLead } from '@/lib/whatsapp-bot'
+import { isClientLead, detectLanguage } from '@/lib/whatsapp-bot'
 import { notifyAll } from '@/lib/push-notify'
 
 type AdminClient = ReturnType<typeof createAdminClient>
@@ -10,6 +10,11 @@ const FOLLOWUP_HOURS = [0.5, 24] // hours of silence required before follow-up #
 export const FOLLOWUP_TEXT = [
   '¡Hola! 👋 Vi que quedamos en contacto pero no supe más de vos — ¿seguís por ahí? Si tenés alguna duda o querés que sigamos viendo tu proyecto, contame 🙂',
   '¡Hola de nuevo! Te escribo por última vez para ver si seguís interesado/a — si en algún momento querés retomar, escribime tranquilo, quedo atenta 💛',
+]
+
+const FOLLOWUP_TEXT_EN = [
+  "Hey! 👋 We were chatting but I haven't heard back — still there? If you have any questions or want to keep exploring your project, just let me know 🙂",
+  "Hey again! Just reaching out one last time to see if you're still interested — if you ever want to pick this up again, feel free to write anytime 💛",
 ]
 
 interface StaleConversation {
@@ -71,11 +76,23 @@ export async function runWhatsAppFollowUps(admin: AdminClient): Promise<{ sent: 
       continue
     }
 
+    // Detect language from recent inbound messages
+    const { data: recentMsgs } = await admin
+      .from('wa_messages')
+      .select('body')
+      .eq('conversation_id', conv.id)
+      .eq('direction', 'inbound')
+      .order('created_at', { ascending: false })
+      .limit(5)
+    const sampleText = (recentMsgs ?? []).map(m => m.body).join(' ')
+    const lang = detectLanguage(sampleText)
+    const texts = lang === 'en' ? FOLLOWUP_TEXT_EN : FOLLOWUP_TEXT
+
     const result = await sendOutboundWhatsAppMessage(admin, {
       conversationId: conv.id,
       leadId:         conv.lead_id,
       phone:          conv.phone_number,
-      body:           FOLLOWUP_TEXT[conv.followup_count],
+      body:           texts[conv.followup_count],
     })
 
     if (!result) continue
