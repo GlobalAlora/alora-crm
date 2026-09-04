@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendNewLeadAlert } from '@/lib/lead-alerts'
+import { PIPELINE_STAGES } from '@/types'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -27,7 +28,12 @@ const TIDYCAL_API = 'https://tidycal.com/api'
 
 // Stages where it's safe to move the lead forward to reunion_reservada.
 // Don't overwrite stages that come after (reunion_realizada, propuesta_enviada, etc.)
-const BEFORE_REUNION: string[] = ['lead_entrante', 'contactado']
+// Derived from PIPELINE_STAGES (zona "entrada") instead of a hand-typed list --
+// a literal ['lead_entrante', 'contactado'] silently drifted from the real
+// stage values (it's 'lead_contactado', not 'contactado') and was missing
+// 'sin_respuesta' entirely, so a lead in either of those stages never got
+// fecha_reunion updated when a real meeting was booked via TidyCal.
+const BEFORE_REUNION: string[] = PIPELINE_STAGES.filter((s) => s.zone === 'entrada').map((s) => s.value)
 
 function findQuestion(questions: TidyCalBooking['questions'], regex: RegExp): string | null {
   const q = questions?.find(q => regex.test(q.question))
