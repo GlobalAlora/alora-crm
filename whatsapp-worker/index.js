@@ -18,6 +18,40 @@ const BAILEYS_WORKER_SECRET  = process.env.BAILEYS_WORKER_SECRET
 const AUTH_DIR             = process.env.AUTH_DIR || './auth_info'
 const PORT                 = process.env.PORT || 3001
 
+// Posts to the CRM webhook with a few retries (network blips, a slow/cold
+// Vercel function, a transient 5xx) instead of dropping the message on the
+// first failure. This matters most for the fromMe/outbound notification --
+// losing it silently means the bot never learns a human took over and can
+// end up butting into a live conversation (confirmed real incident: a
+// message sent from the native WhatsApp app never reached the CRM, so
+// bot_active never flipped to false, and Lidia answered over the team).
+async function postToWebhookWithRetry(body, { retries = 3, label = 'webhook' } = {}) {
+  if (!CRM_WEBHOOK_URL || !BAILEYS_WEBHOOK_SECRET) {
+    logger.error(`CRM_WEBHOOK_URL / BAILEYS_WEBHOOK_SECRET no configurados, no se pudo reenviar (${label})`)
+    return null
+  }
+  const delaysMs = [500, 1500, 3000]
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(CRM_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-webhook-secret': BAILEYS_WEBHOOK_SECRET },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) return res
+      const responseBody = await res.text().catch(() => '')
+      logger.warn({ attempt, status: res.status, body: responseBody, label }, 'El CRM rechazó el mensaje')
+      // 4xx (bad payload, wrong secret) won't fix itself on retry -- only retry on 5xx/network errors.
+      if (res.status < 500) return res
+    } catch (err) {
+      logger.warn({ attempt, err: err.message, label }, 'Fallo de red reenviando al CRM')
+    }
+    if (attempt < retries) await new Promise(r => setTimeout(r, delaysMs[attempt] ?? 3000))
+  }
+  logger.error({ label }, `Se agotaron los reintentos reenviando al CRM (${label}) -- mensaje perdido`)
+  return null
+}
+
 let sock = null
 let latestQr = null
 let connectionStatus = 'disconnected' // 'disconnected' | 'connecting' | 'connected'
@@ -177,22 +211,16 @@ async function handleIncomingMessage(m) {
   if (m.key.fromMe) {
     const { text, mediaType } = extractText(m.message)
     if (!text && !mediaType) return // protocol noise, skip
-    if (!CRM_WEBHOOK_URL || !BAILEYS_WEBHOOK_SECRET) return
     const fmIsLid = rawJid.endsWith('@lid')
     const fmJidDigits = rawJid.split('@')[0].split(':')[0].replace(/\D/g, '')
     const fmAltJid = m.key.remoteJidAlt || ''
     const fmAltDigits = fmAltJid ? fmAltJid.split('@')[0].split(':')[0].replace(/\D/g, '') : ''
     const phone = fmIsLid ? (fmAltDigits || lidToPhone.get(fmJidDigits) || fmJidDigits) : fmJidDigits
     logger.info({ phone, text: text?.slice(0, 60), mediaType, waMessageId: m.key.id }, '[fromMe] outbound nativo detectado → enviando al CRM')
-    const fmRes = await fetch(CRM_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-webhook-secret': BAILEYS_WEBHOOK_SECRET },
-      body: JSON.stringify({ phone, text, waMessageId: m.key.id, mediaType, direction: 'outbound' }),
-    }).catch(err => { logger.warn({ err }, 'No se pudo avisar al CRM del mensaje saliente'); return null })
-    if (fmRes && !fmRes.ok) {
-      const body = await fmRes.text().catch(() => '')
-      logger.warn({ status: fmRes.status, body }, '[fromMe] CRM rechazó el mensaje saliente')
-    }
+    await postToWebhookWithRetry(
+      { phone, text, waMessageId: m.key.id, mediaType, direction: 'outbound' },
+      { label: 'fromMe-outbound' },
+    )
     return
   }
 
@@ -245,25 +273,11 @@ async function handleIncomingMessage(m) {
 
   logger.info({ rawJid, isLid, jidDigits, phone, name, text, mediaType }, 'Mensaje entrante procesado')
 
-  if (!CRM_WEBHOOK_URL || !BAILEYS_WEBHOOK_SECRET) {
-    logger.error('CRM_WEBHOOK_URL / BAILEYS_WEBHOOK_SECRET no configurados, no se pudo reenviar el mensaje')
-    return
-  }
-
-  const res = await fetch(CRM_WEBHOOK_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-webhook-secret': BAILEYS_WEBHOOK_SECRET,
-    },
-    body: JSON.stringify({ phone, name, text, waMessageId: m.key.id, mediaType, audioBase64, audioMimetype }),
-  })
-
-  if (!res.ok) {
-    logger.error({ status: res.status, body: await res.text().catch(() => '') }, 'El CRM rechazó el mensaje')
-  } else {
-    logger.info({ phone }, 'Mensaje reenviado al CRM ok')
-  }
+  const res = await postToWebhookWithRetry(
+    { phone, name, text, waMessageId: m.key.id, mediaType, audioBase64, audioMimetype },
+    { label: 'inbound' },
+  )
+  if (res) logger.info({ phone }, 'Mensaje reenviado al CRM ok')
 }
 
 // ── HTTP server (health check, QR pairing, send) ────────────────────────────
