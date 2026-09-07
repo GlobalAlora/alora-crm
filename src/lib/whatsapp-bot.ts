@@ -143,10 +143,6 @@ const DIRECT_SAVE_FIELDS = new Set<QuestionField>(['nombre', 'consulta_detallada
 // (e.g. "no tengo" to the email question) and moving on. After one retry we
 // accept whatever comes back, so we never loop forever on it.
 const VALIDATORS: Partial<Record<QuestionField, { isValid: (text: string) => boolean; pushback: string }>> = {
-  nombre: {
-    isValid: (t) => t.trim().split(/\s+/).length <= 5 && t.trim().length <= 50,
-    pushback: '¿Me podés decir solo tu nombre? 😊',
-  },
   email: {
     isValid: (t) => /\S+@\S+\.\S+/.test(t),
     pushback: 'Te pido el email puntualmente porque es importante para que el equipo te pueda hacer seguimiento — ¿tenés alguno que me puedas pasar? 🙏',
