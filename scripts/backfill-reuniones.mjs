@@ -59,6 +59,18 @@ async function main() {
   if (leadsErr) throw leadsErr
   console.log(`[backfill] ${leads.length} leads con fecha_reunion cargada`)
 
+  // leads.fecha_reunion is a timestamptz column -- supabase-js returns it as
+  // a full ISO string ("2026-09-02T00:00:00+00:00"), not the plain
+  // "YYYY-MM-DD" that toArgentina() produces for the TidyCal-activity-derived
+  // instances below. Comparing those two formats directly always looks
+  // "different" even for the exact same calendar date, which wrongly
+  // inserted a spurious extra instance for every lead that had TidyCal
+  // history (confirmed 2026-09-07 across 38 leads) -- normalize here so the
+  // (date, time) dedup key actually matches.
+  for (const l of leads) {
+    if (l.fecha_reunion) l.fecha_reunion = l.fecha_reunion.slice(0, 10)
+  }
+
   const { data: reunionActivities, error: actErr } = await admin
     .from('activities')
     .select('lead_id, descripcion, metadata, created_at')
