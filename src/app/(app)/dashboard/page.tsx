@@ -610,7 +610,7 @@ export default function DashboardPage() {
                 value={a?.resumen.propuestas_count ?? 0}
                 sub="Total en el período, ARS + USD"
                 info={a?.definiciones.propuestas_count}
-                onOpenDetail={() => openDetail('con_propuesta', 'Leads con propuesta enviada')}
+                onOpenDetail={() => openDetail('propuestas_enviadas', 'Propuestas enviadas')}
               />
               <StatCard label="Enviado en ARS" value={formatARS(a?.resumen.propuestas_enviadas_ars ?? 0)} sub="Suma del período" onOpenDetail={() => openDetail('propuestas_enviadas_ars', 'Propuestas enviadas ARS')} />
               <StatCard label="Enviado en USD" value={formatUSD(a?.resumen.propuestas_enviadas_usd ?? 0)} sub="Suma del período" onOpenDetail={() => openDetail('propuestas_enviadas_usd', 'Propuestas enviadas USD')} />
@@ -633,7 +633,7 @@ export default function DashboardPage() {
                 value={`${a?.resumen.tasa_conversion_propuesta ?? 0}%`}
                 sub={`${a?.resumen.propuestas_aceptadas_count ?? 0} / ${a?.resumen.propuestas_count ?? 0} propuestas`}
                 color={(a?.resumen.tasa_conversion_propuesta ?? 0) >= 50 ? 'green' : (a?.resumen.tasa_conversion_propuesta ?? 0) >= 30 ? 'amber' : 'slate'}
-                onOpenDetail={() => openDetail('con_propuesta', 'Leads con propuesta enviada')}
+                onOpenDetail={() => openDetail('propuestas_enviadas', 'Propuestas enviadas')}
               />
               <StatCard
                 label="Tasa de pérdida"

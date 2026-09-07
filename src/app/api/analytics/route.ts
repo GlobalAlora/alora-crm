@@ -743,6 +743,11 @@ export async function GET(req: NextRequest) {
       reuniones_a_futuro: trimReuniones(reunionesAFuturo),
       reuniones_canceladas_alora: trimReuniones(reunionesCanceladasAlora),
       con_propuesta: trim(cualificadosConPropuesta),
+      // Distinto de con_propuesta: esto es CADA propuesta enviada en el
+      // período (filtrada por fecha_propuesta, como propuestas_count arriba),
+      // no "leads que entraron este período y tienen alguna propuesta alguna
+      // vez" (esa es la métrica de embudo, cohorte por fecha_ingreso).
+      propuestas_enviadas: trimPropuestas(allPropuestasConLead),
       ganados: trim(ganados),
       perdidos: trim(perdidos),
       propuestas_enviadas_ars: trimPropuestas(allPropuestasConLead.filter(p => p.moneda === 'ARS')),
