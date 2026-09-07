@@ -70,6 +70,7 @@ type LeadRow = {
   id: string
   nombre: string
   apellido: string | null
+  empresa: string | null
   pais: string | null
   fuente: string | null
   estado_pipeline: string
@@ -102,6 +103,7 @@ type ReunionRow = {
     id: string
     nombre: string
     apellido: string | null
+    empresa: string | null
     pais: string | null
     fuente: string | null
     estado_pipeline: string
@@ -142,7 +144,7 @@ export async function GET(req: NextRequest) {
     let leadsQuery = adminSupabase
       .from('leads')
       .select(`
-        id, nombre, apellido, pais, fuente, estado_pipeline,
+        id, nombre, apellido, empresa, pais, fuente, estado_pipeline,
         fecha_ingreso, fecha_contacto, fecha_reunion, reunion_asistencia, reunion_asistencia_at, fecha_propuesta, fecha_cierre,
         stage_updated_at, last_activity_at, created_at, servicios_interesados,
         propuestas(id, valor_usd, valor_ars, moneda, estado, created_at, updated_at)
@@ -159,7 +161,7 @@ export async function GET(req: NextRequest) {
     const cierresQuery = adminSupabase
       .from('leads')
       .select(`
-        id, nombre, apellido, pais, fuente, estado_pipeline,
+        id, nombre, apellido, empresa, pais, fuente, estado_pipeline,
         fecha_ingreso, fecha_contacto, fecha_reunion, reunion_asistencia, reunion_asistencia_at, fecha_propuesta, fecha_cierre,
         stage_updated_at, last_activity_at, created_at,
         propuestas(id, valor_usd, valor_ars, moneda, estado, created_at, updated_at)
@@ -183,7 +185,7 @@ export async function GET(req: NextRequest) {
       .from('reuniones')
       .select(`
         id, lead_id, fecha_reunion, reunion_hora, asistencia, asistencia_at, origen,
-        lead:leads(id, nombre, apellido, pais, fuente, estado_pipeline, fecha_ingreso, created_at, deleted_at)
+        lead:leads(id, nombre, apellido, empresa, pais, fuente, estado_pipeline, fecha_ingreso, created_at, deleted_at)
       `)
       .eq('asistencia', 'cancelada_alora')
       .gte('fecha_reunion', fechaDesde)
@@ -204,7 +206,7 @@ export async function GET(req: NextRequest) {
       .from('reuniones')
       .select(`
         id, lead_id, fecha_reunion, reunion_hora, asistencia, asistencia_at, origen,
-        lead:leads(id, nombre, apellido, pais, fuente, estado_pipeline, fecha_ingreso, created_at, deleted_at)
+        lead:leads(id, nombre, apellido, empresa, pais, fuente, estado_pipeline, fecha_ingreso, created_at, deleted_at)
       `)
       .gte('fecha_reunion', fechaDesde)
       .lte('fecha_reunion', fechaHasta)
@@ -221,7 +223,7 @@ export async function GET(req: NextRequest) {
     let propuestasQuery = adminSupabase
       .from('leads')
       .select(`
-        id, nombre, apellido, pais, fuente, estado_pipeline,
+        id, nombre, apellido, empresa, pais, fuente, estado_pipeline,
         fecha_ingreso, fecha_contacto, fecha_reunion, reunion_asistencia, reunion_asistencia_at, fecha_propuesta, fecha_cierre,
         stage_updated_at, last_activity_at, created_at,
         propuestas(id, valor_usd, valor_ars, moneda, estado, created_at, updated_at)
@@ -691,6 +693,7 @@ export async function GET(req: NextRequest) {
       return list.map(l => ({
         id: l.id,
         nombre: [l.nombre, l.apellido].filter(Boolean).join(' '),
+        empresa: l.empresa,
         pais: l.pais,
         fuente: l.fuente,
         estado_pipeline: l.estado_pipeline,
@@ -701,7 +704,9 @@ export async function GET(req: NextRequest) {
     function trimReuniones(list: ReunionRow[]) {
       return list.map(r => ({
         id: r.id,
+        lead_id: r.lead_id,
         nombre: [r.lead?.nombre, r.lead?.apellido].filter(Boolean).join(' '),
+        empresa: r.lead?.empresa ?? null,
         pais: r.lead?.pais ?? null,
         fuente: r.lead?.fuente ?? null,
         estado_pipeline: r.lead?.estado_pipeline ?? '',

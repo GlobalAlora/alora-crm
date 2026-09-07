@@ -7,12 +7,12 @@ import {
   Users, DollarSign, Clock, BarChart3, Globe,
   TrendingUp, ArrowRight,
   ArrowDown, ChevronRight, Calendar,
-  FolderKanban, Plus, MessageSquare, ListTodo, Info, X,
+  FolderKanban, Plus, MessageSquare, ListTodo, Info, X, Building2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatUSD, formatARS } from '@/lib/utils'
 import { getArgentinaDateStr } from '@/lib/timezone'
-import { FUENTES, PAISES } from '@/types'
+import { FUENTES, PAISES, PIPELINE_STAGE_MAP } from '@/types'
 import { dashboardApi } from '@/lib/api'
 import { useLeadFormStore } from '@/hooks/useLeadFormStore'
 import { MonthlyEvolutionChart } from '@/components/dashboard/charts/MonthlyEvolutionChart'
@@ -136,6 +136,7 @@ interface DetalleLead {
   id: string
   lead_id?: string
   nombre: string
+  empresa?: string | null
   pais: string | null
   fuente: string | null
   estado_pipeline: string
@@ -275,19 +276,47 @@ function DetailModal({ title, items, onClose, router }: {
         <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
           {items.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-10">Sin leads en esta categoría</p>
-          ) : items.map(l => (
-            <button
-              key={l.id}
-              onClick={() => router.push(`/leads/${l.lead_id ?? l.id}`)}
-              className="w-full flex items-center justify-between gap-3 px-5 py-2.5 hover:bg-slate-50 transition-colors text-left"
-            >
-              <div className="min-w-0">
-                <p className="text-sm text-slate-800 truncate">{l.nombre || 'Sin nombre'}</p>
-                <p className="text-xs text-slate-400 truncate">{[l.pais, l.fuente].filter(Boolean).join(' · ') || '—'}</p>
-              </div>
-              <span className="text-xs text-slate-400 whitespace-nowrap flex-shrink-0">{l.estado_pipeline}</span>
-            </button>
-          ))}
+          ) : items.map(l => {
+            const stage = PIPELINE_STAGE_MAP[l.estado_pipeline as keyof typeof PIPELINE_STAGE_MAP]
+            return (
+              <button
+                key={l.id}
+                onClick={() => router.push(`/leads/${l.lead_id ?? l.id}`)}
+                className="w-full flex items-center gap-3 px-5 py-3 hover:bg-slate-50 transition-colors text-left group"
+              >
+                <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-semibold text-slate-500 flex-shrink-0">
+                  {(l.nombre || '?').trim().charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-slate-800 truncate">{l.nombre || 'Sin nombre'}</p>
+                  <div className="flex items-center gap-1 text-xs text-slate-400 truncate">
+                    {l.empresa ? (
+                      <>
+                        <Building2 size={11} className="flex-shrink-0" />
+                        <span className="truncate">{l.empresa}</span>
+                      </>
+                    ) : (
+                      <span className="truncate">{[l.pais, l.fuente].filter(Boolean).join(' · ') || '—'}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  <span
+                    className="text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap"
+                    style={stage ? { color: stage.color, backgroundColor: stage.bgColor } : undefined}
+                  >
+                    {stage?.label ?? l.estado_pipeline}
+                  </span>
+                  {l.empresa && (
+                    <span className="text-[10px] text-slate-400 truncate max-w-[110px]">
+                      {[l.pais, l.fuente].filter(Boolean).join(' · ')}
+                    </span>
+                  )}
+                </div>
+                <ChevronRight size={14} className="text-slate-300 group-hover:text-slate-400 flex-shrink-0 transition-colors" />
+              </button>
+            )
+          })}
         </div>
       </div>
     </div>
