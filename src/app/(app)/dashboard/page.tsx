@@ -56,6 +56,7 @@ interface AnalyticsData {
     no_se_presento: number
     reagendadas: number
     sin_informacion: number
+    a_futuro: number
     show_up_rate: number
   }
   conversiones: {
@@ -168,11 +169,16 @@ function applyPreset(key: string): [string, string] {
   const [year, month] = t.split('-').map(Number) // month: 1-12
   const pad = (n: number) => String(n).padStart(2, '0')
   const ago = (days: number) => getArgentinaDateStr(new Date(Date.now() - days * 86_400_000))
+  // Días en el mes (día 0 del mes siguiente = último día de este, en UTC para
+  // no depender del timezone del navegador/servidor)
+  const lastDayOfMonth = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate()
   if (key === 'hoy') return [t, t]
   if (key === '7d') return [ago(7), t]
   if (key === '30d') return [ago(30), t]
   if (key === '90d') return [ago(90), t]
-  if (key === 'mes') return [`${year}-${pad(month)}-01`, t]
+  // "Este mes" = el mes calendario completo, incluye reuniones agendadas a
+  // futuro dentro del mes (no solo lo que ya pasó hasta hoy).
+  if (key === 'mes') return [`${year}-${pad(month)}-01`, `${year}-${pad(month)}-${pad(lastDayOfMonth(year, month))}`]
   if (key === 'trimestre') return [`${year}-${pad(Math.floor((month - 1) / 3) * 3 + 1)}-01`, t]
   if (key === 'año') return [`${year}-01-01`, t]
   return [getDefaultDesde(), t]
@@ -475,7 +481,8 @@ export default function DashboardPage() {
             <StatCard label="Canceladas por ALORA" value={a?.reuniones.canceladas_alora ?? 0} sub="Decisión de ALORA, por fecha de la cancelación" info={a?.definiciones.reuniones_canceladas_alora} onOpenDetail={() => openDetail('reuniones_canceladas_alora', 'Canceladas por ALORA')} />
             <StatCard label="No se presentó" value={a?.reuniones.no_se_presento ?? 0} sub="Confirmado en la ficha" color={(a?.reuniones.no_se_presento ?? 0) > 0 ? 'red' : 'slate'} info={a?.definiciones.reuniones_no_se_presento} onOpenDetail={() => openDetail('reuniones_no_se_presento', 'No se presentó')} />
             <StatCard label="Reagendadas" value={a?.reuniones.reagendadas ?? 0} sub="Cada reagendamiento cuenta como su propia reunión agendada" info={a?.definiciones.reuniones_reagendadas} onOpenDetail={() => openDetail('reuniones_reagendadas', 'Reagendadas')} />
-            <StatCard label="Sin información" value={a?.reuniones.sin_informacion ?? 0} sub="Nadie confirmó qué pasó — hacé clic para completar" color={(a?.reuniones.sin_informacion ?? 0) > 0 ? 'amber' : 'slate'} info={a?.definiciones.reuniones_sin_informacion} onOpenDetail={() => openDetail('reuniones_sin_informacion', 'Sin información')} />
+            <StatCard label="Sin información" value={a?.reuniones.sin_informacion ?? 0} sub="Ya pasaron y nadie confirmó qué pasó — hacé clic para completar" color={(a?.reuniones.sin_informacion ?? 0) > 0 ? 'amber' : 'slate'} info={a?.definiciones.reuniones_sin_informacion} onOpenDetail={() => openDetail('reuniones_sin_informacion', 'Sin información')} />
+            <StatCard label="Reuniones a futuro" value={a?.reuniones.a_futuro ?? 0} sub="Agendadas en el período, todavía no llegan a su fecha" info={a?.definiciones.reuniones_a_futuro} onOpenDetail={() => openDetail('reuniones_a_futuro', 'Reuniones a futuro')} />
             <StatCard label="Conv. Lead → Reunión" value={`${a?.conversiones.lead_a_reunion ?? 0}%`} sub="Sobre leads cualificados" info={a?.definiciones.lead_a_reunion} />
           </div>
         )}

@@ -14,7 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { TIMEZONE } from '@/lib/timezone'
+import { TIMEZONE, getArgentinaDateStr } from '@/lib/timezone'
 import { FOLLOWUP_TEXT } from '@/lib/whatsapp-followup'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -341,12 +341,16 @@ export async function GET(req: NextRequest) {
     const reunionesRealizadasTotal = reunionesEnPeriodo.filter(r => r.asistencia === 'se_presento')
     const showUpRateTotal = pct(reunionesRealizadasTotal.length, reunionesAgendadasTotal.length)
     // De las agendadas: no-show real, reagendadas (instancia cerrada porque
-    // se reagendó a otra fecha, que cuenta aparte como su propia agendada),
-    // y las que nadie entró a confirmar todavía en la ficha (asistencia
-    // sigue null) — para que se pueda ver y completar lo que falta.
+    // se reagendó a otra fecha, que cuenta aparte como su propia agendada).
+    // Las que todavía no tienen resultado (asistencia null) se separan en
+    // dos: las que ya pasaron y nadie entró a confirmar en la ficha (acción
+    // pendiente real, "sin información") vs. las que son a futuro y todavía
+    // no correspondía que nadie las confirme ("a futuro").
+    const hoyAR = getArgentinaDateStr()
     const reunionesNoSePresento = reunionesAgendadasTotal.filter(r => r.asistencia === 'no_se_presento')
     const reunionesReagendadas = reunionesAgendadasTotal.filter(r => r.asistencia === 'reagendo')
-    const reunionesSinInformacion = reunionesAgendadasTotal.filter(r => !r.asistencia)
+    const reunionesSinInformacion = reunionesAgendadasTotal.filter(r => !r.asistencia && r.fecha_reunion <= hoyAR)
+    const reunionesAFuturo = reunionesAgendadasTotal.filter(r => !r.asistencia && r.fecha_reunion > hoyAR)
 
     // Leads cualificados con al menos una propuesta real (tabla propuestas,
     // no fecha_propuesta — esa se autocompleta al mover la tarjeta de
@@ -727,6 +731,7 @@ export async function GET(req: NextRequest) {
       reuniones_no_se_presento: trimReuniones(reunionesNoSePresento),
       reuniones_reagendadas: trimReuniones(reunionesReagendadas),
       reuniones_sin_informacion: trimReuniones(reunionesSinInformacion),
+      reuniones_a_futuro: trimReuniones(reunionesAFuturo),
       reuniones_canceladas_alora: trimReuniones(reunionesCanceladasAlora),
       con_propuesta: trim(cualificadosConPropuesta),
       ganados: trim(ganados),
@@ -780,6 +785,7 @@ export async function GET(req: NextRequest) {
         no_se_presento: reunionesNoSePresento.length,
         reagendadas: reunionesReagendadas.length,
         sin_informacion: reunionesSinInformacion.length,
+        a_futuro: reunionesAFuturo.length,
         show_up_rate: showUpRateTotal,
       },
       conversiones: {
@@ -799,7 +805,8 @@ export async function GET(req: NextRequest) {
         reuniones_canceladas_alora: 'Reuniones que ALORA decidió no dar (ej. tras más charla por WhatsApp el lead no da la talla) — no cuentan como "no show" del lead ni bajan el show-up rate. Se mide por cuándo se marcó la cancelación, no por cuándo ingresó el lead.',
         reuniones_no_se_presento: 'De las agendadas, las que se confirmaron manualmente en la ficha del lead como "no se presentó".',
         reuniones_reagendadas: 'Reuniones que se reagendaron a otra fecha. La reunión nueva se cuenta aparte, como su propia "agendada" — un lead que reagendó una vez suma 2 en el total de agendadas, no 1.',
-        reuniones_sin_informacion: 'De las agendadas, las que todavía nadie confirmó en la ficha del lead (ni se presentó, ni no se presentó, ni cancelada por ALORA) — hacé clic para verlas y completarlas.',
+        reuniones_sin_informacion: 'De las agendadas, las que ya pasaron y todavía nadie confirmó en la ficha del lead (ni se presentó, ni no se presentó, ni cancelada por ALORA) — hacé clic para verlas y completarlas.',
+        reuniones_a_futuro: 'Reuniones agendadas dentro del período que todavía no llegaron a su fecha — pendientes de que sucedan, no de que alguien las confirme.',
         show_up_rate: 'Reuniones realizadas ÷ reuniones agendadas. Cuántas de las reuniones que se agendan realmente se concretan.',
         tasa_cierre_ganado: 'Cierres ganados ÷ leads cualificados del período (no se cuentan Basura ni No cualificado en la base, porque nunca iban a cerrar).',
         lead_a_reunion: 'Reuniones agendadas ÷ leads cualificados.',
