@@ -39,6 +39,9 @@ interface AnalyticsData {
     propuestas_count: number
     propuestas_aceptadas_count: number
     propuestas_rechazadas_count: number
+    propuestas_abiertas_count: number
+    propuestas_abiertas_ars: number
+    propuestas_abiertas_usd: number
   }
   calidad: {
     total: number
@@ -142,6 +145,18 @@ interface DetalleLead {
   estado_pipeline: string
   fecha_ingreso: string | null
   fecha_reunion?: string | null
+  monto?: number | null
+  moneda?: string
+}
+
+// Colores de estado de UNA PROPUESTA (pendiente/aceptada/rechazada) --
+// distinto de PIPELINE_STAGE_MAP, que es la etapa del LEAD. Ambos valores
+// viajan por el mismo campo estado_pipeline en el detalle, así que se
+// prueban los dos mapas al renderizar el badge.
+const PROPUESTA_ESTADO_BADGE: Record<string, { label: string; color: string; bgColor: string }> = {
+  pendiente: { label: 'Pendiente', color: '#b45309', bgColor: '#fffbeb' },
+  aceptada: { label: 'Aceptada', color: '#15803d', bgColor: '#f0fdf4' },
+  rechazada: { label: 'Rechazada', color: '#b91c1c', bgColor: '#fef2f2' },
 }
 
 function formatShortDate(iso: string | null | undefined): string | null {
@@ -285,7 +300,8 @@ function DetailModal({ title, items, onClose, router }: {
           {items.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-10">Sin leads en esta categoría</p>
           ) : items.map(l => {
-            const stage = PIPELINE_STAGE_MAP[l.estado_pipeline as keyof typeof PIPELINE_STAGE_MAP]
+            const stage = PIPELINE_STAGE_MAP[l.estado_pipeline as keyof typeof PIPELINE_STAGE_MAP] ?? PROPUESTA_ESTADO_BADGE[l.estado_pipeline]
+            const monto = l.monto != null ? (l.moneda === 'USD' ? formatUSD(l.monto) : formatARS(l.monto)) : null
             return (
               <button
                 key={l.id}
@@ -315,6 +331,9 @@ function DetailModal({ title, items, onClose, router }: {
                   >
                     {stage?.label ?? l.estado_pipeline}
                   </span>
+                  {monto && (
+                    <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">{monto}</span>
+                  )}
                   {l.empresa && (
                     <span className="text-[10px] text-slate-400 truncate max-w-[110px]">
                       {[l.pais, l.fuente].filter(Boolean).join(' · ')}
@@ -603,6 +622,25 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{[...Array(8)].map((_, i) => <Skel key={i} />)}</div>
         ) : (
           <div className="space-y-4">
+            {/* 0. Propuestas abiertas -- a propósito NO respeta el rango de fechas
+                elegido arriba, por eso va en su propio recuadro con nota aclaratoria */}
+            <div className="bg-amber-50/60 border border-amber-100 rounded-lg p-3">
+              <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wide mb-2.5">
+                Propuestas abiertas — no depende del rango de fechas elegido arriba
+              </p>
+              <div className="grid grid-cols-3 gap-3">
+                <StatCard
+                  label="Abiertas"
+                  value={a?.resumen.propuestas_abiertas_count ?? 0}
+                  sub="Pendientes de respuesta, hoy"
+                  info={a?.definiciones.propuestas_abiertas_count}
+                  onOpenDetail={() => openDetail('propuestas_abiertas', 'Propuestas abiertas')}
+                />
+                <StatCard label="Abierto en ARS" value={formatARS(a?.resumen.propuestas_abiertas_ars ?? 0)} sub="Suma, sin importar cuándo se envió" onOpenDetail={() => openDetail('propuestas_abiertas', 'Propuestas abiertas')} />
+                <StatCard label="Abierto en USD" value={formatUSD(a?.resumen.propuestas_abiertas_usd ?? 0)} sub="Suma, sin importar cuándo se envió" onOpenDetail={() => openDetail('propuestas_abiertas', 'Propuestas abiertas')} />
+              </div>
+            </div>
+
             {/* 1. Lo primero: cuántas propuestas se mandaron */}
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
               <StatCard

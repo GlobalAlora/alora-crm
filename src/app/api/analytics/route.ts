@@ -236,12 +236,26 @@ export async function GET(req: NextRequest) {
     if (paisFilter) propuestasQuery = propuestasQuery.eq('pais', paisFilter)
     if (fuenteFilter) propuestasQuery = propuestasQuery.eq('fuente', fuenteFilter)
 
-    const [leadsResult, cierresResult, canceladasAloraResult, reunionesResult, propuestasResult] = await Promise.all([
+    // Propuestas abiertas (pendientes de respuesta): a propósito NO se
+    // filtra por fecha_desde/fecha_hasta -- es un KPI de "cuánto tenés
+    // esperando respuesta ahora mismo", independiente del período elegido en
+    // el dashboard (una propuesta de hace 3 meses que sigue sin
+    // aceptarse/rechazarse sigue siendo plata en juego hoy).
+    const abiertasQuery = adminSupabase
+      .from('propuestas')
+      .select(`
+        id, lead_id, valor_usd, valor_ars, moneda, estado, created_at, updated_at,
+        lead:leads(id, nombre, apellido, empresa, pais, fuente, estado_pipeline, fecha_ingreso, created_at, deleted_at)
+      `)
+      .eq('estado', 'pendiente')
+
+    const [leadsResult, cierresResult, canceladasAloraResult, reunionesResult, propuestasResult, abiertasResult] = await Promise.all([
       leadsQuery,
       cierresQuery,
       canceladasAloraQuery,
       reunionesQuery,
       propuestasQuery,
+      abiertasQuery,
     ])
 
     // Filter excluded stages in JS
@@ -284,8 +298,47 @@ export async function GET(req: NextRequest) {
     // for the "Propuestas enviadas/ganadas" drill-down (allPropuestas alone
     // loses that context).
     const allPropuestasConLead = leadsConPropuestaEnPeriodo.flatMap(l =>
-      (l.propuestas ?? []).map(p => ({ ...p, lead_id: l.id, lead_nombre: [l.nombre, l.apellido].filter(Boolean).join(' ') }))
+      (l.propuestas ?? []).map(p => ({
+        ...p,
+        lead_id: l.id,
+        lead_nombre: [l.nombre, l.apellido].filter(Boolean).join(' '),
+        lead_empresa: l.empresa,
+        lead_pais: l.pais,
+        lead_fuente: l.fuente,
+        lead_fecha_ingreso: l.fecha_ingreso ?? l.created_at,
+      }))
     )
+
+    // Propuestas abiertas: todas las "pendiente" que existen hoy, sin
+    // filtrar por período -- ver comentario en abiertasQuery.
+    type PropuestaAbiertaRow = {
+      id: string
+      lead_id: string
+      valor_usd: number | null
+      valor_ars: number | null
+      moneda: string
+      estado: string
+      lead: {
+        id: string
+        nombre: string
+        apellido: string | null
+        empresa: string | null
+        pais: string | null
+        fuente: string | null
+        estado_pipeline: string
+        fecha_ingreso: string | null
+        created_at: string
+        deleted_at: string | null
+      } | null
+    }
+    const propuestasAbiertas = ((abiertasResult.data ?? []) as unknown as PropuestaAbiertaRow[]).filter(p => {
+      if (!p.lead || p.lead.deleted_at) return false
+      if (paisFilter && p.lead.pais !== paisFilter) return false
+      if (fuenteFilter && p.lead.fuente !== fuenteFilter) return false
+      return true
+    })
+    const propuestasAbiertasARS = propuestasAbiertas.filter(p => p.moneda === 'ARS').reduce((s, p) => s + (p.valor_ars ?? 0), 0)
+    const propuestasAbiertasUSD = propuestasAbiertas.filter(p => p.moneda === 'USD').reduce((s, p) => s + (p.valor_usd ?? 0), 0)
 
     // ── Calidad de leads ─────────────────────────────────────────────────────
     // Basura = ni siquiera es una consulta real. No cualificado = hubo diálogo
@@ -718,15 +771,30 @@ export async function GET(req: NextRequest) {
       }))
     }
 
-    function trimPropuestas(list: { id: string; lead_id: string; lead_nombre: string; valor_usd: number | null; valor_ars: number | null; moneda: string; estado: string }[]) {
+    function trimPropuestas(list: {
+      id: string
+      lead_id: string
+      lead_nombre: string
+      lead_empresa?: string | null
+      lead_pais?: string | null
+      lead_fuente?: string | null
+      lead_fecha_ingreso?: string | null
+      valor_usd: number | null
+      valor_ars: number | null
+      moneda: string
+      estado: string
+    }[]) {
       return list.map(p => ({
         id: p.id,
         lead_id: p.lead_id,
-        nombre: `${p.lead_nombre || 'Sin nombre'} — ${p.moneda} ${(p.moneda === 'ARS' ? p.valor_ars : p.valor_usd) ?? 0}`,
-        pais: null,
-        fuente: null,
+        nombre: p.lead_nombre || 'Sin nombre',
+        empresa: p.lead_empresa ?? null,
+        pais: p.lead_pais ?? null,
+        fuente: p.lead_fuente ?? null,
         estado_pipeline: p.estado,
-        fecha_ingreso: null,
+        fecha_ingreso: p.lead_fecha_ingreso ?? null,
+        monto: p.moneda === 'ARS' ? p.valor_ars : p.valor_usd,
+        moneda: p.moneda,
       }))
     }
 
@@ -748,6 +816,19 @@ export async function GET(req: NextRequest) {
       // no "leads que entraron este período y tienen alguna propuesta alguna
       // vez" (esa es la métrica de embudo, cohorte por fecha_ingreso).
       propuestas_enviadas: trimPropuestas(allPropuestasConLead),
+      propuestas_abiertas: trimPropuestas(propuestasAbiertas.map(p => ({
+        id: p.id,
+        lead_id: p.lead_id,
+        valor_usd: p.valor_usd,
+        valor_ars: p.valor_ars,
+        moneda: p.moneda,
+        estado: p.estado,
+        lead_nombre: [p.lead?.nombre, p.lead?.apellido].filter(Boolean).join(' '),
+        lead_empresa: p.lead?.empresa ?? null,
+        lead_pais: p.lead?.pais ?? null,
+        lead_fuente: p.lead?.fuente ?? null,
+        lead_fecha_ingreso: p.lead?.fecha_ingreso ?? p.lead?.created_at ?? null,
+      }))),
       ganados: trim(ganados),
       perdidos: trim(perdidos),
       propuestas_enviadas_ars: trimPropuestas(allPropuestasConLead.filter(p => p.moneda === 'ARS')),
@@ -782,6 +863,9 @@ export async function GET(req: NextRequest) {
         propuestas_count: propuestasEnviadas.length,
         propuestas_aceptadas_count: propuestasAceptadas.length,
         propuestas_rechazadas_count: propuestasRechazadas.length,
+        propuestas_abiertas_count: propuestasAbiertas.length,
+        propuestas_abiertas_ars: Math.round(propuestasAbiertasARS),
+        propuestas_abiertas_usd: Math.round(propuestasAbiertasUSD),
       },
       calidad: {
         total: totalLeads,
@@ -827,6 +911,7 @@ export async function GET(req: NextRequest) {
         lead_a_propuesta: 'Leads cualificados con al menos una propuesta real cargada (tabla de propuestas, no el simple movimiento de la tarjeta) ÷ leads cualificados.',
         reunion_a_propuesta: 'Leads con propuesta real ÷ reuniones realizadas (confirmadas).',
         propuestas_count: 'Propuestas reales cargadas en el sistema (con monto), no tarjetas que pasaron por la columna "Propuesta enviada" sin una propuesta real detrás.',
+        propuestas_abiertas_count: 'Todas las propuestas que siguen "pendiente" hoy (ni aceptadas ni rechazadas), sin importar cuándo se enviaron ni el rango de fechas elegido arriba — es plata en juego ahora mismo, no un corte por período.',
         tasa_perdida_propuesta: 'Propuestas rechazadas ÷ propuestas enviadas en el período.',
         propuestas_perdidas_ars: 'Monto de propuestas en ARS rechazadas de leads que cerraron como "Cliente perdido" en el período (por fecha de cierre, igual que las ganadas).',
         propuestas_perdidas_usd: 'Monto de propuestas en USD rechazadas de leads que cerraron como "Cliente perdido" en el período (por fecha de cierre, igual que las ganadas).',
