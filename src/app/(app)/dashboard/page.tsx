@@ -323,6 +323,70 @@ function DetailModal({ title, items, onClose, router }: {
   )
 }
 
+// Colores validados para lectura por daltonismo (script de la skill de
+// dataviz, orden que separa rojo y verde en los extremos): green, violet,
+// yellow, blue, aqua, red.
+const REUNIONES_BREAKDOWN_COLORS: Record<string, string> = {
+  reuniones_realizadas: '#008300',
+  reuniones_reagendadas: '#4a3aa7',
+  reuniones_sin_informacion: '#eda100',
+  reuniones_a_futuro: '#2a78d6',
+  reuniones_canceladas_alora: '#1baf7a',
+  reuniones_no_se_presento: '#e34948',
+}
+
+function ReunionesBreakdownBar({ a, onOpenDetail }: {
+  a: AnalyticsData
+  onOpenDetail: (key: string, title: string) => void
+}) {
+  const total = a.reuniones.agendadas
+  if (total === 0) return null
+
+  const segments = [
+    { key: 'reuniones_realizadas', label: 'Realizadas', value: a.reuniones.realizadas },
+    { key: 'reuniones_reagendadas', label: 'Reagendadas', value: a.reuniones.reagendadas },
+    { key: 'reuniones_sin_informacion', label: 'Sin información', value: a.reuniones.sin_informacion },
+    { key: 'reuniones_a_futuro', label: 'A futuro', value: a.reuniones.a_futuro },
+    { key: 'reuniones_canceladas_alora', label: 'Canceladas ALORA', value: a.reuniones.canceladas_alora },
+    { key: 'reuniones_no_se_presento', label: 'No se presentó', value: a.reuniones.no_se_presento },
+  ].filter(s => s.value > 0)
+
+  return (
+    <div className="mb-5">
+      <p className="text-xs text-slate-400 mb-2">
+        <span className="font-semibold text-slate-600">{total}</span> reuniones agendadas se reparten así
+      </p>
+      <div className="flex w-full h-6 rounded-full overflow-hidden bg-slate-100">
+        {segments.map((s, i) => (
+          <button
+            key={s.key}
+            onClick={() => onOpenDetail(s.key, s.label)}
+            title={`${s.label}: ${s.value} (${Math.round((s.value / total) * 100)}%)`}
+            className="h-full hover:opacity-80 transition-opacity"
+            style={{
+              width: `${(s.value / total) * 100}%`,
+              backgroundColor: REUNIONES_BREAKDOWN_COLORS[s.key],
+              borderRight: i < segments.length - 1 ? '2px solid white' : undefined,
+            }}
+          />
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-2.5">
+        {segments.map(s => (
+          <button
+            key={s.key}
+            onClick={() => onOpenDetail(s.key, s.label)}
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 transition-colors"
+          >
+            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: REUNIONES_BREAKDOWN_COLORS[s.key] }} />
+            {s.label} <span className="font-medium text-slate-700">{s.value}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function Skel({ h = 'h-24' }: { h?: string }) {
   return <div className={cn('rounded-xl bg-slate-100 animate-pulse w-full', h)} />
 }
@@ -504,6 +568,8 @@ export default function DashboardPage() {
         {loadingAnalytics ? (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{[...Array(4)].map((_, i) => <Skel key={i} />)}</div>
         ) : (
+          <>
+          {a && <ReunionesBreakdownBar a={a} onOpenDetail={openDetail} />}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard label="Reuniones agendadas" value={a?.reuniones.agendadas ?? 0} sub="Fecha, hora y link cargados" info={a?.definiciones.reuniones_agendadas} onOpenDetail={() => openDetail('reuniones_agendadas', 'Reuniones agendadas')} />
             <StatCard label="Reuniones realizadas" value={a?.reuniones.realizadas ?? 0} sub={`Show-up rate: ${a?.reuniones.show_up_rate ?? 0}%`} info={a?.definiciones.reuniones_realizadas} onOpenDetail={() => openDetail('reuniones_realizadas', 'Reuniones realizadas')} />
@@ -514,6 +580,7 @@ export default function DashboardPage() {
             <StatCard label="Reuniones a futuro" value={a?.reuniones.a_futuro ?? 0} sub="Agendadas en el período, todavía no llegan a su fecha" info={a?.definiciones.reuniones_a_futuro} onOpenDetail={() => openDetail('reuniones_a_futuro', 'Reuniones a futuro')} />
             <StatCard label="Conv. Lead → Reunión" value={`${a?.conversiones.lead_a_reunion ?? 0}%`} sub="Sobre leads cualificados" info={a?.definiciones.lead_a_reunion} />
           </div>
+          </>
         )}
       </section>
 
