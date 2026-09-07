@@ -104,7 +104,7 @@ export async function runWhatsAppFollowUps(admin: AdminClient): Promise<{ sent: 
       .eq('id', conv.id)
 
     // Last follow-up just sent — alert team
-    if (newCount >= FOLLOWUP_TEXT.length && conv.lead_id) {
+    if (newCount >= texts.length && conv.lead_id) {
       const { data: lead } = await admin.from('leads').select('nombre, apellido').eq('id', conv.lead_id).maybeSingle()
       const name = [lead?.nombre, lead?.apellido].filter(Boolean).join(' ') || conv.phone_number
       notifyAll({

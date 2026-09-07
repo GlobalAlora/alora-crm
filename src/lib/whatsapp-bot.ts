@@ -125,9 +125,12 @@ function extractName(raw: string): string {
 
 // Detect whether a message is written in English.
 // Returns 'en' if 2+ English indicator words are found, otherwise 'es'.
+// Special case: a message that is ONLY an English greeting counts as English
+// (single-word "Hi" / "Hello" / "Hey" would score 0 keyword hits otherwise).
 export function detectLanguage(text: string): 'en' | 'es' {
   if (!text) return 'es'
-  const hits = text.match(/\b(i am|i'm|i'd|i've|i'll|i would|i need|i want|hello|hi there|hey there|my name is|please|thank you|thanks|what are|how do|can you|do you|are you|services|website|marketing|design|looking for|interested in|recently|submitted|let me know|your team|find out|more about|we are|we're|our company|our business|my company|my business|we need|we want|we would|could you|would you|digital marketing|web design|social media|branding)\b/gi)
+  if (/^\s*(hi\s+there|hey\s+there|hi|hey|hello|howdy|good\s+(?:morning|afternoon|evening|day))[\s!?.]*$/i.test(text.trim())) return 'en'
+  const hits = text.match(/\b(i am|i'm|i'd|i've|i'll|i would|i need|i want|hello|hi there|hey there|hi|hey|my name is|please|thank you|thanks|what are|how do|can you|do you|are you|services|website|marketing|design|looking for|interested in|recently|submitted|let me know|your team|find out|more about|we are|we're|our company|our business|my company|my business|we need|we want|we would|could you|would you|digital marketing|web design|social media|branding)\b/gi)
   return hits && hits.length >= 2 ? 'en' : 'es'
 }
 type Lang = 'en' | 'es'
@@ -144,10 +147,6 @@ const DIRECT_SAVE_FIELDS = new Set<QuestionField>(['nombre', 'consulta_detallada
 // (e.g. "no tengo" to the email question) and moving on. After one retry we
 // accept whatever comes back, so we never loop forever on it.
 const VALIDATORS: Partial<Record<QuestionField, { isValid: (text: string) => boolean; pushback: string }>> = {
-  nombre: {
-    isValid: (t) => t.trim().split(/\s+/).length <= 5 && t.trim().length <= 50,
-    pushback: '¿Me podés decir solo tu nombre? 😊',
-  },
   email: {
     isValid: (t) => /\S+@\S+\.\S+/.test(t),
     pushback: 'Te pido el email puntualmente porque es importante para que el equipo te pueda hacer seguimiento — ¿tenés alguno que me puedas pasar? 🙏',
@@ -195,6 +194,7 @@ function getPushback(field: QuestionField, lang: Lang): string {
       case 'consulta_detallada': return "Could you tell me a bit more in detail? The more context you give me, the better the team can help you 🙏"
     }
   }
+  if (field === 'nombre') return '¿Me podés decir solo tu nombre? 😊'
   return VALIDATORS[field]?.pushback ?? ''
 }
 
@@ -561,7 +561,7 @@ ABOUT THE EMAIL — REQUIRED, NO EXCEPTIONS:
 - If they already gave their email earlier, don't ask again
 
 WHEN GOING TO BOOKING (only once you have project + website + email, all 3):
-- CRITICAL RULE: if the lead's last message is a question (pricing, free-of-charge, or anything else), your message ALWAYS answers it first — even if you already had all 4 things complete from before (e.g. a lead who writes back after a while). Never ignore a new question just to jump straight to announcing time slots. Answer the question, then make the transition to booking in the same message afterward
+- CRITICAL RULE: if the lead's last message is a question (pricing, free-of-charge, or anything else), your message ALWAYS answers it first — even if you already had all 3 things complete from before (e.g. a lead who writes back after a while). Never ignore a new question just to jump straight to announcing time slots. Answer the question, then make the transition to booking in the same message afterward
 - In your message, mention the lead's project in their own words and express genuine enthusiasm
 - Make them feel the call will be valuable and that the team will be prepared
 - Example (personalize it with the real project, do NOT copy this): "Perfect Sarah! I have everything Walo needs about your clothing e-commerce 🙌 He'll be well prepared for the call — I'll show you the available times in a moment."
@@ -587,7 +587,7 @@ Other:
 
 - If asked specifically about Google Ads campaign case studies: "We don't have Ads campaign case studies to show you, but every website we build is ready to run Google Ads on top without any issue 🙂" — you can then show a portfolio case from the matching category (service or store), making clear it's a website example, not an ads campaign
 
-GO TO BOOKING: when you have project description + country + website + email — all 4, no exceptions. Never go to booking without the email.
+GO TO BOOKING: when you have project description + website + email — all 3, no exceptions. Never go to booking without the email.
 GO TO STOP: if the lead clearly doesn't want to continue. Respond warmly before stopping.`
 
 // Structured output tool — replaces fragile SEND/UPDATE/NEXT text parsing.
@@ -774,7 +774,7 @@ async function advanceQualifyingBotWithAI(
     console.log(`[Bot AI] lead ${leadId}: ${siguiente} — ${mensaje.slice(0, 120)}`)
 
     if (actualizaciones && Object.keys(actualizaciones).length > 0) {
-      const ALLOWED = ['consulta_detallada', 'servicios_interesados', 'email', 'empresa', 'sitio_web', 'pais'] as const
+      const ALLOWED = ['consulta_detallada', 'servicios_interesados', 'email', 'empresa', 'sitio_web'] as const
       const toSave: Record<string, unknown> = {}
       for (const key of ALLOWED) {
         if (key in actualizaciones && actualizaciones[key] !== null && actualizaciones[key] !== '') {
@@ -1514,6 +1514,7 @@ async function handleBookingPhase(
 
     const mentionsAnyTime =
       /\b(\d{1,2})[:.h]\d{2}\b/.test(trimmed) ||
+      /\b\d{1,2}\s*hs\b/i.test(trimmed) ||
       /\by\s+media\b/i.test(trimmed) ||
       /\ba\s*las?\s+\d{1,2}\b/i.test(trimmed) ||
       mentionsNightTime
