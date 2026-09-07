@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createCalendarEvent, updateCalendarEvent } from '@/lib/google-calendar'
+import { recordReunionInstance, markReunionAsistencia } from '@/lib/reuniones'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -15,8 +16,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const FOLLOWUP_HOURS = [0.5, 48]
   const admin = createAdminClient()
 
-  // Fetch lead with propuestas, stage history, and whatsapp conversation status
-  const [{ data: lead, error: leadError }, { data: propuestas }, { data: stageHistory }, { data: waConvo }] = await Promise.all([
+  // Fetch lead with propuestas, stage history, meeting history, and whatsapp conversation status
+  const [{ data: lead, error: leadError }, { data: propuestas }, { data: stageHistory }, { data: waConvo }, { data: reuniones }] = await Promise.all([
     supabase
       .from('leads')
       .select('*, responsable:users!responsable_id(id, full_name, avatar_url), lider_tecnico:team_members!lider_tecnico_id(id, full_name, role), dev:team_members!dev_id(id, full_name, role)')
@@ -38,6 +39,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
       .select('id, phone_number, bot_active, last_message_direction, last_message_at, followup_count')
       .eq('lead_id', id)
       .maybeSingle(),
+    admin
+      .from('reuniones')
+      .select('*')
+      .eq('lead_id', id)
+      .order('created_at', { ascending: false }),
   ])
 
   if (leadError || !lead) return NextResponse.json({ error: 'Lead no encontrado' }, { status: 404 })
@@ -70,7 +76,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const whatsapp_conversation = waConvo ? { id: waConvo.id, phone_number: waConvo.phone_number } : null
 
-  return NextResponse.json({ data: { ...lead, propuestas: propuestas || [], stage_history: stageHistory || [], calidad_lead, dias_sin_respuesta, next_followup_at, whatsapp_conversation } })
+  return NextResponse.json({ data: { ...lead, propuestas: propuestas || [], stage_history: stageHistory || [], reuniones: reuniones || [], calidad_lead, dias_sin_respuesta, next_followup_at, whatsapp_conversation } })
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
@@ -173,13 +179,36 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
   }
 
+  // A reagendo is a fresh, still-pending meeting -- it never gets a "final"
+  // reunion_asistencia_at, and (below) the actual leads.reunion_asistencia
+  // written to the DB is forced back to null instead of 'reagendo', because
+  // that column always describes the CURRENT/vigente meeting, and after a
+  // reschedule the current meeting is the new one, which hasn't happened
+  // yet. The old meeting's own 'reagendo' outcome is recorded per-instance
+  // in `reuniones` further below, not lost.
+  const isReagendo = body.reunion_asistencia === 'reagendo'
+  let reunionSnapshot: { fecha_reunion: string | null; reunion_hora: string | null; reunion_link: string | null } | null = null
   if ('reunion_asistencia' in body && body.reunion_asistencia) {
-    body.reunion_asistencia_at = new Date().toISOString()
+    if (isReagendo) {
+      const { data: snap } = await supabase
+        .from('leads')
+        .select('fecha_reunion, reunion_hora, reunion_link')
+        .eq('id', id)
+        .is('deleted_at', null)
+        .single()
+      reunionSnapshot = snap
+    } else {
+      body.reunion_asistencia_at = new Date().toISOString()
+    }
   }
+
+  const leadsUpdateBody = isReagendo
+    ? { ...body, reunion_asistencia: null, reunion_asistencia_at: null }
+    : body
 
   const { data, error } = await supabase
     .from('leads')
-    .update({ ...body, updated_at: new Date().toISOString() })
+    .update({ ...leadsUpdateBody, updated_at: new Date().toISOString() })
     .eq('id', id)
     .is('deleted_at', null)
     .select()
@@ -229,6 +258,29 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         ...(body.reunion_link   ? { nuevo_link:   body.reunion_link   } : {}),
       },
     })
+
+    // Keep the per-instance meeting history in sync with this asistencia change
+    const admin = createAdminClient()
+    if (isReagendo) {
+      await recordReunionInstance(admin, {
+        leadId: id,
+        previous: reunionSnapshot?.fecha_reunion
+          ? { fecha_reunion: reunionSnapshot.fecha_reunion, reunion_hora: reunionSnapshot.reunion_hora, reunion_link: reunionSnapshot.reunion_link }
+          : null,
+        next: {
+          fecha_reunion: (body.fecha_reunion ?? reunionSnapshot?.fecha_reunion) as string,
+          reunion_hora: (body.reunion_hora ?? reunionSnapshot?.reunion_hora) ?? null,
+          reunion_link: (body.reunion_link ?? reunionSnapshot?.reunion_link) ?? null,
+        },
+        origen: 'manual',
+      })
+    } else {
+      await markReunionAsistencia(admin, {
+        leadId: id,
+        fechaReunion: (data as { fecha_reunion?: string | null } | null)?.fecha_reunion ?? null,
+        asistencia: body.reunion_asistencia as 'se_presento' | 'no_se_presento' | 'cancelada_alora',
+      })
+    }
   }
 
   // ── Google Calendar event ────────────────────────────────────────────────────

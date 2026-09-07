@@ -12,6 +12,13 @@ interface RescheduleData {
   reunion_link: string
 }
 
+interface ReunionHistoryItem {
+  id: string
+  fecha_reunion: string
+  reunion_hora: string | null
+  asistencia: Asistencia | null
+}
+
 interface MeetingStatusCheckProps {
   leadId: string
   current: Asistencia | null
@@ -20,6 +27,16 @@ interface MeetingStatusCheckProps {
   currentLink: string | null
   onSave: (asistencia: Asistencia, reschedule?: RescheduleData) => void
   disabled?: boolean
+  // Reuniones anteriores de este lead ya cerradas (reagendó, no se presentó,
+  // etc). Cada reunión guarda su propio resultado — no solo la vigente.
+  history?: ReunionHistoryItem[]
+}
+
+const HISTORY_BADGE: Record<Asistencia, string> = {
+  se_presento: '✅ Se presentó',
+  no_se_presento: '❌ No se presentó',
+  reagendo: '🔄 Reagendó',
+  cancelada_alora: '🚫 Cancelada por ALORA',
 }
 
 const OPTIONS: { value: Asistencia; label: string; icon: React.ReactNode; activeClass: string; borderClass: string }[] = [
@@ -60,6 +77,7 @@ export function MeetingStatusCheck({
   currentLink,
   onSave,
   disabled,
+  history,
 }: MeetingStatusCheckProps) {
   const [selected, setSelected] = useState<Asistencia | null>(current)
   const [showReschedule, setShowReschedule] = useState(current === 'reagendo')
@@ -199,6 +217,28 @@ export function MeetingStatusCheck({
           {current === 'reagendo' && '🔄 Registrado: reagendó'}
           {current === 'cancelada_alora' && '🚫 Registrado: cancelada por ALORA'}
         </p>
+      )}
+
+      {/* Historial — reuniones anteriores de este lead, cada una con su propio resultado */}
+      {history && history.length > 0 && (
+        <div className="pt-1 space-y-1 border-t border-slate-100">
+          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide pt-1.5">
+            Historial de reuniones
+          </p>
+          <ul className="space-y-1">
+            {history.map((h) => (
+              <li key={h.id} className="text-[10px] text-slate-500 flex items-center justify-between gap-2">
+                <span>
+                  {new Date(`${h.fecha_reunion}T00:00:00`).toLocaleDateString('es-AR')}
+                  {h.reunion_hora ? ` ${h.reunion_hora.slice(0, 5)}` : ''}
+                </span>
+                <span className="text-slate-400">
+                  {h.asistencia ? HISTORY_BADGE[h.asistencia] : 'Sin información'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   )

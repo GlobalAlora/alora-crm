@@ -205,6 +205,7 @@ export interface Lead {
   next_followup_at?: string | null
   propuestas?: Propuesta[]
   stage_history?: StageHistory[]
+  reuniones?: Reunion[]
   whatsapp_conversation?: { id: string; phone_number: string } | null
   // Computed on GET /leads (list)
   propuestas_total_usd?: number
@@ -363,6 +364,23 @@ export interface WhatsAppMessage {
 }
 
 // ── Email Marketing ─────────────────────────────────────────
+
+// One row per scheduled meeting for a lead -- see src/lib/reuniones.ts.
+// leads.fecha_reunion/reunion_hora/reunion_link/reunion_asistencia stay as a
+// snapshot of the current/vigente meeting; this table is the full history.
+export interface Reunion {
+  id: string
+  lead_id: string
+  fecha_reunion: string
+  reunion_hora: string | null
+  reunion_link: string | null
+  asistencia: 'se_presento' | 'no_se_presento' | 'reagendo' | 'cancelada_alora' | null
+  asistencia_at: string | null
+  origen: 'tidycal' | 'lidia' | 'manual' | null
+  booking_id: string | null
+  created_at: string
+  updated_at: string
+}
 
 export interface LeadTag {
   id: string

@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendNewLeadAlert } from '@/lib/lead-alerts'
 import { PIPELINE_STAGES } from '@/types'
+import { recordReunionInstance } from '@/lib/reuniones'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -134,7 +135,7 @@ export async function processTidyCalBooking(
 
   let { data: existing } = await admin
     .from('leads')
-    .select('id, nombre, email, empresa, notas, estado_pipeline')
+    .select('id, nombre, email, empresa, notas, estado_pipeline, fecha_reunion, reunion_hora, reunion_link')
     .or(conditions.join(','))
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
@@ -152,7 +153,7 @@ export async function processTidyCalBooking(
     if (match) {
       const { data: full } = await admin
         .from('leads')
-        .select('id, nombre, email, empresa, notas, estado_pipeline')
+        .select('id, nombre, email, empresa, notas, estado_pipeline, fecha_reunion, reunion_hora, reunion_link')
         .eq('id', match.id)
         .single()
       existing = full
@@ -169,20 +170,28 @@ export async function processTidyCalBooking(
   // else branch assigns it on success or returns early on every error path.
   let leadId!: string
 
+  const previousMeeting = existing?.fecha_reunion
+    ? { fecha_reunion: existing.fecha_reunion, reunion_hora: existing.reunion_hora, reunion_link: existing.reunion_link }
+    : null
+
   if (existing) {
     leadId = existing.id
 
-    // Only advance to reunion_reservada if the lead hasn't progressed further
+    // Only advance to reunion_reservada if the lead hasn't progressed further.
+    // reunion_asistencia is reset to null here -- it always describes the
+    // CURRENT/vigente meeting, and that's now this one, which hasn't
+    // happened yet. Its own outcome (se_presento/no_se_presento/reagendo)
+    // lives per-instance in `reuniones`, recorded further below.
     if (BEFORE_REUNION.includes(existing.estado_pipeline ?? '')) {
       await admin
         .from('leads')
-        .update({ estado_pipeline: 'reunion_reservada', fecha_reunion, reunion_hora })
+        .update({ estado_pipeline: 'reunion_reservada', fecha_reunion, reunion_hora, reunion_asistencia: null })
         .eq('id', leadId)
     } else if (existing.estado_pipeline === 'reunion_reservada') {
       // Already there — just refresh the date/time in case it changed
       await admin
         .from('leads')
-        .update({ fecha_reunion, reunion_hora })
+        .update({ fecha_reunion, reunion_hora, reunion_asistencia: null })
         .eq('id', leadId)
     }
     // For later stages (propuesta, cliente…) we only log the activity, no stage change
@@ -282,6 +291,14 @@ export async function processTidyCalBooking(
       })
     }
   }
+
+  await recordReunionInstance(admin, {
+    leadId,
+    previous: previousMeeting,
+    next: { fecha_reunion, reunion_hora, reunion_link: booking.meeting_url ?? previousMeeting?.reunion_link ?? null },
+    origen: 'tidycal',
+    bookingId: String(booking.id),
+  })
 
   await admin.from('activities').insert({
     lead_id:    leadId,

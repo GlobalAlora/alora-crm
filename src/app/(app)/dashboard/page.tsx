@@ -54,6 +54,7 @@ interface AnalyticsData {
     realizadas: number
     canceladas_alora: number
     no_se_presento: number
+    reagendadas: number
     sin_informacion: number
     show_up_rate: number
   }
@@ -473,6 +474,7 @@ export default function DashboardPage() {
             <StatCard label="Reuniones realizadas" value={a?.reuniones.realizadas ?? 0} sub={`Show-up rate: ${a?.reuniones.show_up_rate ?? 0}%`} info={a?.definiciones.reuniones_realizadas} onOpenDetail={() => openDetail('reuniones_realizadas', 'Reuniones realizadas')} />
             <StatCard label="Canceladas por ALORA" value={a?.reuniones.canceladas_alora ?? 0} sub="Decisión de ALORA, por fecha de la cancelación" info={a?.definiciones.reuniones_canceladas_alora} onOpenDetail={() => openDetail('reuniones_canceladas_alora', 'Canceladas por ALORA')} />
             <StatCard label="No se presentó" value={a?.reuniones.no_se_presento ?? 0} sub="Confirmado en la ficha" color={(a?.reuniones.no_se_presento ?? 0) > 0 ? 'red' : 'slate'} info={a?.definiciones.reuniones_no_se_presento} onOpenDetail={() => openDetail('reuniones_no_se_presento', 'No se presentó')} />
+            <StatCard label="Reagendadas" value={a?.reuniones.reagendadas ?? 0} sub="Cada reagendamiento cuenta como su propia reunión agendada" info={a?.definiciones.reuniones_reagendadas} onOpenDetail={() => openDetail('reuniones_reagendadas', 'Reagendadas')} />
             <StatCard label="Sin información" value={a?.reuniones.sin_informacion ?? 0} sub="Nadie confirmó qué pasó — hacé clic para completar" color={(a?.reuniones.sin_informacion ?? 0) > 0 ? 'amber' : 'slate'} info={a?.definiciones.reuniones_sin_informacion} onOpenDetail={() => openDetail('reuniones_sin_informacion', 'Sin información')} />
             <StatCard label="Conv. Lead → Reunión" value={`${a?.conversiones.lead_a_reunion ?? 0}%`} sub="Sobre leads cualificados" info={a?.definiciones.lead_a_reunion} />
           </div>

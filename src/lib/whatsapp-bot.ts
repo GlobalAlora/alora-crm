@@ -5,6 +5,7 @@ import { matchFaqOrEscalate } from '@/lib/whatsapp-faq'
 import { getAvailableSlotsByDay, formatSlotAR, createCalendarEvent } from '@/lib/google-calendar'
 import { sendGmail } from '@/lib/google-gmail'
 import { notifyAll } from '@/lib/push-notify'
+import { recordReunionInstance } from '@/lib/reuniones'
 
 // Fast model for simple extraction tasks (name, portfolio match)
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_LEAD_EXTRACT_MODEL || 'claude-haiku-4-5-20251001'
@@ -1698,7 +1699,7 @@ async function bookConfirmedSlot(
 
   const { data: lead } = await admin
     .from('leads')
-    .select('nombre, apellido, empresa, email')
+    .select('nombre, apellido, empresa, email, fecha_reunion, reunion_hora, reunion_link')
     .eq('id', leadId)
     .single()
 
@@ -1725,12 +1726,22 @@ async function bookConfirmedSlot(
       fecha_reunion:       fecha,
       reunion_hora:        hora,
       reunion_link:        result.meetLink ?? result.eventUrl,
+      reunion_asistencia:  null,
       estado_pipeline:     'reunion_reservada',
       fecha_contacto:      new Date().toISOString(),
       fecha_followup:      followupDate.toISOString().slice(0, 10),
       calendar_event_id:   result.eventId,
       calendar_event_url:  result.eventUrl,
     }).eq('id', leadId)
+
+    await recordReunionInstance(admin, {
+      leadId,
+      previous: lead.fecha_reunion
+        ? { fecha_reunion: lead.fecha_reunion, reunion_hora: lead.reunion_hora, reunion_link: lead.reunion_link }
+        : null,
+      next: { fecha_reunion: fecha, reunion_hora: hora, reunion_link: result.meetLink ?? result.eventUrl ?? null },
+      origen: 'lidia',
+    })
 
     const daysFull  = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
     const monthsFull = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']

@@ -87,6 +87,30 @@ type LeadRow = {
   propuestas: Propuesta[] | null
 }
 
+// Una fila por reunión agendada (no por lead) -- ver src/lib/reuniones.ts.
+// Cada reagendamiento genera su propia fila, así que un lead que reagendó
+// una vez aparece dos veces acá, cada una con su propio resultado.
+type ReunionRow = {
+  id: string
+  lead_id: string
+  fecha_reunion: string
+  reunion_hora: string | null
+  asistencia: string | null
+  asistencia_at: string | null
+  origen: string | null
+  lead: {
+    id: string
+    nombre: string
+    apellido: string | null
+    pais: string | null
+    fuente: string | null
+    estado_pipeline: string
+    fecha_ingreso: string | null
+    created_at: string
+    deleted_at: string | null
+  } | null
+}
+
 // ── Route ─────────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
@@ -151,22 +175,19 @@ export async function GET(req: NextRequest) {
     // mismo criterio que reunionesQuery, consistente con "agendadas" y
     // "realizadas" (confirmado explícitamente: los reportes van por la
     // fecha real del lead, no por cuándo se cargó/cambió algo).
-    let canceladasAloraQuery = adminSupabase
-      .from('leads')
+    //
+    // Lee de `reuniones` (una fila por reunión agendada), no de `leads`
+    // (una fila por lead) -- un lead puede tener más de una reunión
+    // cancelada por ALORA a lo largo del tiempo y cada una cuenta.
+    const canceladasAloraQuery = adminSupabase
+      .from('reuniones')
       .select(`
-        id, nombre, apellido, pais, fuente, estado_pipeline,
-        fecha_ingreso, fecha_contacto, fecha_reunion, reunion_asistencia, reunion_asistencia_at, fecha_propuesta, fecha_cierre,
-        stage_updated_at, last_activity_at, created_at,
-        propuestas(id, valor_usd, valor_ars, moneda, estado, created_at, updated_at)
+        id, lead_id, fecha_reunion, reunion_hora, asistencia, asistencia_at, origen,
+        lead:leads(id, nombre, apellido, pais, fuente, estado_pipeline, fecha_ingreso, created_at, deleted_at)
       `)
-      .is('deleted_at', null)
-      .eq('reunion_asistencia', 'cancelada_alora')
-      .not('fecha_reunion', 'is', null)
+      .eq('asistencia', 'cancelada_alora')
       .gte('fecha_reunion', fechaDesde)
-      .lte('fecha_reunion', fechaHasta + 'T23:59:59')
-
-    if (paisFilter) canceladasAloraQuery = canceladasAloraQuery.eq('pais', paisFilter)
-    if (fuenteFilter) canceladasAloraQuery = canceladasAloraQuery.eq('fuente', fuenteFilter)
+      .lte('fecha_reunion', fechaHasta)
 
     // Reuniones agendadas/realizadas en el período: filtradas por fecha_reunion,
     // no por fecha_ingreso del lead -- mismo criterio que cierresQuery y
@@ -175,22 +196,18 @@ export async function GET(req: NextRequest) {
     // lead nunca entraba al set base, filtrado por fecha_ingreso) -- ese era
     // el bug reportado: el panel de Reuniones mostraba solo 2 en el mes
     // cuando hubo muchas más.
-    let reunionesQuery = adminSupabase
-      .from('leads')
+    //
+    // Lee de `reuniones` (una fila por reunión agendada), no de `leads` --
+    // así un lead que reagendó una vez cuenta como 2 reuniones agendadas,
+    // no 1: "quiero que cuenten las dos!!! porque son dos agendadas!!!".
+    const reunionesQuery = adminSupabase
+      .from('reuniones')
       .select(`
-        id, nombre, apellido, pais, fuente, estado_pipeline,
-        fecha_ingreso, fecha_contacto, fecha_reunion, reunion_asistencia, reunion_asistencia_at, fecha_propuesta, fecha_cierre,
-        stage_updated_at, last_activity_at, created_at,
-        propuestas(id, valor_usd, valor_ars, moneda, estado, created_at, updated_at)
+        id, lead_id, fecha_reunion, reunion_hora, asistencia, asistencia_at, origen,
+        lead:leads(id, nombre, apellido, pais, fuente, estado_pipeline, fecha_ingreso, created_at, deleted_at)
       `)
-      .is('deleted_at', null)
-      .neq('estado_pipeline', 'basura')
-      .not('fecha_reunion', 'is', null)
       .gte('fecha_reunion', fechaDesde)
-      .lte('fecha_reunion', fechaHasta + 'T23:59:59')
-
-    if (paisFilter) reunionesQuery = reunionesQuery.eq('pais', paisFilter)
-    if (fuenteFilter) reunionesQuery = reunionesQuery.eq('fuente', fuenteFilter)
+      .lte('fecha_reunion', fechaHasta)
 
     // Propuestas del período: filtradas por fecha_propuesta del LEAD (la
     // fecha real que se ve en la ficha), no por fecha_ingreso ni por el
@@ -230,8 +247,29 @@ export async function GET(req: NextRequest) {
       .filter(l => !EXCLUDED.has(l.estado_pipeline))
     // Leads closed in period (by fecha_cierre) — used for resumen KPIs
     const cierresEnPeriodo: LeadRow[] = (cierresResult.data ?? []) as unknown as LeadRow[]
-    const reunionesCanceladasAlora: LeadRow[] = (canceladasAloraResult.data ?? []) as unknown as LeadRow[]
-    const reunionesEnPeriodo: LeadRow[] = (reunionesResult.data ?? []) as unknown as LeadRow[]
+
+    // reuniones.* no soporta filtrar por pais/fuente/deleted_at del lead
+    // relacionado en la query en sí (relación embebida) -- se filtra acá.
+    // No se excluye EXCLUDED (testing/consulta_cliente) para no cambiar el
+    // comportamiento previo: reunionesQuery nunca las excluyó, solo basura.
+    function scopeReuniones(list: ReunionRow[], opts: { excludeBasura: boolean }) {
+      return list.filter(r => {
+        if (!r.lead || r.lead.deleted_at) return false
+        if (opts.excludeBasura && r.lead.estado_pipeline === 'basura') return false
+        if (paisFilter && r.lead.pais !== paisFilter) return false
+        if (fuenteFilter && r.lead.fuente !== fuenteFilter) return false
+        return true
+      })
+    }
+
+    const reunionesCanceladasAlora: ReunionRow[] = scopeReuniones(
+      (canceladasAloraResult.data ?? []) as unknown as ReunionRow[],
+      { excludeBasura: false }
+    )
+    const reunionesEnPeriodo: ReunionRow[] = scopeReuniones(
+      (reunionesResult.data ?? []) as unknown as ReunionRow[],
+      { excludeBasura: true }
+    )
 
     // Leads con propuesta enviada en el período (por fecha_propuesta, ver
     // propuestasQuery arriba) -- excluye testing/consulta_cliente igual que
@@ -295,16 +333,20 @@ export async function GET(req: NextRequest) {
     //   agendada y luego marcados No cualificado.
     const reunionesAgendadas = cualificados.filter(l => !!l.fecha_reunion)
     const reunionesRealizadas = cualificados.filter(l => l.reunion_asistencia === 'se_presento')
-    // *Total usa reunionesEnPeriodo (filtrado por fecha_reunion), no el set
-    // base "leads" (filtrado por fecha_ingreso) -- ver comentario en la query.
+    // *Total usa reunionesEnPeriodo -- una fila por REUNIÓN (tabla `reuniones`),
+    // no una fila por LEAD como el resto de este archivo. Un lead que
+    // reagendó una vez aparece acá dos veces, cada instancia con su propio
+    // resultado -- "quiero que cuenten las dos!!! porque son dos agendadas!!!".
     const reunionesAgendadasTotal = reunionesEnPeriodo
-    const reunionesRealizadasTotal = reunionesEnPeriodo.filter(l => l.reunion_asistencia === 'se_presento')
+    const reunionesRealizadasTotal = reunionesEnPeriodo.filter(r => r.asistencia === 'se_presento')
     const showUpRateTotal = pct(reunionesRealizadasTotal.length, reunionesAgendadasTotal.length)
-    // De las agendadas: no-show real del lead, y las que nadie entró a
-    // confirmar todavía en la ficha (reunion_asistencia sigue null) — para
-    // que se pueda ver y completar lo que falta.
-    const reunionesNoSePresento = reunionesAgendadasTotal.filter(l => l.reunion_asistencia === 'no_se_presento')
-    const reunionesSinInformacion = reunionesAgendadasTotal.filter(l => !l.reunion_asistencia)
+    // De las agendadas: no-show real, reagendadas (instancia cerrada porque
+    // se reagendó a otra fecha, que cuenta aparte como su propia agendada),
+    // y las que nadie entró a confirmar todavía en la ficha (asistencia
+    // sigue null) — para que se pueda ver y completar lo que falta.
+    const reunionesNoSePresento = reunionesAgendadasTotal.filter(r => r.asistencia === 'no_se_presento')
+    const reunionesReagendadas = reunionesAgendadasTotal.filter(r => r.asistencia === 'reagendo')
+    const reunionesSinInformacion = reunionesAgendadasTotal.filter(r => !r.asistencia)
 
     // Leads cualificados con al menos una propuesta real (tabla propuestas,
     // no fecha_propuesta — esa se autocompleta al mover la tarjeta de
@@ -652,6 +694,17 @@ export async function GET(req: NextRequest) {
       }))
     }
 
+    function trimReuniones(list: ReunionRow[]) {
+      return list.map(r => ({
+        id: r.id,
+        nombre: [r.lead?.nombre, r.lead?.apellido].filter(Boolean).join(' '),
+        pais: r.lead?.pais ?? null,
+        fuente: r.lead?.fuente ?? null,
+        estado_pipeline: r.lead?.estado_pipeline ?? '',
+        fecha_ingreso: r.fecha_reunion,
+      }))
+    }
+
     function trimPropuestas(list: { id: string; lead_id: string; lead_nombre: string; valor_usd: number | null; valor_ars: number | null; moneda: string; estado: string }[]) {
       return list.map(p => ({
         id: p.id,
@@ -669,11 +722,12 @@ export async function GET(req: NextRequest) {
       cualificados: trim(cualificados),
       no_cualificados: trim(noCualificadoLeads),
       basura: trim(basuraLeads),
-      reuniones_agendadas: trim(reunionesAgendadasTotal),
-      reuniones_realizadas: trim(reunionesRealizadasTotal),
-      reuniones_no_se_presento: trim(reunionesNoSePresento),
-      reuniones_sin_informacion: trim(reunionesSinInformacion),
-      reuniones_canceladas_alora: trim(reunionesCanceladasAlora),
+      reuniones_agendadas: trimReuniones(reunionesAgendadasTotal),
+      reuniones_realizadas: trimReuniones(reunionesRealizadasTotal),
+      reuniones_no_se_presento: trimReuniones(reunionesNoSePresento),
+      reuniones_reagendadas: trimReuniones(reunionesReagendadas),
+      reuniones_sin_informacion: trimReuniones(reunionesSinInformacion),
+      reuniones_canceladas_alora: trimReuniones(reunionesCanceladasAlora),
       con_propuesta: trim(cualificadosConPropuesta),
       ganados: trim(ganados),
       perdidos: trim(perdidos),
@@ -724,6 +778,7 @@ export async function GET(req: NextRequest) {
         realizadas: reunionesRealizadasTotal.length,
         canceladas_alora: reunionesCanceladasAlora.length,
         no_se_presento: reunionesNoSePresento.length,
+        reagendadas: reunionesReagendadas.length,
         sin_informacion: reunionesSinInformacion.length,
         show_up_rate: showUpRateTotal,
       },
@@ -743,6 +798,7 @@ export async function GET(req: NextRequest) {
         reuniones_realizadas: 'De las agendadas, las que se confirmaron manualmente en la ficha del lead como "se presentó" — incluye leads reclasificados a No cualificado después de la reunión. Antes del 17/08/2026 este dato es poco confiable por una carga masiva histórica vía TidyCal.',
         reuniones_canceladas_alora: 'Reuniones que ALORA decidió no dar (ej. tras más charla por WhatsApp el lead no da la talla) — no cuentan como "no show" del lead ni bajan el show-up rate. Se mide por cuándo se marcó la cancelación, no por cuándo ingresó el lead.',
         reuniones_no_se_presento: 'De las agendadas, las que se confirmaron manualmente en la ficha del lead como "no se presentó".',
+        reuniones_reagendadas: 'Reuniones que se reagendaron a otra fecha. La reunión nueva se cuenta aparte, como su propia "agendada" — un lead que reagendó una vez suma 2 en el total de agendadas, no 1.',
         reuniones_sin_informacion: 'De las agendadas, las que todavía nadie confirmó en la ficha del lead (ni se presentó, ni no se presentó, ni cancelada por ALORA) — hacé clic para verlas y completarlas.',
         show_up_rate: 'Reuniones realizadas ÷ reuniones agendadas. Cuántas de las reuniones que se agendan realmente se concretan.',
         tasa_cierre_ganado: 'Cierres ganados ÷ leads cualificados del período (no se cuentan Basura ni No cualificado en la base, porque nunca iban a cerrar).',

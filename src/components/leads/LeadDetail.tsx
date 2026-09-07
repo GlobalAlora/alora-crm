@@ -169,6 +169,11 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
     patch(updates)
   }
 
+  // Reuniones ya cerradas (con resultado) de este lead, para el historial en
+  // MeetingStatusCheck -- la vigente (asistencia null) no se repite ahí, ya
+  // se ve arriba en los botones.
+  const reunionHistory = (lead.reuniones ?? []).filter((r) => r.asistencia !== null)
+
   const startEditName = () => {
     setEditNombre(lead.nombre || '')
     setEditApellido(lead.apellido || '')
@@ -561,12 +566,18 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                 />
                 {lead.fecha_reunion && (
                   <MeetingStatusCheck
+                    // Remonta (y resetea su estado local) cuando cambia la
+                    // reunión vigente -- p.ej. después de un reagendo, donde
+                    // fecha_reunion pasa a ser la nueva y reunion_asistencia
+                    // vuelve a null.
+                    key={`${lead.fecha_reunion}-${lead.reunion_asistencia ?? ''}`}
                     leadId={lead.id}
                     current={lead.reunion_asistencia ?? null}
                     currentFecha={lead.fecha_reunion}
                     currentHora={lead.reunion_hora}
                     currentLink={lead.reunion_link}
                     onSave={handleMeetingStatus}
+                    history={reunionHistory}
                   />
                 )}
                 {lead.calendar_event_url && (
@@ -811,12 +822,18 @@ export function LeadDetail({ lead, onClose, onStageChange, fullPage }: LeadDetai
                 />
                 {lead.fecha_reunion && (
                   <MeetingStatusCheck
+                    // Remonta (y resetea su estado local) cuando cambia la
+                    // reunión vigente -- p.ej. después de un reagendo, donde
+                    // fecha_reunion pasa a ser la nueva y reunion_asistencia
+                    // vuelve a null.
+                    key={`${lead.fecha_reunion}-${lead.reunion_asistencia ?? ''}`}
                     leadId={lead.id}
                     current={lead.reunion_asistencia ?? null}
                     currentFecha={lead.fecha_reunion}
                     currentHora={lead.reunion_hora}
                     currentLink={lead.reunion_link}
                     onSave={handleMeetingStatus}
+                    history={reunionHistory}
                   />
                 )}
                 {lead.calendar_event_url && (
