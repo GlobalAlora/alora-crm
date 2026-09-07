@@ -124,9 +124,12 @@ function extractName(raw: string): string {
 
 // Detect whether a message is written in English.
 // Returns 'en' if 2+ English indicator words are found, otherwise 'es'.
+// Special case: a message that is ONLY an English greeting counts as English
+// (single-word "Hi" / "Hello" / "Hey" would score 0 keyword hits otherwise).
 export function detectLanguage(text: string): 'en' | 'es' {
   if (!text) return 'es'
-  const hits = text.match(/\b(i am|i'm|i'd|i've|i'll|i would|i need|i want|hello|hi there|hey there|my name is|please|thank you|thanks|what are|how do|can you|do you|are you|services|website|marketing|design|looking for|interested in|recently|submitted|let me know|your team|find out|more about|we are|we're|our company|our business|my company|my business|we need|we want|we would|could you|would you|digital marketing|web design|social media|branding)\b/gi)
+  if (/^\s*(hi|hey|hello|howdy|good\s+(?:morning|afternoon|evening|day))[\s!?.]*$/i.test(text.trim())) return 'en'
+  const hits = text.match(/\b(i am|i'm|i'd|i've|i'll|i would|i need|i want|hello|hi there|hey there|hi|hey|my name is|please|thank you|thanks|what are|how do|can you|do you|are you|services|website|marketing|design|looking for|interested in|recently|submitted|let me know|your team|find out|more about|we are|we're|our company|our business|my company|my business|we need|we want|we would|could you|would you|digital marketing|web design|social media|branding)\b/gi)
   return hits && hits.length >= 2 ? 'en' : 'es'
 }
 type Lang = 'en' | 'es'
@@ -582,7 +585,7 @@ Other:
 
 - If asked specifically about Google Ads campaign case studies: "We don't have Ads campaign case studies to show you, but every website we build is ready to run Google Ads on top without any issue 🙂" — you can then show a portfolio case from the matching category (service or store), making clear it's a website example, not an ads campaign
 
-GO TO BOOKING: when you have project description + country + website + email — all 4, no exceptions. Never go to booking without the email.
+GO TO BOOKING: when you have project description + website + email — all 3, no exceptions. Never go to booking without the email.
 GO TO STOP: if the lead clearly doesn't want to continue. Respond warmly before stopping.`
 
 // Structured output tool — replaces fragile SEND/UPDATE/NEXT text parsing.
