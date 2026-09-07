@@ -141,6 +141,14 @@ interface DetalleLead {
   fuente: string | null
   estado_pipeline: string
   fecha_ingreso: string | null
+  fecha_reunion?: string | null
+}
+
+function formatShortDate(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return null
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', timeZone: 'America/Argentina/Buenos_Aires' })
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -312,6 +320,10 @@ function DetailModal({ title, items, onClose, router }: {
                       {[l.pais, l.fuente].filter(Boolean).join(' · ')}
                     </span>
                   )}
+                  <span className="text-[10px] text-slate-400 whitespace-nowrap">
+                    {l.fecha_reunion && `Reunión ${formatShortDate(l.fecha_reunion)} · `}
+                    Ingresó {formatShortDate(l.fecha_ingreso) ?? '—'}
+                  </span>
                 </div>
                 <ChevronRight size={14} className="text-slate-300 group-hover:text-slate-400 flex-shrink-0 transition-colors" />
               </button>

@@ -710,7 +710,11 @@ export async function GET(req: NextRequest) {
         pais: r.lead?.pais ?? null,
         fuente: r.lead?.fuente ?? null,
         estado_pipeline: r.lead?.estado_pipeline ?? '',
-        fecha_ingreso: r.fecha_reunion,
+        // fecha_ingreso mantiene su significado real (cuándo entró el lead)
+        // en todas las listas del drill-down; fecha_reunion es la fecha de
+        // ESTA reunión puntual, propia de las listas basadas en `reuniones`.
+        fecha_ingreso: r.lead?.fecha_ingreso ?? r.lead?.created_at ?? null,
+        fecha_reunion: r.fecha_reunion,
       }))
     }
 
