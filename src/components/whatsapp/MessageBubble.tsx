@@ -57,14 +57,17 @@ export function MessageBubble({ message }: Props) {
           </div>
         )}
 
-        {/* Media placeholder */}
-        {message.media_type && (
-          <p className={cn(
-            'text-xs italic mb-1',
-            isOutbound ? 'text-blue-200' : 'text-slate-400'
-          )}>
-            [{message.media_type}]
-          </p>
+        {/* Media: inline image or type placeholder */}
+        {message.media_type === 'image' && message.media_url && (
+          <a href={message.media_url} target="_blank" rel="noopener noreferrer">
+            <img src={message.media_url} alt="imagen" className="rounded-lg max-w-xs mb-1 cursor-pointer hover:opacity-90 transition-opacity" />
+          </a>
+        )}
+        {message.media_type === 'image' && !message.media_url && (
+          <p className={cn('text-xs italic mb-1', isOutbound ? 'text-blue-200' : 'text-slate-400')}>[imagen]</p>
+        )}
+        {message.media_type && message.media_type !== 'image' && (
+          <p className={cn('text-xs italic mb-1', isOutbound ? 'text-blue-200' : 'text-slate-400')}>[{message.media_type}]</p>
         )}
 
         <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">

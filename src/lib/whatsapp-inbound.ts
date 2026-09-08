@@ -31,6 +31,7 @@ export interface InboundWhatsAppMessage {
   text: string | null
   waMessageId: string | null
   mediaType?: string | null
+  mediaUrl?: string | null
 }
 
 /**
@@ -41,7 +42,7 @@ export interface InboundWhatsAppMessage {
 export async function recordInboundWhatsAppMessage(admin: AdminClient, msg: InboundWhatsAppMessage): Promise<void> {
   // Normalize phone: strip everything except digits so "+549..." and "549..." always resolve to the same lead.
   const phone = msg.phone.replace(/\D/g, '')
-  const { name, text, waMessageId, mediaType } = msg
+  const { name, text, waMessageId, mediaType, mediaUrl } = msg
 
   const leadId = await findOrCreateLeadByPhone(admin, { phone, name, text })
 
@@ -75,6 +76,7 @@ export async function recordInboundWhatsAppMessage(admin: AdminClient, msg: Inbo
       wa_message_id:   waMessageId ?? null,
       status:          'read',
       media_type:      mediaType ?? null,
+      media_url:       mediaUrl ?? null,
     })
 
   if (msgError) {
