@@ -792,7 +792,8 @@ async function advanceQualifyingBotWithAI(
 
     if (siguiente === 'BOOKING') {
       if (mensaje) await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: mensaje })
-      await startBookingFlow(admin, { leadId, conversationId, phone }, 0, undefined, lang)
+      const usedPreferred = await tryPreferredSlotBooking(admin, { leadId, conversationId, phone }, messages ?? [], lang)
+      if (!usedPreferred) await startBookingFlow(admin, { leadId, conversationId, phone }, 0, undefined, lang)
       return
     }
 
@@ -1333,17 +1334,84 @@ async function startBookingFlow(
 }
 
 /**
+ * Before showing the generic slot list, check if the lead mentioned a specific
+ * day/time preference in their last few messages. If that slot is available in
+ * the calendar, present it directly for a one-tap confirmation instead of
+ * dumping the full list. Returns true if a slot was found and offered.
+ */
+async function tryPreferredSlotBooking(
+  admin: AdminClient,
+  { leadId, conversationId, phone }: { leadId: string; conversationId: string; phone: string },
+  messages: Array<{ direction: string; body: string | null }>,
+  lang: Lang,
+): Promise<boolean> {
+  const tz = timezoneFromPhone(phone)
+  const inbound = messages
+    .filter(m => m.direction === 'inbound' && m.body)
+    .slice(-6)
+    .reverse() // newest first
+  if (!inbound.length) return false
+
+  // Look ahead up to 7 available days so we can find a requested day that is
+  // a few days out (e.g. "viernes" when today is Monday)
+  const days = await getAvailableSlotsByDay(7, 0)
+  const allSlots: Date[] = days.flatMap(d => d.slots)
+  if (!allSlots.length) return false
+
+  for (const msg of inbound) {
+    const idx = findSlotByDayTime(msg.body!.trim(), allSlots, tz)
+    if (idx < 0) continue
+
+    const slot     = allSlots[idx]
+    const dayLabel = localDateLabel(slot, tz)
+    const hora     = localHora(slot, tz)
+    // NEXT_SKIP=0 so "otros" falls back to the full list from the start
+    const encoded  = `0:::${slot.toISOString()}`
+
+    const body = lang === 'en'
+      ? `${dayLabel} at ${hora} is available! ✅\n\n📅 *${dayLabel}*\n${SLOT_EMOJIS[0]} ${hora} hs\n\nReply *1* to confirm, or *"others"* to see more options.`
+      : `¡El ${dayLabel} a las ${hora} está disponible! ✅\n\n📅 *${dayLabel}*\n${SLOT_EMOJIS[0]} ${hora} hs\n\nRespondé *1* para confirmar, o *"otros"* para ver más horarios.`
+
+    const sent = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body })
+    if (!sent) return false
+
+    await admin.from('whatsapp_conversations')
+      .update({ bot_phase: 'booking', bot_next_question: `${BOOKING_SLOTS_PREFIX}${encoded}` })
+      .eq('id', conversationId)
+    return true
+  }
+  return false
+}
+
+/**
  * Tries to find a slot index by matching a natural-language time/day phrase.
  * E.g. "viernes 24 15hs", "el lunes a las 15:30", "15h".
  * Returns -1 if no match found.
  */
 function findSlotByDayTime(trimmed: string, slots: Date[], tz: string): number {
-  // Match "15:30hs", "15hs", "15h30" — or plain "15:30" without suffix
-  const timeMatch = trimmed.match(/\b(\d{1,2})(?:[:.h](\d{2}))?\s*h(?:s|oras?)?\b/i)
+  // Try am/pm format first ("10am", "10:00 am", "2pm") — must be checked before
+  // the generic hour regex so "10am" doesn't lose the meridiem context.
+  const ampmMatch = trimmed.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
+  const hMatch    = trimmed.match(/\b(\d{1,2})(?:[:.h](\d{2}))?\s*h(?:s|oras?)?\b/i)
     ?? trimmed.match(/\b(\d{1,2}):(\d{2})\b/)
-  if (!timeMatch) return -1
-  const targetHour = parseInt(timeMatch[1], 10)
-  const targetMin  = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0
+
+  let targetHour: number, targetMin: number
+  let activeMatchStr: string
+
+  if (ampmMatch) {
+    targetHour = parseInt(ampmMatch[1], 10)
+    targetMin  = ampmMatch[2] ? parseInt(ampmMatch[2], 10) : 0
+    const mer  = ampmMatch[3].toLowerCase()
+    if (mer === 'pm' && targetHour < 12) targetHour += 12
+    else if (mer === 'am' && targetHour === 12) targetHour = 0
+    activeMatchStr = ampmMatch[0]
+  } else if (hMatch) {
+    targetHour = parseInt(hMatch[1], 10)
+    targetMin  = hMatch[2] ? parseInt(hMatch[2], 10) : 0
+    activeMatchStr = hMatch[0]
+  } else {
+    return -1
+  }
   if (targetHour < 0 || targetHour > 23) return -1
 
   const lower = trimmed.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -1358,7 +1426,7 @@ function findSlotByDayTime(trimmed: string, slots: Date[], tz: string): number {
 
   // Date number (1-31) — strip the matched time first to avoid minutes being treated as a date
   let targetDate: number | null = null
-  const withoutTime = trimmed.replace(timeMatch[0], ' ')
+  const withoutTime = trimmed.replace(activeMatchStr, ' ')
   const dateNums = [...withoutTime.matchAll(/\b(\d{1,2})\b/g)]
     .map(m => parseInt(m[1], 10))
     .filter(n => n >= 1 && n <= 31)
