@@ -1134,6 +1134,19 @@ async function advanceQualifyingBot(
 
     if (!claimed?.length) return
 
+    // If the lead's first message is already a real inquiry (not just a greeting),
+    // send the welcome alone and let the AI respond — it will acknowledge what they
+    // wrote and ask for the name naturally in one message, instead of ignoring the
+    // content and asking "¿Cómo te llamás?" as if it were a blank form.
+    if (!isJustGreeting && trimmed) {
+      await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: getWelcome(lang) })
+      await admin.from('whatsapp_conversations')
+        .update({ bot_phase: 'qualifying_ai', bot_next_question: null })
+        .eq('id', conversationId)
+      await advanceQualifyingBotWithAI(admin, { leadId, conversationId, phone, text, lang })
+      return
+    }
+
     await sendOutboundWhatsAppMessage(admin, {
       conversationId,
       leadId,
