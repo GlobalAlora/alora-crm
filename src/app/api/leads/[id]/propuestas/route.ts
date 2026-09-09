@@ -84,6 +84,17 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   await syncLeadValorPropuesta(supabase, id)
 
+  // leads.fecha_propuesta refleja la propuesta MÁS RECIENTE -- a diferencia
+  // del auto-stamp por cambio de etapa (que solo pisa si está vacío, para
+  // no perder una fecha real cargada a mano), acá se actualiza siempre:
+  // un lead puede recibir una segunda propuesta sin volver a pasar por la
+  // columna "Propuesta enviada" (p.ej. ya está en Follow up), y sin este
+  // update esa propuesta nueva quedaba invisible en los reportes del mes
+  // real en que se mandó -- confirmado con un caso real (lead con una
+  // propuesta rechazada en agosto y otra nueva en septiembre que no
+  // aparecía en "propuestas enviadas" de septiembre).
+  await supabase.from('leads').update({ fecha_propuesta: new Date().toISOString() }).eq('id', id)
+
   return NextResponse.json({ data })
 }
 
