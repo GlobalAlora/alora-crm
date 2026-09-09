@@ -131,6 +131,10 @@ export interface Propuesta {
   link: string | null
   slug: string | null
   contenido: PropuestaDocumentos | null
+  // Fecha real de envío de ESTA propuesta puntual -- un lead puede tener
+  // varias en distintos períodos (una rechazada, una nueva). Ver
+  // scripts/add-propuesta-fecha-envio.sql.
+  fecha_envio: string | null
   created_at: string
   updated_at: string
 }

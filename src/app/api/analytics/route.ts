@@ -64,6 +64,33 @@ type Propuesta = {
   estado: string
   created_at: string
   updated_at: string
+  fecha_envio?: string | null
+}
+
+// Una fila por propuesta enviada (no por lead) -- cada propuesta tiene su
+// propia fecha_envio real, independiente de leads.fecha_propuesta (que solo
+// refleja la más reciente) y de created_at (poco confiable para filas
+// migradas/backfileadas). Ver scripts/add-propuesta-fecha-envio.sql.
+type PropuestaEnviadaRow = {
+  id: string
+  lead_id: string
+  valor_usd: number | null
+  valor_ars: number | null
+  moneda: 'USD' | 'ARS'
+  estado: string
+  fecha_envio: string
+  lead: {
+    id: string
+    nombre: string
+    apellido: string | null
+    empresa: string | null
+    pais: string | null
+    fuente: string | null
+    estado_pipeline: string
+    fecha_ingreso: string | null
+    created_at: string
+    deleted_at: string | null
+  } | null
 }
 
 type LeadRow = {
@@ -211,30 +238,25 @@ export async function GET(req: NextRequest) {
       .gte('fecha_reunion', fechaDesde)
       .lte('fecha_reunion', fechaHasta)
 
-    // Propuestas del período: filtradas por fecha_propuesta del LEAD (la
-    // fecha real que se ve en la ficha), no por fecha_ingreso ni por el
-    // created_at de la fila de propuestas -- ninguna de las dos es
-    // confiable acá. fecha_ingreso reproduce el mismo bug que reunionesQuery
-    // de arriba. created_at de la propuesta tampoco sirve: una propuesta
-    // vieja cargada tarde en el sistema (o generada como prueba) tiene un
-    // created_at reciente que no refleja cuándo se envió de verdad --
-    // confirmado con un caso real: fecha_propuesta 23/02 pero la fila se
-    // creó recién en septiembre, y aparecía en el mes equivocado.
-    let propuestasQuery = adminSupabase
-      .from('leads')
+    // Propuestas del período: cada FILA de `propuestas` tiene su propia
+    // fecha_envio real (ver scripts/add-propuesta-fecha-envio.sql), así que
+    // se filtra directo ahí -- no por leads.fecha_propuesta (una sola fecha
+    // por lead: un lead con una propuesta rechazada en agosto y otra nueva
+    // en septiembre mostraba las DOS en cualquiera de los dos meses, porque
+    // "calificar" era una propiedad del lead entero, no de cada propuesta).
+    // No se usa created_at porque no es confiable para propuestas viejas
+    // cargadas/migradas después de la fecha real de envío -- confirmado con
+    // casos reales (fecha real de febrero, fila creada recién en
+    // septiembre).
+    const propuestasQuery = adminSupabase
+      .from('propuestas')
       .select(`
-        id, nombre, apellido, empresa, pais, fuente, estado_pipeline,
-        fecha_ingreso, fecha_contacto, fecha_reunion, reunion_asistencia, reunion_asistencia_at, fecha_propuesta, fecha_cierre,
-        stage_updated_at, last_activity_at, created_at,
-        propuestas(id, valor_usd, valor_ars, moneda, estado, created_at, updated_at)
+        id, lead_id, valor_usd, valor_ars, moneda, estado, fecha_envio,
+        lead:leads(id, nombre, apellido, empresa, pais, fuente, estado_pipeline, fecha_ingreso, created_at, deleted_at)
       `)
-      .is('deleted_at', null)
-      .not('fecha_propuesta', 'is', null)
-      .gte('fecha_propuesta', fechaDesde)
-      .lte('fecha_propuesta', fechaHasta + 'T23:59:59')
-
-    if (paisFilter) propuestasQuery = propuestasQuery.eq('pais', paisFilter)
-    if (fuenteFilter) propuestasQuery = propuestasQuery.eq('fuente', fuenteFilter)
+      .not('fecha_envio', 'is', null)
+      .gte('fecha_envio', fechaDesde)
+      .lte('fecha_envio', fechaHasta + 'T23:59:59')
 
     // Propuestas abiertas (pendientes de respuesta): a propósito NO se
     // filtra por fecha_desde/fecha_hasta -- es un KPI de "cuánto tenés
@@ -287,41 +309,46 @@ export async function GET(req: NextRequest) {
       { excludeBasura: true }
     )
 
-    // Leads con propuesta enviada en el período (por fecha_propuesta, ver
-    // propuestasQuery arriba) -- excluye testing/consulta_cliente igual que
-    // el set base "leads".
-    const leadsConPropuestaEnPeriodo: LeadRow[] = ((propuestasResult.data ?? []) as unknown as LeadRow[])
-      .filter(l => !EXCLUDED.has(l.estado_pipeline))
+    // Propuestas enviadas en el período: una fila por propuesta (ver
+    // propuestasQuery arriba, filtrada por fecha_envio) -- excluye
+    // testing/consulta_cliente igual que el set base "leads", y
+    // deleted_at/pais/fuente como el resto de las queries por relación
+    // embebida (ver scopeReuniones).
+    const propuestasEnPeriodo: PropuestaEnviadaRow[] = ((propuestasResult.data ?? []) as unknown as PropuestaEnviadaRow[])
+      .filter(p => {
+        if (!p.lead || p.lead.deleted_at) return false
+        if (EXCLUDED.has(p.lead.estado_pipeline)) return false
+        if (paisFilter && p.lead.pais !== paisFilter) return false
+        if (fuenteFilter && p.lead.fuente !== fuenteFilter) return false
+        return true
+      })
 
-    // Un lead puede tener varias propuestas de distintos meses (una vieja
-    // rechazada, una nueva pendiente). fecha_propuesta del lead SIEMPRE
-    // refleja la MÁS RECIENTE (ver POST /api/leads/[id]/propuestas), así que
-    // acá se toma solo esa -- no todas las propuestas del lead -- para no
-    // arrastrar una propuesta de otro mes al período actual solo porque
-    // comparte lead con una que sí es de este período. Confirmado con un
-    // caso real: la propuesta de agosto de un lead aparecía también en
-    // septiembre porque su propuesta nueva de septiembre hacía que el lead
-    // entero calificara.
-    function propuestaMasReciente(list: Propuesta[] | null): Propuesta[] {
-      if (!list || list.length === 0) return []
-      return [list.reduce((a, b) => new Date(a.created_at) > new Date(b.created_at) ? a : b)]
-    }
-
-    const allPropuestas = leadsConPropuestaEnPeriodo.flatMap(l => propuestaMasReciente(l.propuestas))
+    const allPropuestas: Propuesta[] = propuestasEnPeriodo.map(p => ({
+      id: p.id,
+      valor_usd: p.valor_usd,
+      valor_ars: p.valor_ars,
+      moneda: p.moneda,
+      estado: p.estado,
+      created_at: p.fecha_envio,
+      updated_at: p.fecha_envio,
+      fecha_envio: p.fecha_envio,
+    }))
     // Same propuestas, but keeping which lead each one belongs to — needed
     // for the "Propuestas enviadas/ganadas" drill-down (allPropuestas alone
     // loses that context).
-    const allPropuestasConLead = leadsConPropuestaEnPeriodo.flatMap(l =>
-      propuestaMasReciente(l.propuestas).map(p => ({
-        ...p,
-        lead_id: l.id,
-        lead_nombre: [l.nombre, l.apellido].filter(Boolean).join(' '),
-        lead_empresa: l.empresa,
-        lead_pais: l.pais,
-        lead_fuente: l.fuente,
-        lead_fecha_ingreso: l.fecha_ingreso ?? l.created_at,
-      }))
-    )
+    const allPropuestasConLead = propuestasEnPeriodo.map(p => ({
+      id: p.id,
+      valor_usd: p.valor_usd,
+      valor_ars: p.valor_ars,
+      moneda: p.moneda,
+      estado: p.estado,
+      lead_id: p.lead_id,
+      lead_nombre: [p.lead?.nombre, p.lead?.apellido].filter(Boolean).join(' '),
+      lead_empresa: p.lead?.empresa ?? null,
+      lead_pais: p.lead?.pais ?? null,
+      lead_fuente: p.lead?.fuente ?? null,
+      lead_fecha_ingreso: p.lead?.fecha_ingreso ?? p.lead?.created_at ?? null,
+    }))
 
     // Propuestas abiertas: todas las "pendiente" que existen hoy, sin
     // filtrar por período -- ver comentario en abiertasQuery.

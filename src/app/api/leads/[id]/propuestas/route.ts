@@ -61,6 +61,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   // crudo. Si no viene contenido (creación manual sin link), no hace falta.
   const slug = contenido ? await uniqueSlug(supabase, descripcion) : null
 
+  const now = new Date().toISOString()
+
   const { data, error } = await supabase
     .from('propuestas')
     .insert({
@@ -74,6 +76,11 @@ export async function POST(req: NextRequest, { params }: Params) {
       link: slug ? `/propuesta/${slug}` : (link || null),
       slug,
       contenido: contenido || null,
+      // Fecha real de ESTA propuesta puntual -- distinta de created_at
+      // (que puede no reflejar el envío real para filas migradas/backfileadas)
+      // y de leads.fecha_propuesta (una sola por lead, no sirve si el lead
+      // tiene más de una propuesta en distintos períodos).
+      fecha_envio: now,
     })
     .select()
     .single()
@@ -93,7 +100,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   // real en que se mandó -- confirmado con un caso real (lead con una
   // propuesta rechazada en agosto y otra nueva en septiembre que no
   // aparecía en "propuestas enviadas" de septiembre).
-  await supabase.from('leads').update({ fecha_propuesta: new Date().toISOString() }).eq('id', id)
+  await supabase.from('leads').update({ fecha_propuesta: now }).eq('id', id)
 
   return NextResponse.json({ data })
 }
