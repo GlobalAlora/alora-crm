@@ -271,10 +271,22 @@ async function handleIncomingMessage(m) {
     }
   }
 
+  let imageBase64 = null
+  let imageMimetype = null
+  if (mediaType === 'image' && sock) {
+    try {
+      const buffer = await downloadMediaMessage(m, 'buffer', {}, { logger, reuploadRequest: sock.updateMediaMessage })
+      imageBase64 = buffer.toString('base64')
+      imageMimetype = m.message.imageMessage?.mimetype || 'image/jpeg'
+    } catch (err) {
+      logger.warn({ err: err.message }, 'No se pudo descargar la imagen')
+    }
+  }
+
   logger.info({ rawJid, isLid, jidDigits, phone, name, text, mediaType }, 'Mensaje entrante procesado')
 
   const res = await postToWebhookWithRetry(
-    { phone, name, text, waMessageId: m.key.id, mediaType, audioBase64, audioMimetype },
+    { phone, name, text, waMessageId: m.key.id, mediaType, audioBase64, audioMimetype, imageBase64, imageMimetype },
     { label: 'inbound' },
   )
   if (res) logger.info({ phone }, 'Mensaje reenviado al CRM ok')

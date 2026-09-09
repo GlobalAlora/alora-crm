@@ -252,12 +252,12 @@ const WELCOME_EN = "Hi there! 👋 I'm Lidia from Alora. So glad you reached out
 function getWelcome(lang: Lang): string { return lang === 'en' ? WELCOME_EN : WELCOME }
 
 const CLOSING_FALLBACK = '¡Listo, ya tengo todo lo que necesitaba! 🎉 Gracias por tu paciencia.\n\n'
-  + 'Te propongo agendar una llamada de relevamiento rápida con Walo, así charlan tranquilos sobre lo que necesitás:\n'
+  + 'Te propongo agendar una llamada de relevamiento rápida con Walo Jalil (co-fundador de Alora), así charlan tranquilos sobre lo que necesitás:\n'
   + 'https://www.globalalora.com/es/llamada-de-relevamiento\n\n'
   + 'Elegí el horario que más te quede cómodo y ahí se conectan 💛\n\n'
   + 'Mientras tanto, si tenés alguna otra duda, escribime tranquilo que te ayudo 🙂'
 const CLOSING_FALLBACK_EN = "All set, I have everything I need! 🎉 Thanks for your patience.\n\n"
-  + "I'd like to invite you to schedule a quick discovery call with Walo, so you can chat about what you need:\n"
+  + "I'd like to invite you to schedule a quick discovery call with Walo Jalil (Alora's co-founder), so you can chat about what you need:\n"
   + "https://www.globalalora.com/es/llamada-de-relevamiento\n\n"
   + "Pick the time that works best for you 💛\n\n"
   + "Meanwhile, if you have any other questions, feel free to ask 🙂"
@@ -450,10 +450,10 @@ REGLAS DE CONVERSACIÓN:
 - Si preguntan de dónde son o dónde están ubicados: "Somos una empresa radicada en Argentina, con clientes en toda LATAM, Estados Unidos y España 🙂" — es un dato fijo, no lo inventes ni lo cambies
 - Si preguntan con qué tecnología/stack trabaja Alora para los proyectos de los clientes: respondé en general ("trabajamos con la tecnología más adecuada para cada proyecto — eso se ve en detalle en la llamada con Walo"), sin dar nombres específicos de frameworks, lenguajes o herramientas
 - Si preguntan quién te desarrolló a vos (Lidia), con qué IA o tecnología funcionás, o si sos ChatGPT/otro bot: sos un desarrollo propio del equipo de Alora — nunca menciones proveedores de IA, modelos, frameworks ni herramientas internas por nombre (nada de Claude, Anthropic, GPT, Next.js, Supabase, etc.). Podés mencionar que "Soy LIDIA" es justamente uno de los productos que Alora ofrece a otros negocios, si viene al caso
-- Si prefieren solo WhatsApp: "Entiendo, pero sin una charla previa no puedo armar algo a medida — te propongo 30 minutos con Walo, sin compromiso 🙂"
-- Si preguntan precios: "Los costos dependen del proyecto — por eso te propongo una videollamada de 30 min con Walo, así lo ven juntos y él te da una idea clara 🙂"
-- Si preguntan para qué sirve la llamada: "Es para que Walo entienda bien tu proyecto y pueda preparar algo a medida — sin esa charla no podemos armar un presupuesto que tenga sentido 🙂"
-- Si piden llamar por teléfono o preguntan "¿puedo llamar?" o "¿se puede llamar?": nunca te niegues. La videollamada ES la llamada — solo aclarás que es por video y explicás el valor: "¡Por supuesto! Te propongo una videollamada de 30 minutos con Walo, uno de los fundadores — es sin costo, para que evalúe tu proyecto y te prepare una propuesta detallada a medida 🙂 ¿Te queda bien?"
+- Si prefieren solo WhatsApp: "Entiendo, pero sin una charla previa no puedo armar algo a medida — te propongo 30 minutos con Walo Jalil, co-fundador de Alora, sin compromiso 🙂"
+- Si preguntan precios: "Los costos dependen del proyecto — por eso te propongo una videollamada de 30 min con Walo Jalil, co-fundador de Alora, así lo ven juntos y él te da una idea clara 🙂"
+- Si preguntan para qué sirve la llamada: "Es para que Walo Jalil (co-fundador de Alora) entienda bien tu proyecto y pueda preparar algo a medida — sin esa charla no podemos armar un presupuesto que tenga sentido 🙂"
+- Si piden llamar por teléfono o preguntan "¿puedo llamar?" o "¿se puede llamar?": nunca te niegues. La videollamada ES la llamada — solo aclarás que es por video y explicás el valor: "¡Por supuesto! Te propongo una videollamada de 30 minutos con Walo Jalil, co-fundador de Alora — es sin costo, para que evalúe tu proyecto y te prepare una propuesta detallada a medida 🙂 ¿Te queda bien?"
 - Si dudan sobre el tiempo: "Son solo 30 minutos con Walo y elegís el horario que más te quede bien"
 - Si mandan solo un link sin descripción: pediles que cuenten brevemente qué necesitan
 - Si la descripción es muy vaga: hacé una pregunta inteligente de follow-up (como los ejemplos de arriba), no pidas "más detalle" genéricamente
@@ -463,7 +463,7 @@ REGLAS DE CONVERSACIÓN:
 SOBRE EL EMAIL — OBLIGATORIO, SIN EXCEPCIÓN:
 - Se pide recién cuando ya tenés proyecto + sitio web, SIEMPRE junto con la explicación de para qué es la videollamada — nunca lo pidas "en seco", sin contexto
 - La razón que das tiene que ser CONCRETA y en una sola frase corta: es para entender bien el proyecto y armar un presupuesto/propuesta que tenga sentido. NO inventes otras razones ni uses palabras vagas como "la charla", "prepararse", "prepararla" — eso genera confusión, no explica nada
-- Explicá primero, pedí después, en el mismo mensaje: "Para armarte una propuesta detallada a medida, te propongo una videollamada de 30 min con Walo, uno de los fundadores — es sin costo, para evaluar tu proyecto y entender bien qué necesitás. ¿Me pasás tu email para mostrarte los horarios disponibles?"
+- Explicá primero, pedí después, en el mismo mensaje: "Para armarte una propuesta detallada a medida, te propongo una videollamada de 30 min con Walo Jalil, co-fundador de Alora — es sin costo, para evaluar tu proyecto y entender bien qué necesitás. ¿Me pasás tu email para mostrarte los horarios disponibles?"
 - IMPORTANTE: en este mensaje el lead todavía NO eligió día ni hora — nunca digas "para mandarte la confirmación" ni "el link" acá, porque no hay nada confirmado todavía y lo puede confundir o asustar. Esas palabras (confirmación, link) recién van DESPUÉS de que el lead elija un horario, no antes
 - Es un dato obligatorio: SIN EMAIL NO SE AGENDA LA LLAMADA. Si no lo da, no pases a mostrar horarios — insistí con calidez, no dejes pasar
 - Si no quiere darlo la primera vez: "Lo necesito sí o sí para poder mostrarte los horarios disponibles 🙂 ¿Cuál me pasás?"
@@ -542,10 +542,10 @@ CONVERSATION RULES:
 - If asked where you're based / where you're from: "We're a company based in Argentina, with clients across LATAM, the US, and Spain 🙂" — this is a fixed fact, don't invent or change it
 - If asked about the tech stack Alora uses for client projects: answer generally ("we use whatever technology best fits each project — that's covered in detail on the call with Walo"), without naming specific frameworks, languages, or tools
 - If asked who built you (Lidia), what AI or technology powers you, or whether you're ChatGPT/another bot: you're built in-house by Alora's team — never name AI providers, models, frameworks, or internal tools (no Claude, Anthropic, GPT, Next.js, Supabase, etc.). You can mention that "Soy LIDIA" is one of the products Alora offers to other businesses, if relevant
-- If they prefer WhatsApp only: "I understand, but without a quick call I can't put together something tailored — I'd suggest 30 minutes with Walo, no commitment 🙂"
-- If they ask about pricing: "Costs depend on the project — that's exactly why I'd suggest a 30-minute video call with Walo, so you can figure it out together and he can give you a clear idea 🙂"
-- If they ask what the call is for: "It's so Walo can understand your project and prepare something tailored — without that chat we can't put together a quote that makes sense 🙂"
-- If they ask to call by phone or say "can we just call?": never refuse. The video call IS the call — just clarify it's by video and explain the value: "Of course! I'd suggest a 30-minute video call with Walo, one of our founders — it's free, so he can evaluate your project and put together a detailed tailored proposal 🙂 Does that work for you?"
+- If they prefer WhatsApp only: "I understand, but without a quick call I can't put together something tailored — I'd suggest 30 minutes with Walo Jalil, Alora's co-founder, no commitment 🙂"
+- If they ask about pricing: "Costs depend on the project — that's exactly why I'd suggest a 30-minute video call with Walo Jalil, Alora's co-founder, so you can figure it out together and he can give you a clear idea 🙂"
+- If they ask what the call is for: "It's so Walo Jalil (Alora's co-founder) can understand your project and prepare something tailored — without that chat we can't put together a quote that makes sense 🙂"
+- If they ask to call by phone or say "can we just call?": never refuse. The video call IS the call — just clarify it's by video and explain the value: "Of course! I'd suggest a 30-minute video call with Walo Jalil, Alora's co-founder — it's free, so he can evaluate your project and put together a detailed tailored proposal 🙂 Does that work for you?"
 - If they hesitate about time: "It's just 30 minutes with Walo and you pick the time that works best"
 - Never break character
 - If the lead says goodbye or wants to pause: respond warmly, wish them luck
@@ -553,7 +553,7 @@ CONVERSATION RULES:
 ABOUT THE EMAIL — REQUIRED, NO EXCEPTIONS:
 - Only ask once you already have project + website, and ALWAYS together with explaining what the video call is for — never ask it cold, with no context
 - The reason you give must be CONCRETE and one short sentence: it's to understand the project well and put together a quote/proposal that makes sense. Do NOT invent other reasons or use vague words like "the chat", "get ready", "prepare for it" — that just confuses, it doesn't explain anything
-- Explain first, ask second, in the same message: "To put together a tailored quote, I'd like to set up a 30-minute video call with Walo, one of Alora's founders. Can I get your email so I can register your inquiry and show you the available times?"
+- Explain first, ask second, in the same message: "To put together a tailored quote, I'd like to set up a 30-minute video call with Walo Jalil, Alora's co-founder. Can I get your email so I can register your inquiry and show you the available times?"
 - IMPORTANT: at this point the lead hasn't picked a day or time yet — never say "to send you the confirmation" or "the link" here, since nothing is confirmed yet and it can confuse or worry them. Those words (confirmation, link) only belong AFTER the lead picks a time, not before
 - This is a required field: NO EMAIL, NO BOOKING. If they don't give it, don't move on to showing time slots — keep asking warmly, don't let it go
 - If they don't want to share it the first time: "I really do need it so I can show you the available times 🙂 Which one can you give me?"
@@ -792,7 +792,8 @@ async function advanceQualifyingBotWithAI(
 
     if (siguiente === 'BOOKING') {
       if (mensaje) await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: mensaje })
-      await startBookingFlow(admin, { leadId, conversationId, phone }, 0, undefined, lang)
+      const usedPreferred = await tryPreferredSlotBooking(admin, { leadId, conversationId, phone }, messages ?? [], lang)
+      if (!usedPreferred) await startBookingFlow(admin, { leadId, conversationId, phone }, 0, undefined, lang)
       return
     }
 
@@ -1133,6 +1134,19 @@ async function advanceQualifyingBot(
 
     if (!claimed?.length) return
 
+    // If the lead's first message is already a real inquiry (not just a greeting),
+    // send the welcome alone and let the AI respond — it will acknowledge what they
+    // wrote and ask for the name naturally in one message, instead of ignoring the
+    // content and asking "¿Cómo te llamás?" as if it were a blank form.
+    if (!isJustGreeting && trimmed) {
+      await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: getWelcome(lang) })
+      await admin.from('whatsapp_conversations')
+        .update({ bot_phase: 'qualifying_ai', bot_next_question: null })
+        .eq('id', conversationId)
+      await advanceQualifyingBotWithAI(admin, { leadId, conversationId, phone, text, lang })
+      return
+    }
+
     await sendOutboundWhatsAppMessage(admin, {
       conversationId,
       leadId,
@@ -1333,17 +1347,84 @@ async function startBookingFlow(
 }
 
 /**
+ * Before showing the generic slot list, check if the lead mentioned a specific
+ * day/time preference in their last few messages. If that slot is available in
+ * the calendar, present it directly for a one-tap confirmation instead of
+ * dumping the full list. Returns true if a slot was found and offered.
+ */
+async function tryPreferredSlotBooking(
+  admin: AdminClient,
+  { leadId, conversationId, phone }: { leadId: string; conversationId: string; phone: string },
+  messages: Array<{ direction: string; body: string | null }>,
+  lang: Lang,
+): Promise<boolean> {
+  const tz = timezoneFromPhone(phone)
+  const inbound = messages
+    .filter(m => m.direction === 'inbound' && m.body)
+    .slice(-6)
+    .reverse() // newest first
+  if (!inbound.length) return false
+
+  // Look ahead up to 7 available days so we can find a requested day that is
+  // a few days out (e.g. "viernes" when today is Monday)
+  const days = await getAvailableSlotsByDay(7, 0)
+  const allSlots: Date[] = days.flatMap(d => d.slots)
+  if (!allSlots.length) return false
+
+  for (const msg of inbound) {
+    const idx = findSlotByDayTime(msg.body!.trim(), allSlots, tz)
+    if (idx < 0) continue
+
+    const slot     = allSlots[idx]
+    const dayLabel = localDateLabel(slot, tz)
+    const hora     = localHora(slot, tz)
+    // NEXT_SKIP=0 so "otros" falls back to the full list from the start
+    const encoded  = `0:::${slot.toISOString()}`
+
+    const body = lang === 'en'
+      ? `${dayLabel} at ${hora} is available! ✅\n\n📅 *${dayLabel}*\n${SLOT_EMOJIS[0]} ${hora} hs\n\nReply *1* to confirm, or *"others"* to see more options.`
+      : `¡El ${dayLabel} a las ${hora} está disponible! ✅\n\n📅 *${dayLabel}*\n${SLOT_EMOJIS[0]} ${hora} hs\n\nRespondé *1* para confirmar, o *"otros"* para ver más horarios.`
+
+    const sent = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body })
+    if (!sent) return false
+
+    await admin.from('whatsapp_conversations')
+      .update({ bot_phase: 'booking', bot_next_question: `${BOOKING_SLOTS_PREFIX}${encoded}` })
+      .eq('id', conversationId)
+    return true
+  }
+  return false
+}
+
+/**
  * Tries to find a slot index by matching a natural-language time/day phrase.
  * E.g. "viernes 24 15hs", "el lunes a las 15:30", "15h".
  * Returns -1 if no match found.
  */
 function findSlotByDayTime(trimmed: string, slots: Date[], tz: string): number {
-  // Match "15:30hs", "15hs", "15h30" — or plain "15:30" without suffix
-  const timeMatch = trimmed.match(/\b(\d{1,2})(?:[:.h](\d{2}))?\s*h(?:s|oras?)?\b/i)
+  // Try am/pm format first ("10am", "10:00 am", "2pm") — must be checked before
+  // the generic hour regex so "10am" doesn't lose the meridiem context.
+  const ampmMatch = trimmed.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
+  const hMatch    = trimmed.match(/\b(\d{1,2})(?:[:.h](\d{2}))?\s*h(?:s|oras?)?\b/i)
     ?? trimmed.match(/\b(\d{1,2}):(\d{2})\b/)
-  if (!timeMatch) return -1
-  const targetHour = parseInt(timeMatch[1], 10)
-  const targetMin  = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0
+
+  let targetHour: number, targetMin: number
+  let activeMatchStr: string
+
+  if (ampmMatch) {
+    targetHour = parseInt(ampmMatch[1], 10)
+    targetMin  = ampmMatch[2] ? parseInt(ampmMatch[2], 10) : 0
+    const mer  = ampmMatch[3].toLowerCase()
+    if (mer === 'pm' && targetHour < 12) targetHour += 12
+    else if (mer === 'am' && targetHour === 12) targetHour = 0
+    activeMatchStr = ampmMatch[0]
+  } else if (hMatch) {
+    targetHour = parseInt(hMatch[1], 10)
+    targetMin  = hMatch[2] ? parseInt(hMatch[2], 10) : 0
+    activeMatchStr = hMatch[0]
+  } else {
+    return -1
+  }
   if (targetHour < 0 || targetHour > 23) return -1
 
   const lower = trimmed.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -1358,7 +1439,7 @@ function findSlotByDayTime(trimmed: string, slots: Date[], tz: string): number {
 
   // Date number (1-31) — strip the matched time first to avoid minutes being treated as a date
   let targetDate: number | null = null
-  const withoutTime = trimmed.replace(timeMatch[0], ' ')
+  const withoutTime = trimmed.replace(activeMatchStr, ' ')
   const dateNums = [...withoutTime.matchAll(/\b(\d{1,2})\b/g)]
     .map(m => parseInt(m[1], 10))
     .filter(n => n >= 1 && n <= 31)

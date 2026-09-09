@@ -22,6 +22,8 @@ export async function POST(req: NextRequest) {
     mediaType?: string | null
     audioBase64?: string | null   // base64-encoded audio buffer (ptt / audio messages)
     audioMimetype?: string | null // e.g. "audio/ogg; codecs=opus"
+    imageBase64?: string | null   // base64-encoded image buffer
+    imageMimetype?: string | null // e.g. "image/jpeg"
     direction?: 'inbound' | 'outbound'   // outbound = sent from native WA app by the team
     lidResolved?: { oldPhone: string; newPhone: string }
     disconnected?: { reason: string }
@@ -117,13 +119,38 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const { imageBase64, imageMimetype } = body
+  const { data: conv } = await admin
+    .from('whatsapp_conversations')
+    .select('id')
+    .eq('phone_number', body.phone.replace(/\D/g, ''))
+    .maybeSingle()
+  const conversationId = conv?.id ?? null
+  const waMessageId = body.waMessageId ?? null
+
+  let mediaUrl: string | null = null
+  if (imageBase64 && imageMimetype) {
+    try {
+      const adminForUpload = createAdminClient()
+      const ext = (imageMimetype as string).split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg'
+      const path = `images/${conversationId ?? waMessageId ?? Date.now()}.${ext}`
+      const buffer = Buffer.from(imageBase64 as string, 'base64')
+      await adminForUpload.storage.from('whatsapp-media').upload(path, buffer, { contentType: imageMimetype as string, upsert: true })
+      const { data: { publicUrl } } = adminForUpload.storage.from('whatsapp-media').getPublicUrl(path)
+      mediaUrl = publicUrl
+    } catch (err) {
+      console.error('[WhatsApp] image upload failed:', err)
+    }
+  }
+
   try {
     await recordInboundWhatsAppMessage(admin, {
       phone:       body.phone,
       name:        body.name ?? null,
       text:        inboundText,
-      waMessageId: body.waMessageId ?? null,
+      waMessageId: waMessageId,
       mediaType:   body.mediaType ?? null,
+      mediaUrl,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error desconocido'
