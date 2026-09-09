@@ -293,12 +293,26 @@ export async function GET(req: NextRequest) {
     const leadsConPropuestaEnPeriodo: LeadRow[] = ((propuestasResult.data ?? []) as unknown as LeadRow[])
       .filter(l => !EXCLUDED.has(l.estado_pipeline))
 
-    const allPropuestas = leadsConPropuestaEnPeriodo.flatMap(l => l.propuestas ?? [])
+    // Un lead puede tener varias propuestas de distintos meses (una vieja
+    // rechazada, una nueva pendiente). fecha_propuesta del lead SIEMPRE
+    // refleja la MÁS RECIENTE (ver POST /api/leads/[id]/propuestas), así que
+    // acá se toma solo esa -- no todas las propuestas del lead -- para no
+    // arrastrar una propuesta de otro mes al período actual solo porque
+    // comparte lead con una que sí es de este período. Confirmado con un
+    // caso real: la propuesta de agosto de un lead aparecía también en
+    // septiembre porque su propuesta nueva de septiembre hacía que el lead
+    // entero calificara.
+    function propuestaMasReciente(list: Propuesta[] | null): Propuesta[] {
+      if (!list || list.length === 0) return []
+      return [list.reduce((a, b) => new Date(a.created_at) > new Date(b.created_at) ? a : b)]
+    }
+
+    const allPropuestas = leadsConPropuestaEnPeriodo.flatMap(l => propuestaMasReciente(l.propuestas))
     // Same propuestas, but keeping which lead each one belongs to — needed
     // for the "Propuestas enviadas/ganadas" drill-down (allPropuestas alone
     // loses that context).
     const allPropuestasConLead = leadsConPropuestaEnPeriodo.flatMap(l =>
-      (l.propuestas ?? []).map(p => ({
+      propuestaMasReciente(l.propuestas).map(p => ({
         ...p,
         lead_id: l.id,
         lead_nombre: [l.nombre, l.apellido].filter(Boolean).join(' '),
