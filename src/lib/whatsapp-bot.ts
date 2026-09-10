@@ -1844,7 +1844,7 @@ async function bookConfirmedSlot(
         + 'Si necesitás cambiar el horario o tenés alguna duda, escribime tranquilo 🙂'
 
     const sentConf = await sendOutboundWhatsAppMessage(admin, { conversationId, leadId, phone, body: confirmation })
-    if (sentConf) await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null }).eq('id', conversationId)
+    if (sentConf) await admin.from('whatsapp_conversations').update({ bot_phase: 'faq', bot_next_question: null, bot_active: false }).eq('id', conversationId)
 
     // Push notification to the team
     notifyAll({
