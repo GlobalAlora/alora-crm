@@ -730,12 +730,16 @@ async function advanceQualifyingBotWithAI(
 
   if (!history.length || history[history.length - 1].role !== 'user') return
 
-  const ctx: string[] = [`Nombre: ${lead.nombre ?? 'no recopilado'}`]
-  if (lead.consulta_detallada) ctx.push(`Proyecto: ${lead.consulta_detallada}`)
+  // Always show the 3 mandatory fields (even when null) so the AI knows exactly
+  // what is still missing and doesn't jump to BOOKING prematurely.
+  const ctx: string[] = [
+    `Nombre: ${lead.nombre ?? 'no recopilado'}`,
+    `Proyecto: ${lead.consulta_detallada ?? 'no recopilado'}`,
+    `Sitio web: ${lead.sitio_web ?? 'no recopilado'}`,
+    `Email: ${lead.email ?? 'no recopilado'}`,
+  ]
   if (lead.servicios_interesados?.length) ctx.push(`Servicios: ${lead.servicios_interesados.join(', ')}`)
-  if (lead.email) ctx.push(`Email: ${lead.email}`)
   if (lead.empresa) ctx.push(`Empresa: ${lead.empresa}`)
-  if (lead.sitio_web) ctx.push(`Sitio web: ${lead.sitio_web}`)
   if (lead.pais) ctx.push(`País: ${lead.pais}`)
 
   if (hasHumanContact) {
