@@ -611,6 +611,7 @@ const QUALIFYING_TOOL: Anthropic.Tool = {
         type: 'object',
         description: 'Datos nuevos del lead extraídos del último mensaje. Solo incluí campos con info nueva y explícita. Omití campos sin información nueva.',
         properties: {
+          nombre:   { type: 'string', description: 'Nombre de pila del lead (solo si lo mencionó explícitamente)' },
           consulta_detallada: { type: 'string', description: 'Descripción sintetizada del proyecto (podés sintetizar de toda la conversación)' },
           email:    { type: 'string', description: 'Email del lead' },
           empresa:  { type: 'string', description: 'Nombre del negocio o empresa' },
@@ -791,7 +792,7 @@ async function advanceQualifyingBotWithAI(
     console.log(`[Bot AI] lead ${leadId}: ${siguiente} — ${mensaje.slice(0, 120)}`)
 
     if (actualizaciones && Object.keys(actualizaciones).length > 0) {
-      const ALLOWED = ['consulta_detallada', 'servicios_interesados', 'email', 'empresa', 'sitio_web'] as const
+      const ALLOWED = ['nombre', 'consulta_detallada', 'servicios_interesados', 'email', 'empresa', 'sitio_web'] as const
       const toSave: Record<string, unknown> = {}
       for (const key of ALLOWED) {
         if (key in actualizaciones && actualizaciones[key] !== null && actualizaciones[key] !== '') {
