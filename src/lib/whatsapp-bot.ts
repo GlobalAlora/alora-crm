@@ -163,7 +163,7 @@ const DISENGAGEMENT_RE = /\b(postergar|posponer|pausar el proyecto|cancelar|lo d
 const DISENGAGEMENT_RE_EN = /\b(postpone|putting on hold|pause the project|cancel|hold off|not moving forward|not going to proceed|decided not to|not for now|not at this time|goodbye|bye for now|thanks for everything|financial difficulties|budget issues|can't continue|won't be able to|no longer interested|leaving it|dropping it|not interested|not going to hire|going with someone else)\b/i
 
 // Detect job seekers so Lidia doesn't treat them as potential clients.
-const JOB_INQUIRY_RE = /\b(postulac[ií]|postularme|postularse|recibir\s+postulaciones?|abiertos?\s+(a\s+)?incorporar|incorporar(se|nos|me)|unirme\s+al\s+(equipo|team)|sumarme\s+al\s+(equipo|team)|formar\s+parte\s+(del\s+equipo|de\s+alora|de\s+su\s+equipo)|curr[ií]culum\s+vitae|\bcurr[ií]culum\b|vacante|oferta\s+laboral|busco\s+(trabajo|empleo)|en\s+búsqueda\s+(activa\s+)?(de\s+)?(trabajo|empleo)|looking\s+for\s+(a\s+)?job|join\s+(your\s+)?(team|company)|aplicar\s+(al?\s+)?(puesto|posici[oó]n|cargo))\b/i
+const JOB_INQUIRY_RE = /\b(postulac[ií]|postularme|postularse|recibir\s+postulaciones?|abiertos?\s+(a\s+)?incorporar|incorporar(se|nos|me)|unirme\s+al\s+(equipo|team)|sumarme\s+al\s+(equipo|team)|formar\s+parte\s+(del\s+equipo|de\s+alora|de\s+su\s+equipo)|curr[ií]culum\s+vitae|\bcurr[ií]culum\b|vacante|oferta\s+laboral|busco\s+(trabajo|empleo)|en\s+búsqueda\s+(activa\s+)?(de\s+)?(trabajo|empleo)|looking\s+for\s+(a\s+)?job|looking\s+for\s+work|join\s+(your\s+)?(team|company)|aplicar\s+(al?\s+)?(puesto|posici[oó]n|cargo)|collaborate\s+with\s+(your\s+)?(agency|team|company)|collabrate\s+with|freelance\s+(developer|designer|expert)|wordpress\s+expert|looking\s+for\s+(freelance\s+)?(work|opportunity|opportunities)|partnership\s+opportunity)\b/i
 
 const QUESTION_TEXT: Record<QuestionField, string> = {
   nombre:                '¿Cómo te llamás?',
@@ -733,6 +733,15 @@ async function advanceQualifyingBotWithAI(
   }
 
   if (!history.length || history[history.length - 1].role !== 'user') return
+
+  // Re-detect language from the full inbound history — the per-message detection can
+  // miss English on short first messages (e.g. "Bruno gave me your number"), leaving
+  // the bot stuck in Spanish even though the whole conversation is in English.
+  const inboundText = messages.filter(m => m.direction === 'inbound' && m.body).map(m => m.body).join(' ')
+  if (lang === 'es' && detectLanguage(inboundText) === 'en') {
+    lang = 'en'
+    await admin.from('whatsapp_conversations').update({ bot_language: 'en' }).eq('id', conversationId)
+  }
 
   // Always show the 3 mandatory fields (even when null) so the AI knows exactly
   // what is still missing and doesn't jump to BOOKING prematurely.
