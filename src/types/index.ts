@@ -681,6 +681,7 @@ export interface TicketComment {
   created_at: string
   updated_at?: string | null
   attachments?: TicketAttachment[]
+  reactions?: Record<string, string[]>
   user?: Pick<User, 'id' | 'full_name' | 'avatar_url'> | null
 }
 
