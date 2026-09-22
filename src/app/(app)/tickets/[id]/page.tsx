@@ -156,6 +156,9 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
 
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
   const [editingCommentBody, setEditingCommentBody] = useState('')
+  const [emojiPickerForComment, setEmojiPickerForComment] = useState<string | null>(null)
+
+  const REACTION_EMOJIS = ['👍', '❤️', '🔥', '✅']
 
   const ticket = res?.data ?? null
 
@@ -222,6 +225,47 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
       fetch(`/api/tickets/${id}/comments/${commentId}`, { method: 'DELETE' }).then(r => r.json()),
     onSuccess: (res) => {
       if (res.error) { alert(res.error); return }
+      qc.invalidateQueries({ queryKey: ['ticket', id] })
+    },
+  })
+
+  const reactToComment = useMutation({
+    mutationFn: ({ commentId, emoji }: { commentId: string; emoji: string }) =>
+      fetch(`/api/tickets/${id}/comments/${commentId}/react`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji }),
+      }).then(r => r.json()),
+    onMutate: async ({ commentId, emoji }) => {
+      await qc.cancelQueries({ queryKey: ['ticket', id] })
+      const prev = qc.getQueryData<{ data: typeof ticket }>(['ticket', id])
+      if (prev?.data) {
+        qc.setQueryData(['ticket', id], {
+          ...prev,
+          data: {
+            ...prev.data,
+            comments: (prev.data.comments ?? []).map(c => {
+              if (c.id !== commentId) return c
+              const reactions: Record<string, string[]> = { ...(c.reactions ?? {}) }
+              const users = reactions[emoji] ?? []
+              const myId = me?.id ?? ''
+              if (users.includes(myId)) {
+                reactions[emoji] = users.filter(u => u !== myId)
+              } else {
+                reactions[emoji] = [...users, myId]
+              }
+              if (reactions[emoji].length === 0) delete reactions[emoji]
+              return { ...c, reactions }
+            }),
+          },
+        })
+      }
+      return { prev }
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['ticket', id], ctx.prev)
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ['ticket', id] })
     },
   })
@@ -455,6 +499,52 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                             </a>
                           )
                         ))}
+                      </div>
+                    )}
+                    {/* Reactions */}
+                    {!isEditing && (
+                      <div className="flex items-center gap-1 flex-wrap mt-1.5">
+                        {REACTION_EMOJIS.map(emoji => {
+                          const users = (c.reactions ?? {})[emoji] ?? []
+                          if (!users.length) return null
+                          const iReacted = !!me && users.includes(me.id)
+                          return (
+                            <button
+                              key={emoji}
+                              onClick={() => reactToComment.mutate({ commentId: c.id, emoji })}
+                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs border transition-colors ${
+                                iReacted
+                                  ? 'bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300'
+                                  : 'bg-muted border-card-border text-muted-foreground hover:border-blue-300 hover:text-blue-500'
+                              }`}
+                            >
+                              <span>{emoji}</span>
+                              <span className="text-[10px] font-medium">{users.length}</span>
+                            </button>
+                          )
+                        })}
+                        {/* Add reaction button */}
+                        <span className={`relative transition-opacity ${emojiPickerForComment === c.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                          <button
+                            onClick={() => setEmojiPickerForComment(v => v === c.id ? null : c.id)}
+                            className="inline-flex items-center justify-center w-6 h-5 rounded-full text-xs bg-muted border border-card-border text-muted-foreground hover:border-blue-300 hover:text-blue-500 transition-colors"
+                          >
+                            +
+                          </button>
+                          {emojiPickerForComment === c.id && (
+                            <div className="absolute bottom-full left-0 mb-1 flex items-center gap-1 bg-card border border-card-border rounded-xl px-2 py-1.5 shadow-lg z-10">
+                              {REACTION_EMOJIS.map(emoji => (
+                                <button
+                                  key={emoji}
+                                  onClick={() => { reactToComment.mutate({ commentId: c.id, emoji }); setEmojiPickerForComment(null) }}
+                                  className="text-base hover:scale-125 transition-transform leading-none"
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </span>
                       </div>
                     )}
                   </div>
