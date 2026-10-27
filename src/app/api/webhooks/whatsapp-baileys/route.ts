@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { recordInboundWhatsAppMessage, resolveLidPhone } from '@/lib/whatsapp-inbound'
+import { recordNativeOutboundWhatsAppMessage } from '@/lib/whatsapp-native-outbound'
 import { sendWhatsAppDisconnectedAlert } from '@/lib/whatsapp-alerts'
 import { transcribeAudio } from '@/lib/transcribe-audio'
 
@@ -55,54 +56,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'phone es requerido' }, { status: 400 })
   }
 
-  // Outbound message detected by the Baileys worker (fromMe=true).
-  // Could be (a) the team writing from the native WA app → pause the bot,
-  // or (b) the CRM/bot sending via the worker → just an echo, skip it.
-  // The CRM always records its own messages in wa_messages with wa_message_id,
-  // so if the id is already there, this is Lidia's own echo — don't pause.
+  // Outbound message detected by the Baileys worker (fromMe=true): either the
+  // team writing from the native WA app (record it + pause Lidia) or an echo of
+  // a message the CRM itself sent (skipped).
   if (body.direction === 'outbound') {
     try {
-      const phone = body.phone.replace(/\D/g, '')
-
-      if (body.waMessageId) {
-        const { count: alreadyRecorded } = await admin
-          .from('wa_messages')
-          .select('id', { count: 'exact', head: true })
-          .eq('wa_message_id', body.waMessageId)
-        if (alreadyRecorded && alreadyRecorded > 0) {
-          console.log(`[Bot] SKIP outbound echo waMessageId=${body.waMessageId} (CRM-sent)`)
-          return NextResponse.json({ status: 'ok' })
-        }
-      }
-
-      const { data: conv } = await admin
-        .from('whatsapp_conversations')
-        .select('id')
-        .eq('phone_number', phone)
-        .maybeSingle()
-
-      console.log(`[Bot] outbound native phone=${phone} conv=${conv?.id ?? 'NOT_FOUND'}`)
-
-      if (conv) {
-        await admin.from('wa_messages').insert({
-          conversation_id: conv.id,
-          lead_id:         null,
-          direction:       'outbound',
-          body:            body.text ?? null,
-          wa_message_id:   body.waMessageId ?? null,
-          status:          'sent',
-        }).throwOnError()
-        await admin.from('whatsapp_conversations')
-          .update({ bot_active: false, last_message_direction: 'outbound', last_message_at: new Date().toISOString() })
-          .eq('id', conv.id)
-        console.log(`[Bot] PAUSE+RECORD reason=native_wa_outbound phone=${phone}`)
-      } else {
-        // Conversation doesn't exist yet — team sent a cold outbound message.
-        // Nothing to save; just log so we can diagnose.
-        console.log(`[Bot] outbound ignored — no conversation found for phone=${phone}`)
-      }
+      await recordNativeOutboundWhatsAppMessage(admin, {
+        phone:       body.phone,
+        text:        body.text ?? null,
+        waMessageId: body.waMessageId ?? null,
+        mediaType:   body.mediaType ?? null,
+      })
     } catch (err) {
-      console.error('[WhatsApp Baileys] Failed to record outbound message:', err)
+      const message = err instanceof Error ? err.message : 'Error desconocido'
+      console.error('[WhatsApp Baileys] Failed to record outbound message:', message)
+      // 5xx so the worker retries: losing this notification means Lidia never
+      // learns a human took over and answers on top of them.
+      return NextResponse.json({ error: message }, { status: 500 })
     }
     return NextResponse.json({ status: 'ok' })
   }

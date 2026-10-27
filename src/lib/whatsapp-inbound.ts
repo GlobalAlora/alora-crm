@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { extractLeadInfoFromConversation } from '@/lib/ai-lead-extract'
 import { runBot } from '@/lib/whatsapp-bot'
+import { findExistingLeadByPhone } from '@/lib/whatsapp-lead-lookup'
 import { notifyAll } from '@/lib/push-notify'
 import { PAISES, SERVICIOS } from '@/types'
 
@@ -227,28 +228,8 @@ async function findOrCreateLeadByPhone(
   admin: AdminClient,
   { phone, name, text }: { phone: string; name: string | null; text: string | null },
 ): Promise<string> {
-  // Search by phone in multiple formats:
-  // 1. Digits-only (how WhatsApp delivers it)
-  // 2. With + prefix (how old leads were stored)
-  // 3. Normalized via SQL regex (handles any formatting like "+54 9 3772 63-4401")
   const withPlus = `+${phone}`
-
-  const [{ data: byDigits }, { data: byPlus }] = await Promise.all([
-    admin.from('leads').select('id, nombre, estado_pipeline').eq('telefono', phone).is('deleted_at', null).limit(1).maybeSingle(),
-    admin.from('leads').select('id, nombre, estado_pipeline').eq('telefono', withPlus).is('deleted_at', null).limit(1).maybeSingle(),
-  ])
-
-  let existing = byDigits ?? byPlus
-
-  // Fallback: normalize both sides (strips spaces, dashes, parentheses, +)
-  // Catches manually-entered phones like "+54 9 3772 63-4401" vs "5493772634401"
-  if (!existing) {
-    const { data: normalized } = await admin.rpc('find_lead_by_normalized_phone', { p_phone: phone })
-    existing = (normalized as { id: string; nombre: string; estado_pipeline: string }[] | null)?.[0] ?? null
-    if (existing) {
-      console.log(`[WhatsApp] Matched lead by normalized phone: ${existing.id} (${existing.nombre})`)
-    }
-  }
+  const existing = await findExistingLeadByPhone(admin, phone)
 
   if (existing && existing.estado_pipeline !== 'testing') {
     console.log(`[WhatsApp] Existing lead: ${existing.id} (${existing.nombre})`)
