@@ -65,6 +65,7 @@ export async function proxy(req: NextRequest) {
     path.startsWith('/_next') ||
     path.startsWith('/favicon') ||
     path.startsWith('/api/') ||
+    path.startsWith('/.well-known/') ||
     path.startsWith('/embed/') ||
     path.startsWith('/ticket-portal') ||
     path.startsWith('/propuesta/') ||
