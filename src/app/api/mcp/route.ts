@@ -19,10 +19,10 @@ import type { ToolContext } from '@/lib/mcp/tools'
 export const maxDuration = 60
 
 function authorized(req: NextRequest): boolean {
-  const expected = process.env.CRM_MCP_TOKEN
+  const expected = process.env.CRM_MCP_TOKEN?.trim()
   if (!expected || expected.length < 24) return false
   const header = req.headers.get('authorization') ?? ''
-  const given = header.startsWith('Bearer ') ? header.slice(7).trim() : ''
+  const given = /^bearer\s+/i.test(header) ? header.replace(/^bearer\s+/i, '').trim() : header.trim()
   const a = Buffer.from(given)
   const b = Buffer.from(expected)
   return a.length === b.length && timingSafeEqual(a, b)
@@ -45,7 +45,9 @@ async function buildContext(): Promise<ToolContext> {
 const unauthorized = () =>
   NextResponse.json(
     { jsonrpc: '2.0', id: null, error: { code: -32001, message: 'No autorizado' } },
-    { status: 401, headers: { 'WWW-Authenticate': 'Bearer realm="alora-crm"' } },
+    // Sin WWW-Authenticate a propósito: el conector usa un header fijo ("No sign in"),
+    // y ese header haría que el cliente intente un flujo OAuth que no existe.
+    { status: 401 },
   )
 
 export async function POST(req: NextRequest) {
