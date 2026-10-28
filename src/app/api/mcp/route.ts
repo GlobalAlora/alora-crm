@@ -36,8 +36,18 @@ async function buildContext(): Promise<ToolContext> {
     const email = process.env.CRM_MCP_USER_EMAIL
     if (!email) throw new Error('Falta configurar CRM_MCP_USER_EMAIL en el servidor.')
     const { data } = await db.from('users').select('id').ilike('email', email).maybeSingle()
-    if (!data) throw new Error(`CRM_MCP_USER_EMAIL (${email}) no corresponde a ningún usuario del CRM.`)
-    cachedUserId = data.id
+    let id = data?.id as string | undefined
+    if (!id) {
+      // Usuarios invitados desde Configuración → Usuarios pueden no tener el email
+      // copiado en la tabla users: lo buscamos en Supabase Auth.
+      for (let page = 1; page <= 10 && !id; page++) {
+        const { data: list } = await db.auth.admin.listUsers({ page, perPage: 200 })
+        id = list?.users.find(u => u.email?.toLowerCase() === email.toLowerCase())?.id
+        if (!list || list.users.length < 200) break
+      }
+    }
+    if (!id) throw new Error(`CRM_MCP_USER_EMAIL (${email}) no corresponde a ningún usuario del CRM.`)
+    cachedUserId = id
   }
   return { db, userId: cachedUserId! }
 }
