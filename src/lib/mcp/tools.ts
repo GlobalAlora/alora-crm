@@ -807,6 +807,51 @@ const actualizarLead: ToolDef = {
   },
 }
 
+async function agentActivity(db: SupabaseClient, ref: unknown) {
+  const id = str(ref)
+  if (!isUuid(id)) throw new ToolError('actividad_id inválido.')
+  const { data } = await db.from('activities').select('id, lead_id, metadata').eq('id', id).maybeSingle()
+  if (!data) throw new ToolError('Actividad no encontrada.')
+  if ((data.metadata as Record<string, unknown> | null)?.origen !== 'agente_claude') {
+    throw new ToolError('Solo puedo editar o borrar actividades que registró el agente. Las demás se modifican desde el CRM.')
+  }
+  return data
+}
+
+const editarActividad: ToolDef = {
+  name: 'editar_actividad',
+  title: 'Editar actividad registrada por el agente',
+  description: 'Reemplaza el texto de una actividad que haya registrado el agente (no toca actividades cargadas a mano ni automáticas). Acepta HTML simple.',
+  inputSchema: {
+    type: 'object',
+    required: ['actividad_id', 'descripcion'],
+    properties: { actividad_id: { type: 'string' }, descripcion: { type: 'string' } },
+  },
+  annotations: { ...WRITE, idempotentHint: true },
+  async handler(args, { db }) {
+    const act = await agentActivity(db, args.actividad_id)
+    const descripcion = str(args.descripcion)
+    if (!descripcion) throw new ToolError('Falta la descripción.')
+    const { error } = await db.from('activities').update({ descripcion }).eq('id', act.id)
+    if (error) throw new ToolError(error.message)
+    return { ok: true, actividad_id: act.id }
+  },
+}
+
+const borrarActividad: ToolDef = {
+  name: 'borrar_actividad',
+  title: 'Borrar actividad registrada por el agente',
+  description: 'Borra una actividad que haya registrado el agente (por ejemplo, una cargada por error). No puede borrar actividades cargadas a mano ni automáticas. Confirmá con el usuario antes.',
+  inputSchema: { type: 'object', required: ['actividad_id'], properties: { actividad_id: { type: 'string' } } },
+  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+  async handler(args, { db }) {
+    const act = await agentActivity(db, args.actividad_id)
+    const { error } = await db.from('activities').delete().eq('id', act.id)
+    if (error) throw new ToolError(error.message)
+    return { ok: true, borrada: act.id }
+  },
+}
+
 const crearLead: ToolDef = {
   name: 'crear_lead',
   title: 'Crear lead',
@@ -1089,6 +1134,6 @@ const actualizarTareaProyecto: ToolDef = {
 export const TOOLS: ToolDef[] = [
   resumenCrm, buscarLeads, verLead, listarEtapas, listarUsuarios, tareasPendientes,
   listarProyectos, verProyecto, listarPropuestas, listarTickets, cobranzas,
-  moverLeadEtapa, actualizarLead, registrarActividad, crearLead, crearTareaLead, completarTareaLead,
+  moverLeadEtapa, actualizarLead, registrarActividad, editarActividad, borrarActividad, crearLead, crearTareaLead, completarTareaLead,
   crearTareaProyecto, actualizarTareaProyecto,
 ]
