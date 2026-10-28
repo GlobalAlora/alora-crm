@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { PipelineStage, PmPriority, ProjectTaskEstado } from '@/types'
 import { changeLeadStage } from '@/lib/lead-stage'
+import { updateLead } from '@/lib/lead-update'
 import { normaliseVencimiento } from '@/lib/tz'
 import { sendTaskAssignmentEmail } from '@/lib/task-emails'
 import { notifyUser } from '@/lib/push-notify'
@@ -727,6 +728,85 @@ const registrarActividad: ToolDef = {
   },
 }
 
+const ASISTENCIAS = ['se_presento', 'no_se_presento', 'reagendo', 'cancelada_alora']
+const LEAD_TEXT_FIELDS = ['nombre', 'apellido', 'empresa', 'email', 'email_secundario', 'telefono', 'pais', 'sitio_web', 'consulta_detallada', 'notas', 'reunion_link'] as const
+const LEAD_DATE_FIELDS = ['fecha_reunion', 'fecha_contacto', 'fecha_propuesta', 'fecha_followup', 'fecha_cierre'] as const
+
+const actualizarLead: ToolDef = {
+  name: 'actualizar_lead',
+  title: 'Editar ficha de un lead',
+  description:
+    'Edita campos de la ficha de un lead con los mismos efectos que editarlos en el CRM: datos de contacto, empresa, ' +
+    'responsable, servicios, notas, consulta, fechas (reunión, contacto, propuesta, follow up, cierre), hora y link de reunión, ' +
+    'y asistencia a la reunión (se_presento, no_se_presento, reagendo, cancelada_alora — queda registrada como actividad y en el historial de reuniones). ' +
+    'Ojo: si el lead está en "Reunión reservada" y cambiás fecha_reunion, el CRM crea/actualiza el evento de Google Calendar ' +
+    '(salvo sin_calendario=true). Para cambiar la etapa usá mover_lead_etapa. Confirmá los cambios con el usuario antes.',
+  inputSchema: {
+    type: 'object',
+    required: ['lead'],
+    properties: {
+      lead: { type: 'string', description: 'Id del lead o texto para identificarlo.' },
+      nombre: { type: 'string' }, apellido: { type: 'string' }, empresa: { type: 'string' },
+      email: { type: 'string' }, email_secundario: { type: 'string' }, telefono: { type: 'string' },
+      pais: { type: 'string' }, sitio_web: { type: 'string' },
+      fuente: { type: 'string', enum: FUENTES },
+      servicios_interesados: { type: 'array', items: { type: 'string' }, description: 'Reemplaza la lista completa.' },
+      responsable: { type: 'string', description: 'Nombre, email o id. "nadie" para dejarlo sin responsable.' },
+      consulta_detallada: { type: 'string', description: 'Qué necesita el cliente (reemplaza el texto actual).' },
+      notas: { type: 'string', description: 'Notas internas de la ficha (reemplaza el texto actual; para dejar registro de algo puntual usá registrar_actividad).' },
+      fecha_reunion: { type: 'string', description: 'YYYY-MM-DD' },
+      reunion_hora: { type: 'string', description: 'HH:MM (hora Argentina)' },
+      reunion_link: { type: 'string' },
+      reunion_asistencia: { type: 'string', enum: ASISTENCIAS },
+      fecha_contacto: { type: 'string', description: 'YYYY-MM-DD' },
+      fecha_propuesta: { type: 'string', description: 'YYYY-MM-DD' },
+      fecha_followup: { type: 'string', description: 'YYYY-MM-DD' },
+      fecha_cierre: { type: 'string', description: 'YYYY-MM-DD' },
+      sin_calendario: { type: 'boolean', description: 'true = no crear/actualizar evento de Google Calendar al cambiar fecha_reunion (reunión agendada por fuera, ej. TidyCal).' },
+    },
+  },
+  annotations: WRITE,
+  async handler(args, { db, userId }) {
+    const id = await resolveLeadId(db, args.lead)
+    const body: Record<string, unknown> = {}
+    for (const k of LEAD_TEXT_FIELDS) if (str(args[k]) !== undefined) body[k] = str(args[k])
+    for (const k of LEAD_DATE_FIELDS) {
+      const v = str(args[k])
+      if (v === undefined) continue
+      if (!/^\d{4}-\d{2}-\d{2}/.test(v)) throw new ToolError(`${k} tiene que tener formato YYYY-MM-DD.`)
+      body[k] = v
+    }
+    if (str(args.reunion_hora)) {
+      const h = str(args.reunion_hora)!
+      if (!/^\d{1,2}:\d{2}(:\d{2})?$/.test(h)) throw new ToolError('reunion_hora tiene que tener formato HH:MM.')
+      body.reunion_hora = h.length <= 5 ? `${h.padStart(5, '0')}:00` : h
+    }
+    if (str(args.fuente)) {
+      if (!FUENTES.includes(str(args.fuente)!)) throw new ToolError(`Fuente inválida. Opciones: ${FUENTES.join(', ')}.`)
+      body.fuente = str(args.fuente)
+    }
+    if (Array.isArray(args.servicios_interesados)) {
+      const sv = (args.servicios_interesados as unknown[]).filter((x): x is string => typeof x === 'string')
+      body.servicios_interesados = sv
+      body.servicio_interesado = sv[0] ?? null
+    }
+    if (str(args.responsable)) {
+      body.responsable_id = /^(nadie|ninguno|none)$/i.test(str(args.responsable)!) ? null : await resolveUser(db, args.responsable)
+    }
+    if (str(args.reunion_asistencia)) {
+      if (!ASISTENCIAS.includes(str(args.reunion_asistencia)!)) throw new ToolError(`Asistencia inválida. Opciones: ${ASISTENCIAS.join(', ')}.`)
+      body.reunion_asistencia = str(args.reunion_asistencia)
+    }
+    if (!Object.keys(body).length) throw new ToolError('No indicaste ningún campo para cambiar.')
+    const cambios = { ...body }
+    if (args.sin_calendario === true) body.skip_calendar = true
+
+    const r = await updateLead(db, { id, body, userId })
+    if (!r.ok) throw new ToolError(r.error)
+    return { ok: true, lead: fullName(r.data as { nombre?: string; apellido?: string; empresa?: string }), cambios }
+  },
+}
+
 const crearLead: ToolDef = {
   name: 'crear_lead',
   title: 'Crear lead',
@@ -1009,6 +1089,6 @@ const actualizarTareaProyecto: ToolDef = {
 export const TOOLS: ToolDef[] = [
   resumenCrm, buscarLeads, verLead, listarEtapas, listarUsuarios, tareasPendientes,
   listarProyectos, verProyecto, listarPropuestas, listarTickets, cobranzas,
-  moverLeadEtapa, registrarActividad, crearLead, crearTareaLead, completarTareaLead,
+  moverLeadEtapa, actualizarLead, registrarActividad, crearLead, crearTareaLead, completarTareaLead,
   crearTareaProyecto, actualizarTareaProyecto,
 ]
