@@ -36,6 +36,7 @@ export async function recordNativeOutboundWhatsAppMessage(admin: AdminClient, ms
   const { text, waMessageId, mediaType } = msg
 
   if (waMessageId) {
+    // Check 1: message already recorded with this wa_message_id (clean case)
     const { count: alreadyRecorded } = await admin
       .from('wa_messages')
       .select('id', { count: 'exact', head: true })
@@ -43,6 +44,38 @@ export async function recordNativeOutboundWhatsAppMessage(admin: AdminClient, ms
     if (alreadyRecorded && alreadyRecorded > 0) {
       console.log(`[Bot] SKIP outbound echo waMessageId=${waMessageId} (CRM-sent)`)
       return
+    }
+
+    // Check 2: race condition — echo arrived before the CRM updated wa_message_id.
+    // A message in 'sending' means the CRM just sent it and is awaiting the worker
+    // response. Stamp it with the real wa_message_id and skip the native-outbound path.
+    const { data: existingConv } = await admin
+      .from('whatsapp_conversations')
+      .select('id, lead_id')
+      .eq('phone_number', phone)
+      .maybeSingle()
+
+    if (existingConv) {
+      const since = new Date(Date.now() - 30_000).toISOString()
+      const { data: pendingMsg } = await admin
+        .from('wa_messages')
+        .select('id')
+        .eq('conversation_id', existingConv.id)
+        .eq('direction', 'outbound')
+        .eq('status', 'sending')
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (pendingMsg) {
+        await admin
+          .from('wa_messages')
+          .update({ wa_message_id: waMessageId, status: 'sent', status_updated_at: new Date().toISOString() })
+          .eq('id', pendingMsg.id)
+        console.log(`[Bot] SKIP outbound echo (race) waMessageId=${waMessageId} — stamped pending msg ${pendingMsg.id}`)
+        return
+      }
     }
   }
 
