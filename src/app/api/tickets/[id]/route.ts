@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createLinkedTask } from '@/lib/ticket-task'
 import { sendGmail } from '@/lib/google-gmail'
 import { PORTAL_URL, buildStatusChangeHtml, buildHorasEstimadasHtml, buildCsatEmailHtml } from '@/lib/ticket-emails'
+import { getTicketBrand } from '@/lib/ticket-brand'
 const INTERNAL_EMAIL = 'somosglobalalora@gmail.com'
 
 const ALLOWED_ROLES = ['admin', 'sales']
@@ -132,6 +133,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  const brand = current?.client_email && (updates.estado || updates.horas_estimadas != null) ? await getTicketBrand(admin, id) : null
+
   // Email client on status change (only for portal clients with email)
   const NOTIFY_STATES = ['en_progreso', 'en_espera', 'estimacion', 'resuelto', 'cerrado']
   const nuevoEstado = updates.estado as string | undefined
@@ -146,6 +149,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         client_nombre: current.client_nombre,
         nuevo_estado: nuevoEstado,
         trackingUrl:  `${PORTAL_URL}/${current.ticket_token}`,
+        brand,
       }),
     }).catch(() => {})
   }
@@ -162,6 +166,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         client_nombre:   current.client_nombre,
         thumbsUpUrl:     `${PORTAL_URL}/api/portal/tickets/${current.ticket_token}/csat?score=1`,
         thumbsDownUrl:   `${PORTAL_URL}/api/portal/tickets/${current.ticket_token}/csat?score=0`,
+        brand,
       }),
     }).catch(() => {})
   }
@@ -183,6 +188,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         client_nombre:    current.client_nombre,
         horas_estimadas:  nuevasHoras,
         trackingUrl:      `${PORTAL_URL}/${current.ticket_token}`,
+        brand,
       }),
     }).catch(() => {})
     // Reset approval when hours change

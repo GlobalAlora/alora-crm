@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getPortalClient, PORTAL_COOKIE } from '@/lib/portal-auth'
+import { getTicketBrand, LIDIA_AUTHOR } from '@/lib/ticket-brand'
 
 type Params = { params: Promise<{ token: string }> }
 
@@ -10,7 +11,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   const { data: ticket, error } = await admin
     .from('tickets')
-    .select('id,numero,titulo,descripcion,estado,prioridad,categoria,created_at,updated_at,resolved_at,client_nombre,client_email,ticket_token,horas_estimadas,horas_aprobadas')
+    .select('id,numero,titulo,descripcion,estado,prioridad,categoria,created_at,updated_at,resolved_at,client_nombre,client_email,ticket_token,horas_estimadas,horas_aprobadas,attachments')
     .eq('ticket_token', token)
     .is('deleted_at', null)
     .single()
@@ -23,11 +24,13 @@ export async function GET(req: NextRequest, { params }: Params) {
   const isAdminPreview = portalClient?.is_admin_preview ?? false
   const isRealClient   = !isAdminPreview && portalClient?.email === ticket.client_email
 
-  const [, portalClientRes] = await Promise.all([
+  const [, portalClientRes, brand] = await Promise.all([
     isRealClient
       ? Promise.resolve(admin.from('tickets').update({ client_unread: false }).eq('id', ticket.id))
       : Promise.resolve(null),
     admin.from('portal_clients').select('color_acento,logo_url').eq('email', ticket.client_email ?? '').maybeSingle(),
+    // Consulta aparte y tolerante: nunca depende de que exista la columna `origen`
+    getTicketBrand(admin, ticket.id, ticket.descripcion),
   ])
 
   const { data: comments } = await admin
@@ -53,7 +56,8 @@ export async function GET(req: NextRequest, { params }: Params) {
     id:            c.id,
     body:          c.body,
     is_client:     c.is_client,
-    author_name:   c.is_client ? (c.client_nombre ?? 'Cliente') : (c.user_id ? agentNames[c.user_id] ?? 'Equipo Alora' : 'Equipo Alora'),
+    author_name:   c.is_client ? (c.client_nombre ?? 'Cliente') : (c.user_id ? agentNames[c.user_id] ?? 'Equipo Alora' : (c.client_nombre === LIDIA_AUTHOR ? LIDIA_AUTHOR : 'Equipo Alora')),
+    author_kind:   !c.is_client && !c.user_id && c.client_nombre === LIDIA_AUTHOR ? 'lidia' : null,
     created_at:    c.created_at,
     attachments:   (c.attachments ?? []) as { url: string; name: string; type: string }[],
   }))
@@ -65,6 +69,7 @@ export async function GET(req: NextRequest, { params }: Params) {
       color_acento:     portalClientRes.data?.color_acento ?? null,
       logo_url:         portalClientRes.data?.logo_url ?? null,
       is_admin_preview: isAdminPreview,
+      brand,
     },
   })
 }

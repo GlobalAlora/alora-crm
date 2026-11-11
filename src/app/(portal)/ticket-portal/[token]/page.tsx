@@ -46,11 +46,14 @@ interface PortalTicket {
   color_acento: string | null
   logo_url: string | null
   is_admin_preview: boolean
+  brand?: 'lidia' | null
+  attachments?: UploadedFile[] | null
   comments: {
     id: string
     body: string
     is_client: boolean
     author_name: string
+    author_kind?: 'lidia' | null
     created_at: string
     attachments?: UploadedFile[]
     reactions?: Record<string, string[]>
@@ -186,7 +189,8 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
   const ticket: PortalTicket | null = res?.data ?? null
   const isClosed        = ticket && ['resuelto', 'cerrado'].includes(ticket.estado)
   const isAdminPreview  = ticket?.is_admin_preview ?? false
-  const headerBg        = ticket?.color_acento ?? '#0f172a'
+  const isLidia         = ticket?.brand === 'lidia'
+  const headerBg        = isLidia ? '#1a0b2e' : (ticket?.color_acento ?? '#0f172a')
   const needsHoursApproval = ticket && ticket.horas_estimadas != null && !ticket.horas_aprobadas && !isClosed
 
   return (
@@ -195,7 +199,9 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
       <header style={{ background: headerBg, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
         <div className="max-w-2xl mx-auto px-6 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {ticket?.logo_url
+            {isLidia
+              ? <img src="/logo-lidia.png" alt="LIDIA" style={{ height: 32, display: 'block', objectFit: 'contain' }} />
+              : ticket?.logo_url
               ? <img src={ticket.logo_url} alt="Logo" style={{ height: 32, objectFit: 'contain', maxWidth: 120 }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
               : <img src="/logo-nav-white.png" alt="Alora" style={{ height: 32, display: 'block', objectFit: 'contain' }} />
             }
@@ -265,6 +271,22 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
                 {ticket.descripcion && (
                   <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
                     <p className="text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">{ticket.descripcion}</p>
+                  </div>
+                )}
+
+                {(ticket.attachments ?? []).length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {ticket.attachments!.map((a, i) => (
+                      a.type?.startsWith('image/') ? (
+                        <button key={i} onClick={() => setLightboxUrl(a.url)} className="cursor-zoom-in">
+                          <img src={a.url} alt={a.name} className="h-24 w-24 object-cover rounded-xl border border-slate-200 dark:border-slate-700 hover:opacity-90 transition-opacity" />
+                        </button>
+                      ) : (
+                        <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors border border-slate-200 dark:border-slate-700">
+                          <FileVideo size={13} /> {a.name}
+                        </a>
+                      )
+                    ))}
                   </div>
                 )}
               </div>
@@ -387,7 +409,7 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
                         <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{c.author_name}</span>
                         {!c.is_client && (
                           <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded">
-                            Equipo Alora
+                            {c.author_kind === 'lidia' ? 'LIDIA' : 'Equipo Alora'}
                           </span>
                         )}
                         <span className="text-[10px] text-slate-400 ml-auto">{timeAgo(c.created_at)}</span>
@@ -548,7 +570,9 @@ export default function TicketTrackingPage({ params }: { params: Promise<{ token
           )}
 
           <p className="text-center text-xs text-slate-400 dark:text-slate-600 pb-4">
-            Alora Digital · <a href="https://globalalora.com" className="hover:text-slate-600 dark:hover:text-slate-400 transition-colors">globalalora.com</a>
+            {isLidia
+              ? 'LIDIA · Soporte por WhatsApp'
+              : <>Alora Digital · <a href="https://globalalora.com" className="hover:text-slate-600 dark:hover:text-slate-400 transition-colors">globalalora.com</a></>}
           </p>
           <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
         </div>

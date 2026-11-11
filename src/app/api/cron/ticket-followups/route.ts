@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendGmail } from '@/lib/google-gmail'
 import { buildFollowupReminderHtml, buildTicketClosedInactivityHtml, PORTAL_URL } from '@/lib/ticket-emails'
+import { getTicketBrand } from '@/lib/ticket-brand'
 
 const FOLLOWUP_DAYS = 2
 const CLOSE_DAYS    = 5
@@ -40,6 +41,8 @@ export async function GET(req: Request) {
     .select('ticket_id, created_at')
     .in('ticket_id', tickets.map(t => t.id))
     .eq('is_client', false)
+    // El comentario automático de LIDIA no es una respuesta del equipo: no arranca el reloj de seguimiento ni de cierre.
+    .or('client_nombre.is.null,client_nombre.neq.LIDIA')
     .order('created_at', { ascending: false })
 
   // Mapa: ticket_id → fecha del último comentario del equipo
@@ -66,6 +69,7 @@ export async function GET(req: Request) {
 
     const daysSinceTeamReply = (now.getTime() - teamRepliedAt.getTime()) / 86_400_000
     const trackingUrl = `${PORTAL_URL}/ticket-portal/${ticket.ticket_token}`
+    const brand = await getTicketBrand(admin, ticket.id)
 
     if (daysSinceTeamReply >= CLOSE_DAYS) {
       // Cerrar ticket
@@ -83,6 +87,7 @@ export async function GET(req: Request) {
           titulo:       ticket.titulo,
           client_nombre: ticket.client_nombre,
           trackingUrl,
+          brand,
         }),
       }).catch(() => {})
 
@@ -104,6 +109,7 @@ export async function GET(req: Request) {
           titulo:       ticket.titulo,
           client_nombre: ticket.client_nombre,
           trackingUrl,
+          brand,
         }),
       }).catch(() => {})
 

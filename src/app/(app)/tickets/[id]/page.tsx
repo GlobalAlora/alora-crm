@@ -427,6 +427,9 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-2 mb-1">
                       <span className="text-xs font-medium text-foreground">{c.user?.full_name ?? c.client_nombre ?? 'Cliente'}</span>
+                      {!c.user && !c.is_client && c.client_nombre === 'LIDIA' && (
+                        <span className="text-[10px] bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 px-1.5 py-0.5 rounded font-semibold">LIDIA</span>
+                      )}
                       <span className="text-[10px] text-muted-foreground">
                         {new Date(c.created_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
                         {c.updated_at && ' · editado'}

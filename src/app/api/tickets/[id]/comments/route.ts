@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendGmail } from '@/lib/google-gmail'
 import { PORTAL_URL, buildTeamReplyHtml } from '@/lib/ticket-emails'
+import { getTicketBrand } from '@/lib/ticket-brand'
 
 const ALLOWED_ROLES = ['admin', 'sales']
 type Params = { params: Promise<{ id: string }> }
@@ -84,6 +85,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   if (!is_internal && ticket?.client_email && ticket?.ticket_token) {
+    const brand = await getTicketBrand(admin, id)
     sendGmail({
       from:    'info@globalalora.com',
       to:      ticket.client_email,
@@ -94,6 +96,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         client_nombre: ticket.client_nombre,
         commentText: text.trim(),
         trackingUrl: `${PORTAL_URL}/${ticket.ticket_token}`,
+        brand,
       }),
     }).catch(() => {})
   }

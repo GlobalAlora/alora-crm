@@ -1,29 +1,41 @@
 import type { TicketAttachment } from '@/types'
+import type { TicketBrand } from '@/lib/ticket-brand'
 
 export const PORTAL_URL = process.env.NEXT_PUBLIC_PORTAL_URL ?? 'https://ticket.globalalora.com'
 
 const PRIO_LABEL: Record<string, string> = { baja: 'Baja', media: 'Normal', alta: 'Alta', urgente: 'URGENTE' }
 const PRIO_COLOR: Record<string, string> = { urgente: '#ef4444', alta: '#f97316' }
 
-const FOOTER = `<p style="font-size:13px;color:#94a3b8;border-top:1px solid #f1f5f9;padding-top:16px;margin:24px 0 0">
+const FOOTER = (brand?: TicketBrand) => brand === 'lidia'
+  ? `<p style="font-size:13px;color:#94a3b8;border-top:1px solid #f1f5f9;padding-top:16px;margin:24px 0 0">
+  LIDIA · Soporte por WhatsApp
+</p>`
+  : `<p style="font-size:13px;color:#94a3b8;border-top:1px solid #f1f5f9;padding-top:16px;margin:24px 0 0">
   Alora Digital · <a href="https://globalalora.com" style="color:#3b82f6">globalalora.com</a>
 </p>`
 
-const HEADER = (title: string, sub?: string) => `
-<div style="background:#1e293b;padding:24px 32px;border-radius:12px 12px 0 0">
-  <h2 style="color:#fff;margin:0;font-size:18px">${title}</h2>
+const HEADER = (title: string, sub?: string, brand?: TicketBrand) => {
+  const isLidia = brand === 'lidia'
+  const t = isLidia ? title.replace(/^Alora —/, 'LIDIA —') : title
+  return `
+<div style="background:${isLidia ? '#1a0b2e' : '#1e293b'};padding:24px 32px;border-radius:12px 12px 0 0">
+  ${isLidia ? `<img src="${PORTAL_URL}/logo-lidia.png" alt="LIDIA" height="32" style="display:block;height:32px;margin:0 0 10px">` : ''}
+  <h2 style="color:#fff;margin:0;font-size:18px">${t}</h2>
   ${sub ? `<p style="color:#94a3b8;margin:4px 0 0;font-size:13px">${sub}</p>` : ''}
 </div>`
+}
 
-function wrap(header: string, body: string) {
+function wrap(header: string, body: string, brand?: TicketBrand) {
   return `<div style="font-family:sans-serif;max-width:600px;margin:0 auto">
   ${header}
   <div style="background:#fff;padding:32px;border:1px solid #e2e8f0;border-top:0;border-radius:0 0 12px 12px">
     ${body}
-    ${FOOTER}
+    ${FOOTER(brand)}
   </div>
 </div>`
 }
+
+const escAttr = (v?: string | null) => (v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 // ─── Team notification (new ticket) ────────────────────────
 
@@ -37,7 +49,8 @@ export function buildTeamNotifHtml(ticket: {
   const attachHtml = (ticket.attachments ?? []).length > 0
     ? `<div style="margin-top:16px">
        <p style="font-size:12px;color:#64748b;margin:0 0 8px">Archivos adjuntos (${ticket.attachments!.length}):</p>
-       ${ticket.attachments!.map(a => `<a href="${a.url}" style="display:inline-block;margin:2px 4px 2px 0;padding:4px 10px;background:#f1f5f9;border-radius:6px;font-size:12px;color:#3b82f6;text-decoration:none">${a.name}</a>`).join('')}
+       ${ticket.attachments!.map(a => `<a href="${escAttr(a.url)}" style="display:inline-block;margin:2px 4px 2px 0;padding:4px 10px;background:#f1f5f9;border-radius:6px;font-size:12px;color:#3b82f6;text-decoration:none">${escAttr(a.name)}</a>`).join('')}
+       <div>${ticket.attachments!.filter(a => a.type?.startsWith('image/')).map(a => `<a href="${escAttr(a.url)}" style="display:inline-block;margin:8px 8px 0 0"><img src="${escAttr(a.url)}" alt="${escAttr(a.name)}" style="max-width:180px;max-height:180px;border-radius:8px;border:1px solid #e2e8f0"></a>`).join('')}</div>
        </div>`
     : ''
 
@@ -65,7 +78,7 @@ export function buildTeamNotifHtml(ticket: {
 // ─── Client confirmation (ticket created) ──────────────────
 
 export function buildClientConfirmHtml(ticket: {
-  numero: string; titulo: string; client_nombre: string; trackingUrl: string
+  numero: string; titulo: string; client_nombre: string; trackingUrl: string; brand?: TicketBrand
 }) {
   const body = `
     <p style="font-size:15px;color:#1e293b">Hola <strong>${ticket.client_nombre}</strong>,</p>
@@ -81,13 +94,13 @@ export function buildClientConfirmHtml(ticket: {
       Seguir mi ticket →
     </a>`
 
-  return wrap(HEADER('Alora — Centro de Soporte'), body)
+  return wrap(HEADER('Alora — Centro de Soporte', undefined, ticket.brand), body, ticket.brand)
 }
 
 // ─── Followup reminder (2-day inactivity) ──────────────────
 
 export function buildFollowupReminderHtml(ticket: {
-  numero: string; titulo: string; client_nombre: string | null; trackingUrl: string
+  numero: string; titulo: string; client_nombre: string | null; trackingUrl: string; brand?: TicketBrand
 }) {
   const body = `
     <p style="font-size:15px;color:#1e293b">Hola${ticket.client_nombre ? ` <strong>${ticket.client_nombre}</strong>` : ''},</p>
@@ -106,13 +119,13 @@ export function buildFollowupReminderHtml(ticket: {
       Si ya no necesitás soporte en este tema, podés ignorar este mensaje y el ticket se cerrará automáticamente.
     </p>`
 
-  return wrap(HEADER('Alora — Seguimiento de ticket', ticket.numero), body)
+  return wrap(HEADER('Alora — Seguimiento de ticket', ticket.numero, ticket.brand), body, ticket.brand)
 }
 
 // ─── Ticket closed by inactivity ───────────────────────────
 
 export function buildTicketClosedInactivityHtml(ticket: {
-  numero: string; titulo: string; client_nombre: string | null; trackingUrl: string
+  numero: string; titulo: string; client_nombre: string | null; trackingUrl: string; brand?: TicketBrand
 }) {
   const body = `
     <p style="font-size:15px;color:#1e293b">Hola${ticket.client_nombre ? ` <strong>${ticket.client_nombre}</strong>` : ''},</p>
@@ -130,7 +143,7 @@ export function buildTicketClosedInactivityHtml(ticket: {
       Ver ticket →
     </a>`
 
-  return wrap(HEADER('Alora — Ticket cerrado', ticket.numero), body)
+  return wrap(HEADER('Alora — Ticket cerrado', ticket.numero, ticket.brand), body, ticket.brand)
 }
 
 // ─── Status change notification ────────────────────────────
@@ -156,7 +169,7 @@ const ESTADO_MSG: Record<string, string> = {
 
 export function buildStatusChangeHtml(ticket: {
   numero: string; titulo: string; client_nombre: string | null
-  nuevo_estado: string; trackingUrl: string
+  nuevo_estado: string; trackingUrl: string; brand?: TicketBrand
 }) {
   const label   = ESTADO_LABELS[ticket.nuevo_estado] ?? ticket.nuevo_estado
   const color   = ESTADO_COLOR[ticket.nuevo_estado]  ?? '#3b82f6'
@@ -177,14 +190,14 @@ export function buildStatusChangeHtml(ticket: {
       Ver ticket →
     </a>`
 
-  return wrap(HEADER(`Alora — Ticket ${label.toLowerCase()}`, ticket.numero), body)
+  return wrap(HEADER(`Alora — Ticket ${label.toLowerCase()}`, ticket.numero, ticket.brand), body, ticket.brand)
 }
 
 // ─── Hours estimated (admin set hours, client must approve) ──
 
 export function buildHorasEstimadasHtml(ticket: {
   numero: string; titulo: string; client_nombre: string | null
-  horas_estimadas: number; trackingUrl: string
+  horas_estimadas: number; trackingUrl: string; brand?: TicketBrand
 }) {
   const body = `
     <p style="font-size:15px;color:#1e293b">Hola${ticket.client_nombre ? ` <strong>${ticket.client_nombre}</strong>` : ''},</p>
@@ -203,7 +216,7 @@ export function buildHorasEstimadasHtml(ticket: {
       Aprobar horas →
     </a>`
 
-  return wrap(HEADER('Alora — Estimación de horas', ticket.numero), body)
+  return wrap(HEADER('Alora — Estimación de horas', ticket.numero, ticket.brand), body, ticket.brand)
 }
 
 // ─── Hours approved (client approved, notify admin) ──────────
@@ -228,7 +241,7 @@ export function buildHorasAprobadasAdminHtml(ticket: {
 
 export function buildCsatEmailHtml(ticket: {
   numero: string; titulo: string; client_nombre: string | null
-  thumbsUpUrl: string; thumbsDownUrl: string
+  thumbsUpUrl: string; thumbsDownUrl: string; brand?: TicketBrand
 }) {
   const body = `
     <p style="font-size:15px;color:#1e293b">Hola${ticket.client_nombre ? ` <strong>${ticket.client_nombre}</strong>` : ''},</p>
@@ -244,7 +257,7 @@ export function buildCsatEmailHtml(ticket: {
       </div>
     </div>
     <p style="font-size:13px;color:#94a3b8">Tu opinión nos ayuda a mejorar el servicio.</p>`
-  return wrap(HEADER('Alora — ¿Cómo fue tu experiencia?', ticket.numero), body)
+  return wrap(HEADER('Alora — ¿Cómo fue tu experiencia?', ticket.numero, ticket.brand), body, ticket.brand)
 }
 
 // ─── 80% hours warning ────────────────────────────────────────
@@ -273,7 +286,7 @@ export function buildHorasAlertaHtml(data: {
 
 export function buildTeamReplyHtml(ticket: {
   numero: string; titulo: string; client_nombre: string | null
-  commentText: string; trackingUrl: string
+  commentText: string; trackingUrl: string; brand?: TicketBrand
 }) {
   const body = `
     <p style="font-size:15px;color:#1e293b">Hola${ticket.client_nombre ? ` <strong>${ticket.client_nombre}</strong>` : ''},</p>
@@ -287,5 +300,5 @@ export function buildTeamReplyHtml(ticket: {
       Ver conversación completa →
     </a>`
 
-  return wrap(HEADER('Alora — Centro de Soporte'), body)
+  return wrap(HEADER('Alora — Centro de Soporte', undefined, ticket.brand), body, ticket.brand)
 }
