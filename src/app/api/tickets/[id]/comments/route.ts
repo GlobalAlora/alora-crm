@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sendGmail } from '@/lib/google-gmail'
 import { PORTAL_URL, buildTeamReplyHtml } from '@/lib/ticket-emails'
 import { getTicketBrand } from '@/lib/ticket-brand'
+import { notifyLidiaWhatsApp } from '@/lib/lidia-notify'
 
 const ALLOWED_ROLES = ['admin', 'sales']
 type Params = { params: Promise<{ id: string }> }
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const [userDataRes, ticketRes] = await Promise.all([
     admin.from('users').select('id,full_name,avatar_url').eq('id', user.id).maybeSingle(),
-    admin.from('tickets').select('numero,titulo,client_email,client_nombre,ticket_token').eq('id', id).maybeSingle(),
+    admin.from('tickets').select('numero,titulo,estado,client_email,client_nombre,ticket_token').eq('id', id).maybeSingle(),
   ])
 
   const ticket = ticketRes.data
@@ -84,7 +85,13 @@ export async function POST(req: NextRequest, { params }: Params) {
     void Promise.resolve(admin.from('tickets').update({ client_unread: true }).eq('id', id))
   }
 
-  if (!is_internal && ticket?.client_email && ticket?.ticket_token) {
+  // Tickets que LIDIA creó por WhatsApp: la respuesta le llega a la clínica por WhatsApp (con el estado).
+  // Si LIDIA no pudo mandarla, queda el mail de siempre como respaldo.
+  const whatsapp = !is_internal && text?.trim()
+    ? await notifyLidiaWhatsApp(admin, id, { comentario: text.trim(), estado: ticket?.estado })
+    : 'skipped'
+
+  if (!is_internal && whatsapp !== 'sent' && ticket?.client_email && ticket?.ticket_token) {
     const brand = await getTicketBrand(admin, id)
     sendGmail({
       from:    'info@globalalora.com',

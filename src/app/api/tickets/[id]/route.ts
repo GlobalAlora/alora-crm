@@ -5,6 +5,7 @@ import { createLinkedTask } from '@/lib/ticket-task'
 import { sendGmail } from '@/lib/google-gmail'
 import { PORTAL_URL, buildStatusChangeHtml, buildHorasEstimadasHtml, buildCsatEmailHtml } from '@/lib/ticket-emails'
 import { getTicketBrand } from '@/lib/ticket-brand'
+import { notifyLidiaWhatsApp } from '@/lib/lidia-notify'
 const INTERNAL_EMAIL = 'somosglobalalora@gmail.com'
 
 const ALLOWED_ROLES = ['admin', 'sales']
@@ -138,7 +139,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // Email client on status change (only for portal clients with email)
   const NOTIFY_STATES = ['en_progreso', 'en_espera', 'estimacion', 'resuelto', 'cerrado']
   const nuevoEstado = updates.estado as string | undefined
-  if (nuevoEstado && nuevoEstado !== current?.estado && NOTIFY_STATES.includes(nuevoEstado) && current?.client_email && current?.ticket_token) {
+  // Tickets que LIDIA creó por WhatsApp: el cambio de estado le llega a la clínica por WhatsApp.
+  // Si LIDIA no pudo mandarlo, queda el mail de siempre (y el CSAT) como respaldo.
+  const whatsapp = nuevoEstado && nuevoEstado !== current?.estado && NOTIFY_STATES.includes(nuevoEstado)
+    ? await notifyLidiaWhatsApp(admin, id, { estado: nuevoEstado })
+    : 'skipped'
+  if (nuevoEstado && nuevoEstado !== current?.estado && NOTIFY_STATES.includes(nuevoEstado) && whatsapp !== 'sent' && current?.client_email && current?.ticket_token) {
     sendGmail({
       from:    'info@globalalora.com',
       to:      current.client_email,
@@ -155,7 +161,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   // CSAT email when ticket is resolved or closed
-  if (nuevoEstado && (nuevoEstado === 'resuelto' || nuevoEstado === 'cerrado') && nuevoEstado !== current?.estado && current?.client_email && current?.ticket_token) {
+  if (nuevoEstado && (nuevoEstado === 'resuelto' || nuevoEstado === 'cerrado') && nuevoEstado !== current?.estado && whatsapp !== 'sent' && current?.client_email && current?.ticket_token) {
     sendGmail({
       from:    'info@globalalora.com',
       to:      current.client_email,
