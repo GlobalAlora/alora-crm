@@ -82,17 +82,18 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // En Vercel la función se congela al responder: lo que queda sin await no se completa.
   if (autoProjectId) {
-    createLinkedTask({
+    await createLinkedTask({
       id: ticket.id, numero, titulo, prioridad,
       project_id: autoProjectId, attachments: [],
-    }, admin).catch(() => {})
+    }, admin).catch(err => console.error('[lidia-ticket] tarea vinculada falló', numero, err))
   }
 
   const trackingUrl = `${PORTAL_URL}/${ticket.ticket_token}`
 
   // Solo aviso interno: la confirmación al cliente la manda LIDIA por WhatsApp.
-  sendGmail({
+  await sendGmail({
     from:    'info@globalalora.com',
     to:      INTERNAL_EMAIL,
     cc:      INTERNAL_CC,
@@ -106,7 +107,7 @@ export async function POST(req: NextRequest) {
       client_telefono: body.client_telefono ? esc(body.client_telefono) : null,
       prioridad, attachments: [], trackingUrl,
     }),
-  }).catch(() => {})
+  }).catch(err => console.error('[lidia-ticket] mail interno falló', numero, err))
 
   return NextResponse.json({ data: { numero, trackingUrl } }, { status: 201 })
 }
